@@ -1,0 +1,18 @@
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.tar.bz2
+*.tar.xz
+
+
+# PyTorch model files
+*.pt
+*.pth
+*.ckpt
+
+# Data/config files
+*.json
+*.xml
+*.csv
