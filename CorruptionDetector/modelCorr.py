@@ -11,6 +11,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
+num_epochs = 9
+
+
 def extract_class_number(filename):
     if filename.startswith("uncorrupted_"):
         return 0
@@ -147,7 +151,7 @@ def main():
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
     
-    num_epochs = 10
+   
     num_training_steps = num_epochs * len(train_dataloader)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_training_steps)
     
