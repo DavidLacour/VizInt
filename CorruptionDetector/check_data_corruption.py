@@ -107,13 +107,147 @@ def analyze_class_distribution():
             print(f"  {class_name}: {count} images")
     else:
         print(f"\nAll classes have exactly {expected_count} images as expected.")
+    
+    return class_counts
+
+def check_for_class_zero():
+    """
+    Specifically check for the presence of class 0 (uncorrupted) images and
+    print detailed information about them if they exist.
+    """
+    if not os.path.exists(dataset_path):
+        print(f"Error: Dataset path '{dataset_path}' does not exist")
+        return False
+    
+    class_zero_images = []
+    
+    for filename in os.listdir(dataset_path):
+        file_path = os.path.join(dataset_path, filename)
+        
+        if not os.path.isfile(file_path) or filename == "class_mapping.txt":
+            continue
+        
+        if filename.startswith("uncorrupted_"):
+            class_zero_images.append(filename)
+    
+    print("\nClass 0 (Uncorrupted) Verification:")
+    print("=" * 50)
+    
+    if class_zero_images:
+        print(f"Found {len(class_zero_images)} images for class 0 (uncorrupted)")
+        print("\nSample of class 0 images:")
+        for i, filename in enumerate(class_zero_images[:10], 1):  # Show first 10 examples
+            file_size = os.path.getsize(os.path.join(dataset_path, filename)) / 1024  # Size in KB
+            print(f"  {i}. {filename} ({file_size:.1f} KB)")
+        
+        if len(class_zero_images) > 10:
+            print(f"  ... and {len(class_zero_images) - 10} more")
+        
+        return True
+    else:
+        print("ERROR: No images found for class 0 (uncorrupted)")
+        print("Possible reasons:")
+        print("  1. The 'normal_images_root' directory in dataset creation script doesn't exist")
+        print("  2. The 'process_uncorrupted_images' function failed during dataset creation")
+        print("  3. The image file extensions in the uncorrupted directory aren't recognized")
+        print("\nRecommended actions:")
+        print("  1. Check if the directory exists: ls -la /home/david-lacour/Documents/transformerVision/CorruptionDetector/ILSVRC2012_img_val/")
+        print("  2. Run only the uncorrupted image processing part of the dataset creation script")
+        print("  3. Check the logs from when you created the dataset for any warnings")
+        
+        return False
+
+def verify_all_required_classes():
+    """
+    Verify that all classes from 0 to 25 are present in the dataset.
+    """
+    if not os.path.exists(dataset_path):
+        print(f"Error: Dataset path '{dataset_path}' does not exist")
+        return
+    
+    # Load class mapping from file
+    class_names = {}
+    mapping_file = os.path.join(dataset_path, "class_mapping.txt")
+    if os.path.exists(mapping_file):
+        with open(mapping_file, 'r') as f:
+            for line in f:
+                if line.startswith("Class "):
+                    parts = line.strip().split(': ')
+                    if len(parts) == 2:
+                        class_num = int(parts[0].replace("Class ", ""))
+                        class_name = parts[1]
+                        class_names[class_num] = class_name
+    
+    if not class_names:
+        print("Warning: Could not load class mapping from file")
+        expected_classes = set(range(26))  # Classes 0-25
+    else:
+        expected_classes = set(class_names.keys())
+    
+    # Initialize counters for each class
+    class_counts = {i: 0 for i in expected_classes}
+    
+    # Count files for each class
+    for filename in os.listdir(dataset_path):
+        file_path = os.path.join(dataset_path, filename)
+        if not os.path.isfile(file_path) or filename == "class_mapping.txt":
+            continue
+        
+        if filename.startswith("uncorrupted_"):
+            class_counts[0] += 1
+        else:
+            match = re.search(r'_(\d+)_', filename)
+            if match:
+                class_num = int(match.group(1))
+                if class_num in class_counts:
+                    class_counts[class_num] += 1
+    
+    # Check if any classes are missing
+    missing_classes = [class_num for class_num in expected_classes if class_counts[class_num] == 0]
+    
+    print("\nClass Presence Verification:")
+    print("=" * 50)
+    
+    if missing_classes:
+        print(f"WARNING: {len(missing_classes)} classes are completely missing from the dataset:")
+        for class_num in sorted(missing_classes):
+            print(f"  Class {class_num}: {class_names.get(class_num, 'Unknown')} - 0 images")
+    else:
+        print("SUCCESS: All required classes (0-25) are present in the dataset")
+    
+    # Check for low count classes
+    low_count_classes = [class_num for class_num in expected_classes 
+                        if 0 < class_counts[class_num] < 20]  # Arbitrary threshold of 20
+    
+    if low_count_classes:
+        print(f"\nWARNING: {len(low_count_classes)} classes have very few images (less than 20):")
+        for class_num in sorted(low_count_classes):
+            print(f"  Class {class_num}: {class_names.get(class_num, 'Unknown')} - {class_counts[class_num]} images")
+    
+    print("\nClass Counts Summary:")
+    for class_num in sorted(expected_classes):
+        class_name = class_names.get(class_num, 'Unknown')
+        count = class_counts[class_num]
+        status = "✓" if count >= 20 else "⚠" if count > 0 else "✗"
+        print(f"  {status} Class {class_num}: {class_name} - {count} images")
 
 if __name__ == "__main__":
     print("Checking filename uniqueness in the dataset...")
     duplicates = check_filename_uniqueness()
     
     print("\nAnalyzing class distribution...")
-    analyze_class_distribution()
+    class_counts = analyze_class_distribution()
+    
+    print("\nSpecifically checking for class 0 (uncorrupted) images...")
+    has_class_zero = check_for_class_zero()
+    
+    print("\nVerifying all required classes...")
+    verify_all_required_classes()
     
     if duplicates:
         print("\nSuggestion: Run the dataset creation script again with a different random seed or modify it to ensure each base image is used only once.")
+    
+    if not has_class_zero:
+        print("\nCRITICAL: Your dataset is missing the 'uncorrupted' class (class 0).")
+        print("This explains why this class is missing from your model's confusion matrix.")
+        print("Run the dataset creation script again and ensure the process_uncorrupted_images function completes successfully.")

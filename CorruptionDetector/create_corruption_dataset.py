@@ -9,7 +9,7 @@ path = "/home/david-lacour/Documents/transformerVision/CorruptionDetector"
 
 imagenet_c_root = path + "/imagenet-c/"
 laion_c_root = path + "/laion-c/" 
-normal_images_root = path + "/ILSVRC2012_img_val/"  
+normal_images_root = path + "/uncorrupted/ILSVRC2012_img_val/"  
 output_root = path + "/data_corruption_classifications/"
 
 os.makedirs(output_root, exist_ok=True)
