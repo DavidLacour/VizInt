@@ -1,0 +1,29 @@
+@article{hendrycks2019robustness,
+      title={Benchmarking Neural Network Robustness to Common Corruptions and Perturbations},
+      author={Hendrycks, Dan and Dietterich, Thomas},
+      journal={Proceedings of the International Conference on Learning Representations},
+      year={2019}
+    }
+     
+     
+@article{ILSVRC15,
+Author = {Olga Russakovsky and Jia Deng and Hao Su and Jonathan Krause and Sanjeev Satheesh and Sean Ma and Zhiheng Huang and Andrej Karpathy and Aditya Khosla and Michael Bernstein and Alexander C. Berg and Li Fei-Fei},
+Title = {{ImageNet Large Scale Visual Recognition Challenge}},
+Year = {2015},
+journal   = {International Journal of Computer Vision (IJCV)},
+doi = {10.1007/s11263-015-0816-y},
+volume={115},
+number={3},
+pages={211-252}
+}
+
+@inproceedings{
+li2025laionc,
+title={{LAION}-C: An Out-of-Distribution Benchmark for Web-Scale Vision Models},
+author={Fanfei Li and Thomas Klein and Wieland Brendel and Robert Geirhos and Roland S. Zimmermann},
+booktitle={Workshop on Spurious Correlation and Shortcut Learning: Foundations and Solutions},
+year={2025},
+url={https://openreview.net/forum?id=t1IBHkU2bt}
+}
+
+
