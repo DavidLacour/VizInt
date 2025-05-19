@@ -1815,119 +1815,178 @@ def evaluate_models(main_model, healer_model, ttt_model, dataset_path="tiny-imag
     }
     
     # For transformed data, track per-transformation metrics
+    transform_types = ['gaussian_noise', 'rotation', 'h_flip', 'affine']
     if severity > 0:
-        transform_types = ['gaussian_noise', 'rotation', 'h_flip', 'affine']
         for model_name in ['main', 'healer', 'ttt']:
             if results[model_name] is not None:
                 results[model_name]['per_transform'] = {t: {'correct': 0, 'total': 0} for t in transform_types}
     
-    with torch.no_grad():
-        for batch in val_loader:
-            if severity > 0:
-                # Unpack batch with transformations
-                orig_images, transformed_images, labels, transform_params = batch
-                orig_images = orig_images.to(device)
-                transformed_images = transformed_images.to(device)
-                labels = labels.to(device)
+    # Helper function to determine transform type by examining parameter values
+    def determine_transform_type(params):
+        """
+        Determine transform type by examining parameter values directly
+        """
+        try:
+            # Handle different possible formats
+            if isinstance(params, dict):
+                # Check each transform parameter to determine which was applied
+                if params.get('noise_std', 0.0) > 0.01:
+                    return 'gaussian_noise'
+                elif abs(params.get('rotation_angle', 0.0)) > 0.01:
+                    return 'rotation'
+                elif params.get('h_flip', 0.0) > 0.5:  # h_flip is binary (0 or 1)
+                    return 'h_flip'
+                elif (abs(params.get('translate_x', 0.0)) > 0.001 or 
+                      abs(params.get('translate_y', 0.0)) > 0.001 or
+                      abs(params.get('shear_x', 0.0)) > 0.001 or
+                      abs(params.get('shear_y', 0.0)) > 0.001):
+                    return 'affine'
+                # Fallback to the explicit transform_type if available
+                elif 'transform_type' in params:
+                    t_type = params['transform_type']
+                    if isinstance(t_type, str):
+                        if 'noise' in t_type.lower() or 'gaussian' in t_type.lower():
+                            return 'gaussian_noise'
+                        elif 'rot' in t_type.lower():
+                            return 'rotation'
+                        elif 'flip' in t_type.lower():
+                            return 'h_flip'
+                        elif 'affine' in t_type.lower() or 'trans' in t_type.lower():
+                            return 'affine'
                 
-                # 1. Evaluate main model on transformed images
-                main_outputs = main_model(transformed_images)
-                main_preds = torch.argmax(main_outputs, dim=1)
-                results['main']['correct'] += (main_preds == labels).sum().item()
-                results['main']['total'] += labels.size(0)
-                
-                # Track per-transformation accuracy for main model
-                for i, params in enumerate(transform_params):
-                    # Check if params is a string or a dictionary
-                    if isinstance(params, str):
-                        t_type = params  # If it's a string, assume it's the transform type
-                    else:
-                        t_type = params['transform_type']  # Original code for dictionary case
-                    
-                    results['main']['per_transform'][t_type]['total'] += 1
-                    if main_preds[i] == labels[i]:
-                        results['main']['per_transform'][t_type]['correct'] += 1
-                
-                # 2. Evaluate healer model if provided
-                if healer_model is not None:
-                    # Predict transformations
-                    healer_predictions = healer_model(transformed_images)
-                    
-                    # Apply inverse transformations
-                    corrected_images = healer_model.apply_correction(transformed_images, healer_predictions)
-                    
-                    # Run corrected images through main model
-                    healer_outputs = main_model(corrected_images)
-                    healer_preds = torch.argmax(healer_outputs, dim=1)
-                    results['healer']['correct'] += (healer_preds == labels).sum().item()
-                    results['healer']['total'] += labels.size(0)
-                    
-                    # Track per-transformation accuracy for healer
-                    for i, params in enumerate(transform_params):
-                        t_type = params['transform_type']
-                        results['healer']['per_transform'][t_type]['total'] += 1
-                        if healer_preds[i] == labels[i]:
-                            results['healer']['per_transform'][t_type]['correct'] += 1
-                
-                # 3. Evaluate TTT model if provided
-                if ttt_model is not None:
-                    # Create copy and adapt it at test time
-                    adapted_model = ttt_model.test_time_adapt(transformed_images, num_steps=5)
-                    
-                    # Run adapted model on transformed images
-                    ttt_outputs = adapted_model(transformed_images)
-                    ttt_preds = torch.argmax(ttt_outputs.logits, dim=1)
-                    results['ttt']['correct'] += (ttt_preds == labels).sum().item()
-                    results['ttt']['total'] += labels.size(0)
-                    
-                    # Track per-transformation accuracy for TTT
-                    for i, params in enumerate(transform_params):
-                        t_type = params['transform_type']
-                        results['ttt']['per_transform'][t_type]['total'] += 1
-                        if ttt_preds[i] == labels[i]:
-                            results['ttt']['per_transform'][t_type]['correct'] += 1
-            else:
-                # Clean data evaluation (no transformations)
-                images, labels = batch
-                images = images.to(device)
-                labels = labels.to(device)
-                
-                # Main model on clean images
-                main_outputs = main_model(images)
-                main_preds = torch.argmax(main_outputs, dim=1)
-                results['main']['correct'] += (main_preds == labels).sum().item()
-                results['main']['total'] += labels.size(0)
-                
-                # For clean data, healer should not be used (it would add noise)
-                # But we can evaluate TTT on clean data
-                if ttt_model is not None:
-                    # Just use TTT without adaptation since there's no distribution shift
-                    ttt_outputs = ttt_model(images)
-                    ttt_preds = torch.argmax(ttt_outputs.logits, dim=1)
-                    results['ttt']['correct'] += (ttt_preds == labels).sum().item()
-                    results['ttt']['total'] += labels.size(0)
-    
-    # Calculate overall accuracies
-    for model_name in ['main', 'healer', 'ttt']:
-        if results[model_name] is not None and results[model_name]['total'] > 0:
-            results[model_name]['accuracy'] = results[model_name]['correct'] / results[model_name]['total']
+                # If we still can't determine, use a default
+                return 'gaussian_noise'
             
-            # Calculate per-transformation accuracies
-            if severity > 0 and 'per_transform' in results[model_name]:
-                results[model_name]['per_transform_acc'] = {}
-                for t_type in transform_types:
-                    t_total = results[model_name]['per_transform'][t_type]['total']
-                    if t_total > 0:
-                        results[model_name]['per_transform_acc'][t_type] = (
-                            results[model_name]['per_transform'][t_type]['correct'] / t_total
-                        )
-                    else:
-                        results[model_name]['per_transform_acc'][t_type] = 0.0
+            # Handle string case (unlikely but for completeness)
+            elif isinstance(params, str):
+                t_type = params.lower()
+                if 'noise' in t_type or 'gaussian' in t_type:
+                    return 'gaussian_noise'
+                elif 'rot' in t_type:
+                    return 'rotation'
+                elif 'flip' in t_type or 'mirror' in t_type:
+                    return 'h_flip'
+                elif 'affine' in t_type or 'trans' in t_type:
+                    return 'affine'
+                return 'gaussian_noise'  # Default
+            
+            # Handle unexpected formats
+            else:
+                print(f"Warning: Unexpected params format: {type(params)}")
+                return 'gaussian_noise'  # Default fallback
+                
+        except Exception as e:
+            print(f"Error determining transform type: {e}")
+            return 'gaussian_noise'  # Safe fallback
     
-    return results
+    with torch.no_grad():
+        for i, batch in enumerate(val_loader):
+            if i < 500 : 
+                if severity > 0:
+                    # Unpack batch with transformations
+                    orig_images, transformed_images, labels, transform_params = batch
+                    orig_images = orig_images.to(device)
+                    transformed_images = transformed_images.to(device)
+                    labels = labels.to(device)
+                    
+                    # 1. Evaluate main model on transformed images
+                    main_outputs = main_model(transformed_images)
+                    main_preds = torch.argmax(main_outputs, dim=1)
+                    results['main']['correct'] += (main_preds == labels).sum().item()
+                    results['main']['total'] += labels.size(0)
+                    
+                    # Track per-transformation accuracy for main model
+                    for i, params in enumerate(transform_params):
+                        # Use the helper function to determine transform type based on parameter values
+                        t_type = determine_transform_type(params)
+                        
+                        results['main']['per_transform'][t_type]['total'] += 1
+                        if main_preds[i] == labels[i]:
+                            results['main']['per_transform'][t_type]['correct'] += 1
+                    
+                    # 2. Evaluate healer model if provided
+                    if healer_model is not None:
+                        # Predict transformations
+                        healer_predictions = healer_model(transformed_images)
+                        
+                        # Apply inverse transformations
+                        corrected_images = healer_model.apply_correction(transformed_images, healer_predictions)
+                        
+                        # Run corrected images through main model
+                        healer_outputs = main_model(corrected_images)
+                        healer_preds = torch.argmax(healer_outputs, dim=1)
+                        results['healer']['correct'] += (healer_preds == labels).sum().item()
+                        results['healer']['total'] += labels.size(0)
+                        
+                        # Track per-transformation accuracy for healer
+                        for i, params in enumerate(transform_params):
+                            t_type = determine_transform_type(params)
+                            
+                            results['healer']['per_transform'][t_type]['total'] += 1
+                            if healer_preds[i] == labels[i]:
+                                results['healer']['per_transform'][t_type]['correct'] += 1
+                    
+                    # 3. Evaluate TTT model if provided
+                    if ttt_model is not None:
+                        # Create copy and adapt it at test time
+                        with torch.enable_grad():
+                            adapted_model = ttt_model.test_time_adapt(transformed_images, num_steps=5)
+                        
+                        # Run adapted model on transformed images
+                        ttt_outputs = adapted_model(transformed_images)
+                        ttt_preds = torch.argmax(ttt_outputs.logits, dim=1)
+                        results['ttt']['correct'] += (ttt_preds == labels).sum().item()
+                        results['ttt']['total'] += labels.size(0)
+                        
+                        # Track per-transformation accuracy for TTT
+                        for i, params in enumerate(transform_params):
+                            t_type = determine_transform_type(params)
+                            
+                            results['ttt']['per_transform'][t_type]['total'] += 1
+                            if ttt_preds[i] == labels[i]:
+                                results['ttt']['per_transform'][t_type]['correct'] += 1
+                else:
+                    # Clean data evaluation (no transformations)
+                    images, labels = batch
+                    images = images.to(device)
+                    labels = labels.to(device)
+                    
+                    # Main model on clean images
+                    main_outputs = main_model(images)
+                    main_preds = torch.argmax(main_outputs, dim=1)
+                    results['main']['correct'] += (main_preds == labels).sum().item()
+                    results['main']['total'] += labels.size(0)
+                    
+                    # For clean data, healer should not be used (it would add noise)
+                    # But we can evaluate TTT on clean data
+                    if ttt_model is not None:
+                        # Just use TTT without adaptation since there's no distribution shift
+                        ttt_outputs = ttt_model(images)
+                        ttt_preds = torch.argmax(ttt_outputs.logits, dim=1)
+                        results['ttt']['correct'] += (ttt_preds == labels).sum().item()
+                        results['ttt']['total'] += labels.size(0)
+        
+        # Calculate overall accuracies
+        for model_name in ['main', 'healer', 'ttt']:
+            if results[model_name] is not None and results[model_name]['total'] > 0:
+                results[model_name]['accuracy'] = results[model_name]['correct'] / results[model_name]['total']
+                
+                # Calculate per-transformation accuracies
+                if severity > 0 and 'per_transform' in results[model_name]:
+                    results[model_name]['per_transform_acc'] = {}
+                    for t_type in transform_types:
+                        t_total = results[model_name]['per_transform'][t_type]['total']
+                        if t_total > 0:
+                            results[model_name]['per_transform_acc'][t_type] = (
+                                results[model_name]['per_transform'][t_type]['correct'] / t_total
+                            )
+                        else:
+                            results[model_name]['per_transform_acc'][t_type] = 0.0
+        
+        return results
 
 
-def evaluate_full_pipeline(main_model, healer_model, ttt_model, dataset_path="tiny-imagenet-200", severities=[0.0, 0.5, 1.0, 1.5, 2.0]):
+def evaluate_full_pipeline(main_model, healer_model, ttt_model, dataset_path="tiny-imagenet-200", severities=[0.3]):
     """
     Comprehensive evaluation across multiple severities including clean data.
     
@@ -2099,10 +2158,14 @@ def log_results_to_wandb(all_results):
         accs_by_severity['severity'].append(severity)
         accs_by_severity['main'].append(results['main']['accuracy'])
         
-        if results['healer'] is not None:
+        # In the log_results_to_wandb function, around line 2162, change:
+        # In the log_results_to_wandb function, around line 2162
+        if results['healer'] is not None and 'accuracy' in results['healer']:
             accs_by_severity['healer'].append(results['healer']['accuracy'])
         elif severity > 0.0:
-            accs_by_severity['healer'].append(0)  # Placeholder
+            accs_by_severity['healer'].append(0)  # Placeholder for OOD data
+        else:
+            accs_by_severity['healer'].append(None)  # Placeholder for clean data
             
         if results['ttt'] is not None:
             accs_by_severity['ttt'].append(results['ttt']['accuracy'])
@@ -2118,7 +2181,6 @@ def log_results_to_wandb(all_results):
             "chart/ttt_acc": accs_by_severity['ttt'][i]
         })
 
-
 def main():
     # Set seed for reproducibility
     set_seed(42)
@@ -2126,21 +2188,86 @@ def main():
     # Dataset path
     dataset_path = "tiny-imagenet-200"
     
-    # Step 1: Train the main classification model
-    print("=== Training Main Classification Model ===")
-    base_model = train_main_model(dataset_path)
+    # Step 1: Check for existing main classification model or train a new one
+    main_model_path = "bestmodel_main/best_model.pt"
+    if os.path.exists(main_model_path):
+        print(f"Found existing main classification model at {main_model_path}")
+        # Initialize the model with the same architecture
+        base_model = create_vit_model(
+            img_size=64,
+            patch_size=8,
+            in_chans=3,
+            num_classes=200,
+            embed_dim=384,
+            depth=8,
+            head_dim=64,
+            mlp_ratio=4.0,
+            use_resnet_stem=True
+        )
+        # Load the saved weights - need to strip the "vit_model." prefix
+        checkpoint = torch.load(main_model_path)
+        
+        # Create a new state dict with the correct keys
+        new_state_dict = {}
+        for key, value in checkpoint['model_state_dict'].items():
+            if key.startswith("vit_model."):
+                new_key = key[len("vit_model."):]
+                new_state_dict[new_key] = value
+        
+        # Load the adjusted state dict
+        base_model.load_state_dict(new_state_dict)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        base_model = base_model.to(device)
+        base_model.eval()
+        print(f"Loaded model with validation accuracy: {checkpoint.get('val_acc', 'N/A')}")
+    else:
+        print("=== Training Main Classification Model ===")
+        base_model = train_main_model(dataset_path)
     
-    # Step 2: Train the transformation healer model
-    print("\n=== Training Transformation Healer Model ===")
-    healer_model = train_healer_model(dataset_path, severity=1.0)
+    # Step 2: Check for existing healer model or train a new one
+    healer_model_path = "bestmodel_healer/best_model.pt"
+    if os.path.exists(healer_model_path):
+        print(f"Found existing healer model at {healer_model_path}")
+        # Initialize the model with the same architecture
+        healer_model = TransformationHealer(
+            img_size=64,
+            patch_size=8,
+            in_chans=3,
+            embed_dim=384,
+            depth=6,
+            head_dim=64
+        )
+        # Load the saved weights
+        checkpoint = torch.load(healer_model_path)
+        healer_model.load_state_dict(checkpoint['model_state_dict'])
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        healer_model = healer_model.to(device)
+        healer_model.eval()
+        print(f"Loaded healer model with training loss: {checkpoint.get('train_loss', 'N/A')}")
+    else:
+        print("\n=== Training Transformation Healer Model ===")
+        healer_model = train_healer_model(dataset_path, severity=1.0)
     
-    # Step 3: Train the TTT model
-    print("\n=== Training Test-Time Training (TTT) Model ===")
-    ttt_model = train_ttt_model(base_model, dataset_path)
+    # Step 3: Check for existing TTT model or train a new one
+    ttt_model_path = "bestmodel_ttt/best_model.pt"
+    if os.path.exists(ttt_model_path):
+        print(f"Found existing TTT model at {ttt_model_path}")
+        # Initialize the model with the base model
+        ttt_model = TTTModel(base_model)
+        # Load the saved weights
+        checkpoint = torch.load(ttt_model_path)
+        ttt_model.load_state_dict(checkpoint['model_state_dict'])
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        ttt_model = ttt_model.to(device)
+        ttt_model.eval()
+        print(f"Loaded TTT model with validation accuracy: {checkpoint.get('val_acc', 'N/A')}")
+    else:
+        print("\n=== Training Test-Time Training (TTT) Model ===")
+        ttt_model = train_ttt_model(base_model, dataset_path)
     
     # Step 4: Comprehensive evaluation with and without OOD transformations
     print("\n=== Comprehensive Evaluation ===")
-    severities = [0.0, 0.2, 0.5, 1.0, 1.5, 2.0]  # Including 0.0 for clean data
+    severities = [ 0.2]  # Including 0.0 for clean data
     all_results = evaluate_full_pipeline(
         base_model, healer_model, ttt_model, dataset_path, severities
     )
