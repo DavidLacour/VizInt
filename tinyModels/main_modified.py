@@ -283,158 +283,321 @@ def main():
     
     # Initialize models
     main_model = None
+    main_model_robust = None
     healer_model = None
     ttt_model = None
     blended_model = None
     
+    # Check if models exist before training
+    main_model_path = f"{args.model_dir}/bestmodel_main/best_model.pt"
+    robust_model_path = f"{args.model_dir}/bestmodel_robust/best_model.pt"
+    healer_model_path = f"{args.model_dir}/bestmodel_healer/best_model.pt"
+    ttt_model_path = f"{args.model_dir}/bestmodel_ttt/best_model.pt" if args.include_ttt else None
+    blended_model_path = f"{args.model_dir}/bestmodel_blended/best_model.pt" if args.include_blended else None
+    
     # Training mode
     if args.mode in ["train", "all"]:
-        print("\n=== Training Main Classification Model ===")
-        main_model = train_main_model(args.dataset)
+        # Check if main model exists
+        if not os.path.exists(main_model_path):
+            print("\n=== Training Main Classification Model ===")
+            main_model = train_main_model(args.dataset)
+        else:
+            print(f"\n=== Main Classification Model found at {main_model_path}, skipping training ===")
+            main_model = load_main_model(main_model_path, device)
         
-        print("\n=== Training Transformation Healer Model ===")
-        healer_model = train_healer_model(args.dataset, severity=args.severity)
+        # Check if robust main model exists
+        if not os.path.exists(robust_model_path):
+            print("\n=== Training Robust Main Classification Model ===")
+            main_model_robust = train_main_model_robust(args.dataset, severity=args.severity)
+        else:
+            print(f"\n=== Robust Main Classification Model found at {robust_model_path}, skipping training ===")
+            main_model_robust = load_main_model(robust_model_path, device)
         
-        # Train TTT model if not skipped
+        # Check if healer model exists
+        if not os.path.exists(healer_model_path):
+            print("\n=== Training Transformation Healer Model ===")
+            healer_model = train_healer_model(args.dataset, severity=args.severity)
+        else:
+            print(f"\n=== Healer Model found at {healer_model_path}, skipping training ===")
+            healer_model = load_healer_model(healer_model_path, device)
+        
+        # Train TTT model if not skipped and not already existing
         if args.include_ttt and not args.skip_ttt:
-            print("\n=== Training Test-Time Training Model ===")
-            ttt_model = train_ttt_model(args.dataset, base_model=main_model, severity=args.severity)
+            if not os.path.exists(ttt_model_path):
+                print("\n=== Training Test-Time Training Model ===")
+                if main_model is None:
+                    main_model = load_main_model(main_model_path, device)
+                ttt_model = train_ttt_model(args.dataset, base_model=main_model, severity=args.severity)
+            else:
+                print(f"\n=== TTT Model found at {ttt_model_path}, skipping training ===")
+                if main_model is None:
+                    main_model = load_main_model(main_model_path, device)
+                ttt_model = load_ttt_model(ttt_model_path, main_model, device)
         
-        # Train BlendedTTT model if requested
+        # Train BlendedTTT model if requested and not already existing
         if args.include_blended:
-            print("\n=== Training BlendedTTT Model ===")
-            blended_model = train_blended_ttt_model(main_model, args.dataset)
+            if not os.path.exists(blended_model_path):
+                print("\n=== Training BlendedTTT Model ===")
+                if main_model is None:
+                    main_model = load_main_model(main_model_path, device)
+                blended_model = train_blended_ttt_model(main_model, args.dataset)
+            else:
+                print(f"\n=== BlendedTTT Model found at {blended_model_path}, skipping training ===")
+                if main_model is None:
+                    main_model = load_main_model(main_model_path, device)
+                blended_model = load_blended_model(blended_model_path, main_model, device)
     
     # Evaluation mode
     if args.mode in ["evaluate", "all"]:
-        if main_model is None or healer_model is None:
-            print("Loading models for evaluation...")
-            
-            # Load main model if not already loaded
-            if main_model is None:
-                main_model_path = f"{args.model_dir}/bestmodel_main/best_model.pt"
-                if os.path.exists(main_model_path):
-                    print(f"Loading main model from {main_model_path}")
-                    main_model = create_vit_model(
-                        img_size=64, patch_size=8, in_chans=3, num_classes=200,
-                        embed_dim=384, depth=8, head_dim=64, mlp_ratio=4.0, use_resnet_stem=True
-                    )
-                    checkpoint = torch.load(main_model_path, map_location=device)
-                    
-                    # Create a new state dict with the correct keys
-                    new_state_dict = {}
-                    for key, value in checkpoint['model_state_dict'].items():
-                        if key.startswith("vit_model."):
-                            new_key = key[len("vit_model."):]
-                            new_state_dict[new_key] = value
-                    
-                    main_model.load_state_dict(new_state_dict)
-                    main_model = main_model.to(device)
-                    main_model.eval()
-                else:
-                    print(f"Error: Main model not found at {main_model_path}")
-                    if args.mode == "evaluate":
-                        return
-            
-            # Load healer model if not already loaded
-            if healer_model is None:
-                healer_model_path = f"{args.model_dir}/bestmodel_healer/best_model.pt"
-                if os.path.exists(healer_model_path):
-                    print(f"Loading healer model from {healer_model_path}")
-                    healer_model = TransformationHealer(
-                        img_size=64, patch_size=8, in_chans=3,
-                        embed_dim=384, depth=6, head_dim=64
-                    )
-                    checkpoint = torch.load(healer_model_path, map_location=device)
-                    healer_model.load_state_dict(checkpoint['model_state_dict'])
-                    healer_model = healer_model.to(device)
-                    healer_model.eval()
-                else:
-                    print(f"Error: Healer model not found at {healer_model_path}")
-                    if args.mode == "evaluate":
-                        return
-            
-            # Load TTT model if applicable
-            if args.include_ttt:
-                ttt_model_path = f"{args.model_dir}/bestmodel_ttt/best_model.pt"
-                if os.path.exists(ttt_model_path):
-                    print(f"Loading TTT model from {ttt_model_path}")
-                    ttt_model = TestTimeTrainer(
-                        base_model=main_model,
-                        img_size=64,
-                        patch_size=8,
-                        embed_dim=384
-                    )
-                    checkpoint = torch.load(ttt_model_path, map_location=device)
-                    ttt_model.load_state_dict(checkpoint['model_state_dict'])
-                    ttt_model = ttt_model.to(device)
-                    ttt_model.eval()
-                else:
-                    print(f"Warning: TTT model not found at {ttt_model_path}")
-            
-            # Load BlendedTTT model if requested
-            if args.include_blended:
-                blended_model_path = f"{args.model_dir}/bestmodel_blended/best_model.pt"
-                if os.path.exists(blended_model_path):
-                    print(f"Loading BlendedTTT model from {blended_model_path}")
-                    blended_model = BlendedTTT(
-                        base_model=main_model,
-                        img_size=64,
-                        patch_size=8,
-                        embed_dim=384,
-                        depth=4
-                    )
-                    checkpoint = torch.load(blended_model_path, map_location=device)
-                    blended_model.load_state_dict(checkpoint['model_state_dict'])
-                    blended_model = blended_model.to(device)
-                    blended_model.eval()
-                else:
-                    print(f"Warning: BlendedTTT model not found at {blended_model_path}")
-        
         print("\n=== Comprehensive Evaluation ===")
         # Evaluate at multiple severity levels
         severities = [0.2, 0.5, 0.8]
         
-        # Choose the appropriate evaluation function based on available models
-        if args.include_blended and args.include_ttt:
-            # Use integrated evaluation with all models
-            all_results = evaluate_full_pipeline_with_all_models(
-                main_model, healer_model, ttt_model, blended_model, 
+        # Make sure models are loaded before evaluation
+        if main_model is None:
+            main_model = load_main_model(main_model_path, device)
+        
+        if main_model_robust is None and os.path.exists(robust_model_path):
+            main_model_robust = load_main_model(robust_model_path, device)
+        
+        if healer_model is None:
+            healer_model = load_healer_model(healer_model_path, device)
+        
+        if args.include_ttt and ttt_model is None and os.path.exists(ttt_model_path):
+            ttt_model = load_ttt_model(ttt_model_path, main_model, device)
+        
+        if args.include_blended and blended_model is None and os.path.exists(blended_model_path):
+            blended_model = load_blended_model(blended_model_path, main_model, device)
+        
+        # Evaluate standard main model
+        print("\n--- Evaluating Standard Main Model Pipeline ---")
+        main_results = evaluate_full_pipeline(
+            main_model, healer_model, 
+            args.dataset, severities
+        )
+        
+        # Evaluate robust main model if available
+        if main_model_robust is not None:
+            print("\n--- Evaluating Robust Main Model Pipeline ---")
+            robust_results = evaluate_full_pipeline(
+                main_model_robust, healer_model, 
                 args.dataset, severities
             )
-        elif args.include_blended:
-            # Use integrated evaluation with BlendedTTT
-            all_results = evaluate_full_pipeline_with_blended(
-                main_model, healer_model, ttt_model, blended_model, 
-                args.dataset, severities
-            )
-        elif args.include_ttt:
-            # Use standard evaluation with TTT
-            all_results = evaluate_full_pipeline_with_ttt(
-                main_model, healer_model, ttt_model, 
-                args.dataset, severities
-            )
-        else:
-            # Use standard evaluation
-            all_results = evaluate_full_pipeline(
+            
+            print("\n--- Comparing Standard vs Robust Model Performance ---")
+            compare_models_performance(main_results, robust_results, "Standard", "Robust")
+        
+        # Include TTT evaluation if requested
+        if args.include_ttt and ttt_model is not None:
+            print("\n--- Evaluating TTT Pipeline ---")
+            ttt_results = evaluate_full_pipeline_with_ttt(
                 main_model, healer_model, ttt_model, 
                 args.dataset, severities
             )
         
+        # Include BlendedTTT evaluation if requested
+        if args.include_blended and blended_model is not None:
+            print("\n--- Evaluating BlendedTTT Pipeline ---")
+            blended_results = evaluate_full_pipeline_with_blended(
+                main_model, healer_model, ttt_model, blended_model, 
+                args.dataset, severities
+            )
+    
     # Visualization mode
     if args.mode in ["visualize", "all"]:
         print("\n=== Generating Visualizations ===")
+        
+        # Make sure models are loaded before visualization
+        if main_model is None:
+            main_model = load_main_model(main_model_path, device)
+        
+        if healer_model is None:
+            healer_model = load_healer_model(healer_model_path, device)
+        
+        if args.include_ttt and ttt_model is None and os.path.exists(ttt_model_path):
+            ttt_model = load_ttt_model(ttt_model_path, main_model, device)
+        
+        if args.include_blended and blended_model is None and os.path.exists(blended_model_path):
+            blended_model = load_blended_model(blended_model_path, main_model, device)
+            
+        # Generate visualizations for standard model
         visualize_transformations(
             model_dir=args.model_dir,
             dataset_path=args.dataset,
             num_samples=args.num_samples,
             severity=args.severity,
-            save_dir=args.visualize_dir,
+            save_dir=f"{args.visualize_dir}/standard",
             include_blended=args.include_blended,
             include_ttt=args.include_ttt
         )
+        
+        # Generate visualizations for robust model if available
+        if main_model_robust is not None:
+            # We need to temporarily save the robust model to the standard location
+            # Save original main model
+            orig_state_dict = None
+            if main_model is not None:
+                orig_state_dict = deepcopy(main_model.state_dict())
+                
+            # Replace main model with robust model
+            tmp_model_dir = Path(f"{args.model_dir}/bestmodel_main_tmp")
+            tmp_model_dir.mkdir(exist_ok=True)
+            shutil.copy(
+                f"{args.model_dir}/bestmodel_main/best_model.pt",
+                f"{args.model_dir}/bestmodel_main_tmp/best_model.pt"
+            )
+            
+            # Save robust model to main model path
+            torch.save({
+                'epoch': 0,
+                'model_state_dict': main_model_robust.state_dict(),
+                'val_acc': 0.0,
+            }, f"{args.model_dir}/bestmodel_main/best_model.pt")
+            
+            # Generate visualizations with robust model
+            visualize_transformations(
+                model_dir=args.model_dir,
+                dataset_path=args.dataset,
+                num_samples=args.num_samples,
+                severity=args.severity,
+                save_dir=f"{args.visualize_dir}/robust",
+                include_blended=args.include_blended,
+                include_ttt=args.include_ttt
+            )
+            
+            # Restore original main model
+            if orig_state_dict is not None:
+                shutil.copy(
+                    f"{args.model_dir}/bestmodel_main_tmp/best_model.pt",
+                    f"{args.model_dir}/bestmodel_main/best_model.pt"
+                )
+                shutil.rmtree(tmp_model_dir)
     
     print("\nExperiment completed!")
+
+# Helper functions for loading models
+def load_main_model(model_path, device):
+    """Load the main classification model from a checkpoint"""
+    print(f"Loading main model from {model_path}")
+    main_model = create_vit_model(
+        img_size=64, patch_size=8, in_chans=3, num_classes=200,
+        embed_dim=384, depth=8, head_dim=64, mlp_ratio=4.0, use_resnet_stem=True
+    )
+    checkpoint = torch.load(model_path, map_location=device)
+    
+    # Create a new state dict with the correct keys
+    new_state_dict = {}
+    for key, value in checkpoint['model_state_dict'].items():
+        if key.startswith("vit_model."):
+            new_key = key[len("vit_model."):]
+            new_state_dict[new_key] = value
+        else:
+            new_state_dict[key] = value
+    
+    main_model.load_state_dict(new_state_dict)
+    main_model = main_model.to(device)
+    main_model.eval()
+    return main_model
+
+def load_healer_model(model_path, device):
+    """Load the healer model from a checkpoint"""
+    print(f"Loading healer model from {model_path}")
+    healer_model = TransformationHealer(
+        img_size=64, patch_size=8, in_chans=3,
+        embed_dim=384, depth=6, head_dim=64
+    )
+    checkpoint = torch.load(model_path, map_location=device)
+    healer_model.load_state_dict(checkpoint['model_state_dict'])
+    healer_model = healer_model.to(device)
+    healer_model.eval()
+    return healer_model
+
+def load_ttt_model(model_path, main_model, device):
+    """Load the TTT model from a checkpoint"""
+    print(f"Loading TTT model from {model_path}")
+    ttt_model = TestTimeTrainer(
+        base_model=main_model,
+        img_size=64,
+        patch_size=8,
+        embed_dim=384
+    )
+    checkpoint = torch.load(model_path, map_location=device)
+    ttt_model.load_state_dict(checkpoint['model_state_dict'])
+    ttt_model = ttt_model.to(device)
+    ttt_model.eval()
+    return ttt_model
+
+def load_blended_model(model_path, main_model, device):
+    """Load the BlendedTTT model from a checkpoint"""
+    print(f"Loading BlendedTTT model from {model_path}")
+    blended_model = BlendedTTT(
+        base_model=main_model,
+        img_size=64,
+        patch_size=8,
+        embed_dim=384,
+        depth=4
+    )
+    checkpoint = torch.load(model_path, map_location=device)
+    blended_model.load_state_dict(checkpoint['model_state_dict'])
+    blended_model = blended_model.to(device)
+    blended_model.eval()
+    return blended_model
+
+def compare_models_performance(main_results, robust_results, main_label="Main", robust_label="Robust"):
+    """Compare performance between two model pipelines"""
+    print(f"\n{'='*20} Performance Comparison {'='*20}")
+    print(f"Comparing {main_label} model vs {robust_label} model:")
+    
+    # Compare clean data performance
+    if 0.0 in main_results and 0.0 in robust_results:
+        print("\nClean Data Performance:")
+        main_clean_acc = main_results[0.0]['main']['accuracy']
+        robust_clean_acc = robust_results[0.0]['main']['accuracy']
+        diff = robust_clean_acc - main_clean_acc
+        print(f"  {main_label} Model: {main_clean_acc:.4f}")
+        print(f"  {robust_label} Model: {robust_clean_acc:.4f}")
+        print(f"  Difference: {diff:.4f} ({diff/main_clean_acc*100:.1f}%)")
+    
+    # Compare OOD performance
+    for severity in [s for s in main_results.keys() if s > 0]:
+        if severity in robust_results:
+            print(f"\nOOD Performance (Severity {severity}):")
+            
+            # Base model comparison
+            main_ood_acc = main_results[severity]['main']['accuracy']
+            robust_ood_acc = robust_results[severity]['main']['accuracy']
+            diff = robust_ood_acc - main_ood_acc
+            print(f"  {main_label} Model: {main_ood_acc:.4f}")
+            print(f"  {robust_label} Model: {robust_ood_acc:.4f}")
+            print(f"  Difference: {diff:.4f} ({diff/main_ood_acc*100:.1f}%)")
+            
+            # Healer performance comparison
+            if (main_results[severity]['healer'] is not None and 
+                robust_results[severity]['healer'] is not None):
+                
+                main_healer_acc = main_results[severity]['healer']['accuracy']
+                robust_healer_acc = robust_results[severity]['healer']['accuracy']
+                diff = robust_healer_acc - main_healer_acc
+                print(f"\n  {main_label} + Healer: {main_healer_acc:.4f}")
+                print(f"  {robust_label} + Healer: {robust_healer_acc:.4f}")
+                print(f"  Difference: {diff:.4f} ({diff/main_healer_acc*100:.1f}%)")
+            
+            # Per-transformation comparison
+            if ('per_transform_acc' in main_results[severity]['main'] and
+                'per_transform_acc' in robust_results[severity]['main']):
+                
+                print("\n  Per-Transformation Accuracy:")
+                for t_type in ['no_transform', 'gaussian_noise', 'rotation', 'affine']:
+                    main_t_acc = main_results[severity]['main']['per_transform_acc'][t_type]
+                    robust_t_acc = robust_results[severity]['main']['per_transform_acc'][t_type]
+                    diff = robust_t_acc - main_t_acc
+                    
+                    print(f"    {t_type.upper()}:")
+                    print(f"      {main_label}: {main_t_acc:.4f}")
+                    print(f"      {robust_label}: {robust_t_acc:.4f}")
+                    print(f"      Difference: {diff:.4f} ({diff/main_t_acc*100:.1f}% {'better' if diff > 0 else 'worse'})")
+    
+    print(f"{'='*60}")
 
 def evaluate_main_model_only(main_model, dataset_path, severities):
     """
