@@ -25,19 +25,18 @@ MAX_TRANSLATION_AFFINE = 0.1
 MAX_SHEAR_ANGLE = 15.0
 
 # Initialize wandb
-wandb.init(project="vit-tiny-imagenet-ood", name="transform-healing-revised")
+wandb.init(project="vit-tiny-imagenet-ood", name="transform-healing-gpu-optimized")
 
-# Define continuous transformations for OOD testing
+# Define GPU-optimized continuous transformations for OOD testing
 class ContinuousTransforms:
     def __init__(self, severity=1.0):
         self.severity = severity
-        # Modified: Removed 'h_flip' and only using 'no_transform', 'gaussian_noise', 'rotation', 'affine'
-        self.transform_types = ['no_transfrom', 'gaussian_noise', 'rotation', 'affine']
+        self.transform_types = ['no_transform', 'gaussian_noise', 'rotation', 'affine']
         self.transform_probs = [3.0, 1.0, 1.0, 1.0]  # Adjusted weights
         
     def apply_transforms(self, img, transform_type=None, severity=None, return_params=False):
         """
-        Apply a continuous transformation to the image on CPU
+        Apply a continuous transformation to the image - keeping operations on the same device as input
         
         Args:
             img: The input tensor image [C, H, W]
@@ -49,9 +48,8 @@ class ContinuousTransforms:
             transformed_img: The transformed image
             transform_params: Dictionary of transformation parameters (if return_params=True)
         """
-        # Store original device but move image to CPU for transforms
-        original_device = img.device
-        img = img.cpu()  # Move to CPU before transformations
+        # Keep track of the original device
+        device = img.device
         
         if severity is None:
             severity = self.severity
@@ -64,7 +62,7 @@ class ContinuousTransforms:
                 k=1
             )[0]
         
-        # Initialize all possible parameters with default values
+        # Initialize parameters with default values
         transform_params = {
             'transform_type': transform_type,
             'severity': severity,
@@ -76,44 +74,44 @@ class ContinuousTransforms:
             'shear_y': 0.0
         }
         
-        # Apply the selected transformation on CPU
+        # OPTIMIZED: Apply transforms on the original device when possible
         if transform_type == 'gaussian_noise':
-            # Gaussian noise with continuous severity
-            std = severity * MAX_STD_GAUSSIAN_NOISE  # Scale severity to a reasonable std range
-            noise = torch.randn_like(img) * std
+            # Gaussian noise can be applied directly on GPU
+            std = severity * MAX_STD_GAUSSIAN_NOISE
+            noise = torch.randn_like(img, device=device) * std
             transformed_img = img + noise
             transformed_img = torch.clamp(transformed_img, 0, 1)
             transform_params['noise_std'] = std
             
         elif transform_type == 'rotation':
-            # Modified: Use full 360-degree rotation range instead of limited range
-            max_angle = MAX_ROTATION * severity  # Scale severity to full 360 degrees
+            # For rotation, we still need PIL, so transfer to CPU temporarily
+            max_angle = MAX_ROTATION * severity
             angle = random.uniform(-max_angle, max_angle)
             
-            # Convert to PIL for rotation
+            # Note: We must use CPU for PIL operations
+            img_cpu = img.cpu()
             to_pil = transforms.ToPILImage()
             to_tensor = transforms.ToTensor()
-            pil_img = to_pil(img)
+            pil_img = to_pil(img_cpu)
             rotated_img = transforms.functional.rotate(pil_img, angle)
-            transformed_img = to_tensor(rotated_img)
+            transformed_img = to_tensor(rotated_img).to(device)  # Transfer back to original device
             transform_params['rotation_angle'] = angle
             
         elif transform_type == 'affine':
-            # Affine transformation with translation and shear
-            # Scale the severity to control the magnitude of transformation
-            max_translate = MAX_TRANSLATION_AFFINE * severity  # Maximum translation as fraction of image size
-            max_shear = MAX_SHEAR_ANGLE * severity     # Maximum shear angle in degrees
+            # Affine transformation also needs PIL
+            max_translate = MAX_TRANSLATION_AFFINE * severity
+            max_shear = MAX_SHEAR_ANGLE * severity
             
-            # Generate random translation and shear parameters
             translate_x = random.uniform(-max_translate, max_translate)
             translate_y = random.uniform(-max_translate, max_translate)
             shear_x = random.uniform(-max_shear, max_shear)
             shear_y = random.uniform(-max_shear, max_shear)
             
-            # Convert to PIL for affine transform
+            # Note: We must use CPU for PIL operations
+            img_cpu = img.cpu()
             to_pil = transforms.ToPILImage()
             to_tensor = transforms.ToTensor()
-            pil_img = to_pil(img)
+            pil_img = to_pil(img_cpu)
             
             # Get image size for translation calculation
             width, height = pil_img.size
@@ -122,14 +120,13 @@ class ContinuousTransforms:
             # Apply affine transformation
             affine_img = transforms.functional.affine(
                 pil_img, 
-                angle=0.0,  # No rotation here (we have separate rotation transform)
+                angle=0.0,
                 translate=translate_pixels,
-                scale=1.0,   # No scaling
+                scale=1.0,
                 shear=[shear_x, shear_y]
             )
-            transformed_img = to_tensor(affine_img)
+            transformed_img = to_tensor(affine_img).to(device)  # Transfer back to original device
             
-            # Store parameters
             transform_params['translate_x'] = translate_x
             transform_params['translate_y'] = translate_y
             transform_params['shear_x'] = shear_x
@@ -137,13 +134,11 @@ class ContinuousTransforms:
         
         else:  # 'no_transform' case
             transformed_img = img.clone()
-            # All parameters remain default (zeros)
         
-        # Return result, moving back to original device if needed
         if return_params:
-            return transformed_img.to(original_device), transform_params
+            return transformed_img, transform_params
         else:
-            return transformed_img.to(original_device)
+            return transformed_img
 
 
 class TinyImageNetDataset(Dataset):
@@ -207,7 +202,6 @@ class TinyImageNetDataset(Dataset):
             img_tensor = to_tensor(image)
             
             # Apply OOD transform to the unnormalized tensor
-            # Now the CPU transform will be used
             transformed_tensor, transform_params = self.ood_transform.apply_transforms(
                 img_tensor, return_params=True
             )
@@ -261,10 +255,9 @@ class TransformationHealer(nn.Module):
         )
         
         # Heads for different transformation parameters
-        # Modified: Now using 3 transform types (no_transform, gaussian_noise, rotation, affine)
         self.transform_type_head = nn.Linear(embed_dim, 4)
         
-        # Modified: Using separate severity heads for each transform type
+        # Severity heads for each transform type
         self.severity_noise_head = nn.Linear(embed_dim, 1)   
         self.severity_rotation_head = nn.Linear(embed_dim, 1)
         self.severity_affine_head = nn.Linear(embed_dim, 1)
@@ -314,7 +307,6 @@ class TransformationHealer(nn.Module):
         severity_affine = torch.sigmoid(self.severity_affine_head(x))
         
         # Predict various parameters
-        # Modified: Use full 360-degree range for rotation angle
         rotation_angle = torch.tanh(self.rotation_head(x)) * 180.0  # -180 to 180 degrees
         noise_std = torch.sigmoid(self.noise_head(x)) * 0.5  # 0-0.5 range
         
@@ -340,7 +332,7 @@ class TransformationHealer(nn.Module):
     
     def apply_correction(self, images, predictions):
         """
-        Apply inverse transformations to correct the distorted images
+        Apply inverse transformations to correct the distorted images - optimized for GPU
         
         Args:
             images: Batch of distorted images [B, C, H, W]
@@ -349,111 +341,129 @@ class TransformationHealer(nn.Module):
         Returns:
             corrected_images: Batch of corrected images [B, C, H, W]
         """
-        # Store original device
-        original_device = images.device
+        # Get the device
+        device = images.device
         
-        # Move predictions to CPU for processing
-        transform_types = torch.argmax(predictions['transform_type_logits'], dim=1).cpu()
-        
-        # Copy predictions to CPU
-        cpu_predictions = {
-            'transform_type_logits': predictions['transform_type_logits'].cpu(),
-            'severity_noise': predictions['severity_noise'].cpu(),
-            'severity_rotation': predictions['severity_rotation'].cpu(),
-            'severity_affine': predictions['severity_affine'].cpu(),
-            'rotation_angle': predictions['rotation_angle'].cpu(),
-            'noise_std': predictions['noise_std'].cpu(),
-            'translate_x': predictions['translate_x'].cpu(),
-            'translate_y': predictions['translate_y'].cpu(),
-            'shear_x': predictions['shear_x'].cpu(),
-            'shear_y': predictions['shear_y'].cpu(),
-        }
+        # Get predicted transform types
+        transform_types = torch.argmax(predictions['transform_type_logits'], dim=1)
         
         transform_map = {
-            0: 'no_transform',  # Added no_transform as index 0
+            0: 'no_transform',
             1: 'gaussian_noise',
             2: 'rotation',
             3: 'affine'
         }
         
-        corrected_images = []
+        # Clone images to create a corrected version
+        corrected_images = images.clone()
         
-        # Process each image on CPU
-        for i, img in enumerate(images):
-            img = img.cpu()  # Move image to CPU for processing
-            transform_type = transform_map[transform_types[i].item()]
-            
-            # Apply inverse transformation based on predicted type
-            if transform_type == 'no_transform':
-                # For no transform, just return the original image
-                corrected_img = img
+        # Process images by transform type for efficiency
+        # We'll collect indices for each transform type and process them together
+        
+        for transform_idx, transform_name in transform_map.items():
+            # Find all images with this transform type
+            mask = (transform_types == transform_idx)
+            if not mask.any():
+                continue  # Skip if no images have this transform type
                 
-            elif transform_type == 'gaussian_noise':
-                # For noise, we can't perfectly recover, but we can apply a denoising filter
-                # Here we use a simple Gaussian blur as denoising
-                std = cpu_predictions['noise_std'][i].item()
-                severity = cpu_predictions['severity_noise'][i].item()
-                
-                if std > 0.05 and severity > 0.1:  # Only denoise if significant noise detected
-                    # Convert to PIL for blur
-                    to_pil = transforms.ToPILImage()
-                    to_tensor = transforms.ToTensor()
-                    pil_img = to_pil(img)
-                    # Apply mild blur to reduce noise
-                    kernel_size = 3
-                    sigma = std * 2.0  # Adjust sigma based on predicted noise level
-                    denoised_img = transforms.functional.gaussian_blur(pil_img, kernel_size, sigma)
-                    corrected_img = to_tensor(denoised_img)
-                else:
-                    corrected_img = img
-                    
-            elif transform_type == 'rotation':
-                # For rotation, apply negative of predicted angle
-                angle = -cpu_predictions['rotation_angle'][i].item()
-                # Use severity to scale the correction
-                severity = cpu_predictions['severity_rotation'][i].item()
-                if severity > 0.1:  # Only correct if severity is significant
-                    to_pil = transforms.ToPILImage()
-                    to_tensor = transforms.ToTensor()
-                    pil_img = to_pil(img)
-                    rotated_img = transforms.functional.rotate(pil_img, angle)
-                    corrected_img = to_tensor(rotated_img)
-                else:
-                    corrected_img = img
-                    
-            elif transform_type == 'affine':
-                # For affine transformation, apply the inverse transformation
-                translate_x = -cpu_predictions['translate_x'][i].item()  # Negative of predicted translation
-                translate_y = -cpu_predictions['translate_y'][i].item() 
-                shear_x = -cpu_predictions['shear_x'][i].item()  # Negative of predicted shear
-                shear_y = -cpu_predictions['shear_y'][i].item()
-                severity = cpu_predictions['severity_affine'][i].item()
-                
-                if severity > 0.1:  # Only correct if severity is significant
-                    to_pil = transforms.ToPILImage()
-                    to_tensor = transforms.ToTensor()
-                    pil_img = to_pil(img)
-                    
-                    # Get image size for translation calculation
-                    width, height = pil_img.size
-                    translate_pixels = (translate_x * width, translate_y * height)
-                    
-                    # Apply inverse affine transformation
-                    corrected_pil = transforms.functional.affine(
-                        pil_img, 
-                        angle=0.0,
-                        translate=translate_pixels,
-                        scale=1.0,
-                        shear=[shear_x, shear_y]
-                    )
-                    corrected_img = to_tensor(corrected_pil)
-                else:
-                    corrected_img = img
+            # Get the subset of images with this transform type
+            subset_indices = torch.where(mask)[0]
             
-            corrected_images.append(corrected_img)
-            
-        # Stack and move back to original device
-        return torch.stack(corrected_images).to(original_device)
+            if transform_name == 'no_transform':
+                # For no transform, keep the original image
+                pass
+                
+            elif transform_name == 'gaussian_noise':
+                # For noise, get predicted severity and std
+                subset_severity = predictions['severity_noise'][mask]
+                subset_std = predictions['noise_std'][mask]
+                
+                # Only apply denoising if significant noise detected
+                significant_noise = (subset_std > 0.05) & (subset_severity > 0.1)
+                if significant_noise.any():
+                    # We need to work with PIL for Gaussian blur
+                    # Process only the images with significant noise
+                    for i, orig_idx in enumerate(subset_indices):
+                        if significant_noise[i]:
+                            img = images[orig_idx].cpu()
+                            sigma = subset_std[i].item() * 2.0
+                            
+                            # Convert to PIL, apply blur, convert back
+                            to_pil = transforms.ToPILImage()
+                            to_tensor = transforms.ToTensor()
+                            pil_img = to_pil(img)
+                            kernel_size = 3
+                            denoised_img = transforms.functional.gaussian_blur(pil_img, kernel_size, sigma)
+                            corrected_img = to_tensor(denoised_img).to(device)
+                            
+                            # Update the corrected images tensor
+                            corrected_images[orig_idx] = corrected_img
+                    
+            elif transform_name == 'rotation':
+                # For rotation, get predicted severity and angles
+                subset_severity = predictions['severity_rotation'][mask]
+                subset_angles = predictions['rotation_angle'][mask]
+                
+                # Only rotate if severity is significant
+                significant_rotation = subset_severity > 0.1
+                if significant_rotation.any():
+                    for i, orig_idx in enumerate(subset_indices):
+                        if significant_rotation[i]:
+                            img = images[orig_idx].cpu()
+                            angle = -subset_angles[i].item()  # Apply negative angle to correct
+                            
+                            # Convert to PIL, rotate, convert back
+                            to_pil = transforms.ToPILImage()
+                            to_tensor = transforms.ToTensor()
+                            pil_img = to_pil(img)
+                            rotated_img = transforms.functional.rotate(pil_img, angle)
+                            corrected_img = to_tensor(rotated_img).to(device)
+                            
+                            # Update the corrected images tensor
+                            corrected_images[orig_idx] = corrected_img
+                    
+            elif transform_name == 'affine':
+                # For affine, get predicted severity and transform parameters
+                subset_severity = predictions['severity_affine'][mask]
+                subset_translate_x = predictions['translate_x'][mask]
+                subset_translate_y = predictions['translate_y'][mask]
+                subset_shear_x = predictions['shear_x'][mask]
+                subset_shear_y = predictions['shear_y'][mask]
+                
+                # Only apply affine transformation if severity is significant
+                significant_affine = subset_severity > 0.1
+                if significant_affine.any():
+                    for i, orig_idx in enumerate(subset_indices):
+                        if significant_affine[i]:
+                            img = images[orig_idx].cpu()
+                            translate_x = -subset_translate_x[i].item()  # Negative to correct
+                            translate_y = -subset_translate_y[i].item()
+                            shear_x = -subset_shear_x[i].item()
+                            shear_y = -subset_shear_y[i].item()
+                            
+                            # Convert to PIL, apply inverse affine, convert back
+                            to_pil = transforms.ToPILImage()
+                            to_tensor = transforms.ToTensor()
+                            pil_img = to_pil(img)
+                            
+                            # Get image size for translation calculation
+                            width, height = pil_img.size
+                            translate_pixels = (translate_x * width, translate_y * height)
+                            
+                            # Apply inverse affine transformation
+                            affine_img = transforms.functional.affine(
+                                pil_img, 
+                                angle=0.0,
+                                translate=translate_pixels,
+                                scale=1.0,
+                                shear=[shear_x, shear_y]
+                            )
+                            corrected_img = to_tensor(affine_img).to(device)
+                            
+                            # Update the corrected images tensor
+                            corrected_images[orig_idx] = corrected_img
+        
+        return corrected_images
 
 
 # Loss function for the healer model
@@ -495,8 +505,6 @@ class HealerLoss(nn.Module):
         affine_loss = torch.tensor(0.0, device=predictions['translate_x'].device)
         
         # For each transform type, calculate parameter loss only for samples of that type
-        # No transform (index 0) - no specific parameters to predict
-        
         # Gaussian noise (index 1)
         noise_mask = (transform_types == 1)
         if noise_mask.sum() > 0:
@@ -732,10 +740,10 @@ def find_optimal_batch_size(model, img_size, starting_batch_size=2000, device=No
     # The working batch size is now the maximum that fits
     print(f"Found optimal batch size: {working_batch_size}")
     
-    # For safety, return a much smaller batch size to allow for memory fluctuations
-    # and transformation operations during training (25% of maximum)
-    safe_batch_size = max(1, int(working_batch_size *  0.95))
-    print(f"Using safe batch size: {safe_batch_size}")  # More conservative for CPU transforms
+    # For safety, return a slightly smaller batch size to allow for memory fluctuations
+    # Less conservative reduction factor since we improved GPU usage
+    safe_batch_size = max(1, int(working_batch_size * 0.97))
+    print(f"Using safe batch size: {safe_batch_size}")
     
     return safe_batch_size
 
@@ -797,8 +805,12 @@ def train_main_model(dataset_path="tiny-imagenet-200"):
     print(f"Training set size: {len(train_dataset)}")
     print(f"Validation set size: {len(val_dataset)}")
     
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    # OPTIMIZED: Use more workers for data loading on GPU systems
+    num_workers = 8 if torch.cuda.is_available() else 4
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, 
+                              num_workers=num_workers, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, 
+                            num_workers=num_workers, pin_memory=True)
     
     # Training parameters
     num_epochs = 50
@@ -870,10 +882,6 @@ def train_main_model(dataset_path="tiny-imagenet-200"):
             
             # Update progress bar
             progress_bar.set_postfix({'loss': loss.item()})
-            
-            # Free up GPU memory
-            if device.type == 'cuda':
-                torch.cuda.empty_cache()
         
         # Calculate training metrics
         train_loss /= len(train_loader)
@@ -975,6 +983,7 @@ def validate_main_model(model, loader, device):
     
     return val_loss, val_acc
 
+
 def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
     """
     Train the transformation healer model
@@ -1023,7 +1032,6 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
     )
     
     # Create a validation set (20% of training data)
-    # This is important for early stopping
     dataset_size = len(train_dataset)
     val_size = int(0.2 * dataset_size)
     train_size = dataset_size - val_size
@@ -1034,44 +1042,48 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
     print(f"Training set size for healer: {train_size}")
     print(f"Validation set size for healer: {val_size}")
     
-    # Debug function for collate
-    def debug_collate(batch):
+    # Simplified collate function
+    def collate_fn(batch):
         orig_imgs, trans_imgs, labels, params = zip(*batch)
         
-        # Proper collation
         orig_tensor = torch.stack(orig_imgs)
         trans_tensor = torch.stack(trans_imgs)
         labels_tensor = torch.tensor(labels)
-        # Keep params as a list of dictionaries
         
+        # Keep params as a list of dictionaries
         return orig_tensor, trans_tensor, labels_tensor, params
     
-    # Start with a small batch size for debugging, it will automatically be reduced for memory limits
-    batch_size = find_optimal_batch_size(healer_model, img_size=64, starting_batch_size=2000, device=None)
+    # Determine batch size and data loading parameters
+    batch_size = find_optimal_batch_size(healer_model, img_size=64, starting_batch_size=128, device=device)
+    
+    # OPTIMIZED: Use more workers for GPU systems, but pin_memory=False during transformation phase
+    # to avoid extra memory usage in CPU-GPU transfer
+    num_workers = 6 if torch.cuda.is_available() else 2
+    pin_memory = False  # Set to False to avoid extra memory usage when transferring between CPU and GPU
+    
     train_loader = DataLoader(
         train_subset, 
         batch_size=batch_size, 
         shuffle=True, 
-        num_workers=0,
-        pin_memory=True,
-        collate_fn=debug_collate
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        collate_fn=collate_fn
     )
     
-    # Validation loader - no shuffling needed
     val_loader = DataLoader(
         val_subset, 
         batch_size=batch_size, 
         shuffle=False, 
-        num_workers=0,
-        pin_memory=True,
-        collate_fn=debug_collate
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        collate_fn=collate_fn
     )
     
     # Training parameters
     num_epochs = 15
     learning_rate = 5e-5
     warmup_steps = 500
-    patience = 3  # Early stopping patience - same as main model
+    patience = 3
     
     # Optimizer
     optimizer = torch.optim.AdamW(healer_model.parameters(), lr=learning_rate, weight_decay=0.01)
@@ -1092,7 +1104,7 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
     
     # Logging with wandb
     wandb.config.update({
-        "model": "transformation_healer",
+        "model": "transformation_healer_gpu",
         "learning_rate": learning_rate,
         "epochs": num_epochs,
         "batch_size": batch_size,
@@ -1106,6 +1118,73 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
     early_stop_counter = 0
     best_epoch = 0
     
+    # Helper function to extract parameters
+    def extract_transform_params(transform_params):
+        """
+        Simplified parameter extraction
+        """
+        transform_type_mapping = {
+            'no_transform': 0,
+            'no_transfrom': 0,  # Handle typo in original code
+            'gaussian_noise': 1,
+            'rotation': 2,
+            'affine': 3
+        }
+        
+        # Initialize lists
+        transform_types = []
+        severity_values = []
+        noise_std_values = []
+        rotation_angle_values = []
+        translate_x_values = []
+        translate_y_values = []
+        shear_x_values = []
+        shear_y_values = []
+        
+        for params in transform_params:
+            # Extract transform type - handle different possible formats
+            if isinstance(params, dict):
+                transform_type = params.get('transform_type', 'no_transform')
+                transform_types.append(transform_type_mapping.get(transform_type, 0))
+                
+                severity_values.append(float(params.get('severity', 1.0)))
+                noise_std_values.append(float(params.get('noise_std', 0.0)))
+                rotation_angle_values.append(float(params.get('rotation_angle', 0.0)))
+                translate_x_values.append(float(params.get('translate_x', 0.0)))
+                translate_y_values.append(float(params.get('translate_y', 0.0)))
+                shear_x_values.append(float(params.get('shear_x', 0.0)))
+                shear_y_values.append(float(params.get('shear_y', 0.0)))
+            else:
+                # Handle string or other unexpected formats
+                transform_type = 'no_transform'
+                if isinstance(params, str):
+                    transform_type = params
+                elif isinstance(params, tuple) and len(params) > 0:
+                    transform_type = params[0] if isinstance(params[0], str) else 'no_transform'
+                    
+                transform_types.append(transform_type_mapping.get(transform_type, 0))
+                severity_values.append(1.0)
+                noise_std_values.append(0.0)
+                rotation_angle_values.append(0.0)
+                translate_x_values.append(0.0)
+                translate_y_values.append(0.0)
+                shear_x_values.append(0.0)
+                shear_y_values.append(0.0)
+        
+        # Create target dictionary
+        targets = {
+            'transform_type_idx': torch.tensor(transform_types),
+            'severity': torch.tensor(severity_values).unsqueeze(1),
+            'noise_std': torch.tensor(noise_std_values).unsqueeze(1),
+            'rotation_angle': torch.tensor(rotation_angle_values).unsqueeze(1),
+            'translate_x': torch.tensor(translate_x_values).unsqueeze(1),
+            'translate_y': torch.tensor(translate_y_values).unsqueeze(1),
+            'shear_x': torch.tensor(shear_x_values).unsqueeze(1),
+            'shear_y': torch.tensor(shear_y_values).unsqueeze(1)
+        }
+        
+        return targets
+    
     for epoch in range(num_epochs):
         # Training phase
         healer_model.train()
@@ -1116,81 +1195,13 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
         # Training step
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for batch_idx, (orig_images, transformed_images, labels, transform_params) in enumerate(progress_bar):
-            # Move to device after transformations have been applied
+            # Move to device
             orig_images = orig_images.to(device)
             transformed_images = transformed_images.to(device)
             
-            # Convert transform_params to target tensors
-            targets = {}
-            
-            # Create target tensors for each transformation type
-            transform_type_mapping = {
-                'no_transform': 0,
-                'gaussian_noise': 1,
-                'rotation': 2,
-                'affine': 3
-            }
-            
-            # Extract parameters from dict to tensors - with more error checking
-            try:
-                # Initialize tensors
-                transform_types = []
-                severity_values = []
-                noise_std_values = []
-                rotation_angle_values = []
-                translate_x_values = []
-                translate_y_values = []
-                shear_x_values = []
-                shear_y_values = []
-                
-                for params in transform_params:
-                    # Check if params is a dictionary
-                    if not isinstance(params, dict):
-                        print(f"Warning: params is not a dictionary, it's {type(params)}")
-                        if isinstance(params, tuple) and len(params) >= 2 and isinstance(params[0], str):
-                            # Assume the first element is transform_type and second is severity
-                            transform_type = params[0]
-                            severity = params[1] if len(params) > 1 else 1.0
-                            
-                            transform_types.append(transform_type_mapping.get(transform_type, 0))
-                            severity_values.append(severity)
-                            # Default values for other parameters
-                            noise_std_values.append(0.0)
-                            rotation_angle_values.append(0.0)
-                            translate_x_values.append(0.0)
-                            translate_y_values.append(0.0)
-                            shear_x_values.append(0.0)
-                            shear_y_values.append(0.0)
-                            
-                            continue
-                    
-                    # Normal dictionary case
-                    transform_type = params.get('transform_type', 'gaussian_noise')
-                    transform_types.append(transform_type_mapping.get(transform_type, 0))
-                    
-                    severity_values.append(params.get('severity', 1.0))
-                    noise_std_values.append(params.get('noise_std', 0.0))
-                    rotation_angle_values.append(params.get('rotation_angle', 0.0))
-                    translate_x_values.append(params.get('translate_x', 0.0))
-                    translate_y_values.append(params.get('translate_y', 0.0))
-                    shear_x_values.append(params.get('shear_x', 0.0))
-                    shear_y_values.append(params.get('shear_y', 0.0))
-                
-                # Convert lists to tensors
-                targets['transform_type_idx'] = torch.tensor(transform_types, device=device)
-                targets['severity'] = torch.tensor(severity_values, device=device).unsqueeze(1)
-                targets['noise_std'] = torch.tensor(noise_std_values, device=device).unsqueeze(1)
-                targets['rotation_angle'] = torch.tensor(rotation_angle_values, device=device).unsqueeze(1)
-                targets['translate_x'] = torch.tensor(translate_x_values, device=device).unsqueeze(1)
-                targets['translate_y'] = torch.tensor(translate_y_values, device=device).unsqueeze(1)
-                targets['shear_x'] = torch.tensor(shear_x_values, device=device).unsqueeze(1)
-                targets['shear_y'] = torch.tensor(shear_y_values, device=device).unsqueeze(1)
-                
-            except Exception as e:
-                print(f"Error processing parameters: {e}")
-                print(f"transform_params type: {type(transform_params)}")
-                print(f"First few transform_params: {transform_params[:min(5, len(transform_params))]}")
-                raise
+            # Extract and prepare target tensors
+            targets = extract_transform_params(transform_params)
+            targets = {k: v.to(device) for k, v in targets.items()}
             
             # Forward pass
             predictions = healer_model(transformed_images)
@@ -1220,7 +1231,7 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
         train_loss /= len(train_loader)
         transform_type_acc /= total_samples
         
-        # Validation phase - key for early stopping
+        # Validation phase
         healer_model.eval()
         val_loss = 0
         val_transform_type_acc = 0
@@ -1232,71 +1243,9 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
                 orig_images = orig_images.to(device)
                 transformed_images = transformed_images.to(device)
                 
-                # Convert transform_params to target tensors (reuse code from training)
-                targets = {}
-                transform_type_mapping = {
-                    'no_transform': 0,
-                    'gaussian_noise': 1,
-                    'rotation': 2,
-                    'affine': 3
-                }
-                
-                try:
-                    # Initialize tensors
-                    transform_types = []
-                    severity_values = []
-                    noise_std_values = []
-                    rotation_angle_values = []
-                    translate_x_values = []
-                    translate_y_values = []
-                    shear_x_values = []
-                    shear_y_values = []
-                    
-                    for params in transform_params:
-                        # Check if params is a dictionary
-                        if not isinstance(params, dict):
-                            if isinstance(params, tuple) and len(params) >= 2 and isinstance(params[0], str):
-                                # Assume the first element is transform_type and second is severity
-                                transform_type = params[0]
-                                severity = params[1] if len(params) > 1 else 1.0
-                                
-                                transform_types.append(transform_type_mapping.get(transform_type, 0))
-                                severity_values.append(severity)
-                                # Default values for other parameters
-                                noise_std_values.append(0.0)
-                                rotation_angle_values.append(0.0)
-                                translate_x_values.append(0.0)
-                                translate_y_values.append(0.0)
-                                shear_x_values.append(0.0)
-                                shear_y_values.append(0.0)
-                                
-                                continue
-                        
-                        # Normal dictionary case
-                        transform_type = params.get('transform_type', 'gaussian_noise')
-                        transform_types.append(transform_type_mapping.get(transform_type, 0))
-                        
-                        severity_values.append(params.get('severity', 1.0))
-                        noise_std_values.append(params.get('noise_std', 0.0))
-                        rotation_angle_values.append(params.get('rotation_angle', 0.0))
-                        translate_x_values.append(params.get('translate_x', 0.0))
-                        translate_y_values.append(params.get('translate_y', 0.0))
-                        shear_x_values.append(params.get('shear_x', 0.0))
-                        shear_y_values.append(params.get('shear_y', 0.0))
-                    
-                    # Convert lists to tensors
-                    targets['transform_type_idx'] = torch.tensor(transform_types, device=device)
-                    targets['severity'] = torch.tensor(severity_values, device=device).unsqueeze(1)
-                    targets['noise_std'] = torch.tensor(noise_std_values, device=device).unsqueeze(1)
-                    targets['rotation_angle'] = torch.tensor(rotation_angle_values, device=device).unsqueeze(1)
-                    targets['translate_x'] = torch.tensor(translate_x_values, device=device).unsqueeze(1)
-                    targets['translate_y'] = torch.tensor(translate_y_values, device=device).unsqueeze(1)
-                    targets['shear_x'] = torch.tensor(shear_x_values, device=device).unsqueeze(1)
-                    targets['shear_y'] = torch.tensor(shear_y_values, device=device).unsqueeze(1)
-                    
-                except Exception as e:
-                    print(f"Error processing validation parameters: {e}")
-                    continue
+                # Extract and prepare target tensors
+                targets = extract_transform_params(transform_params)
+                targets = {k: v.to(device) for k, v in targets.items()}
                 
                 # Forward pass
                 predictions = healer_model(transformed_images)
@@ -1386,16 +1335,7 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
 
 def evaluate_models(main_model, healer_model, dataset_path="tiny-imagenet-200", severity=0.0):
     """
-    Comprehensive evaluation of models on both clean and transformed data.
-    
-    Args:
-        main_model: The base classification model
-        healer_model: The transformation healing model
-        dataset_path: Path to the dataset
-        severity: Severity of transformations (0.0 means no transformations)
-        
-    Returns:
-        results: Dictionary containing all evaluation metrics
+    Streamlined evaluation of models on both clean and transformed data.
     """
     # Set seed for reproducibility
     set_seed(42)
@@ -1420,8 +1360,26 @@ def evaluate_models(main_model, healer_model, dataset_path="tiny-imagenet-200", 
         # Dataset without transformations (clean data)
         val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
     
-    batch_size = 64  # Reduced for CPU transforms
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    # Increase batch size for evaluation
+    batch_size = 128 if torch.cuda.is_available() else 64
+    
+    # Simplified collate function for OOD dataset
+    def collate_fn(batch):
+        if severity > 0:
+            orig_imgs, trans_imgs, labels, params = zip(*batch)
+            return torch.stack(orig_imgs), torch.stack(trans_imgs), torch.tensor(labels), params
+        else:
+            images, labels = zip(*batch)
+            return torch.stack(images), torch.tensor(labels)
+    
+    val_loader = DataLoader(
+        val_dataset, 
+        batch_size=batch_size, 
+        shuffle=False, 
+        num_workers=4, 
+        pin_memory=True,
+        collate_fn=collate_fn if severity > 0 else None
+    )
     
     # Ensure models are in eval mode
     main_model.eval()
@@ -1441,67 +1399,49 @@ def evaluate_models(main_model, healer_model, dataset_path="tiny-imagenet-200", 
             if results[model_name] is not None:
                 results[model_name]['per_transform'] = {t: {'correct': 0, 'total': 0} for t in transform_types}
     
-    # Helper function to determine transform type by examining parameter values
-    def determine_transform_type(params):
-        """
-        Determine transform type by examining parameter values directly
-        """
-        try:
-            # Handle different possible formats
-            if isinstance(params, dict):
-                # Check explicit transform_type first if available
-                if 'transform_type' in params:
-                    t_type = params['transform_type']
-                    if isinstance(t_type, str):
-                        if t_type == 'no_transform' or t_type == 'no_transfrom':
-                            return 'no_transform'
-                        elif 'noise' in t_type.lower() or 'gaussian' in t_type.lower():
-                            return 'gaussian_noise'
-                        elif 'rot' in t_type.lower():
-                            return 'rotation'
-                        elif 'affine' in t_type.lower() or 'trans' in t_type.lower():
-                            return 'affine'
-                
-                # Check each transform parameter to determine which was applied
-                if params.get('noise_std', 0.0) > 0.01:
-                    return 'gaussian_noise'
-                elif abs(params.get('rotation_angle', 0.0)) > 0.01:
-                    return 'rotation'
-                elif (abs(params.get('translate_x', 0.0)) > 0.001 or 
-                      abs(params.get('translate_y', 0.0)) > 0.001 or
-                      abs(params.get('shear_x', 0.0)) > 0.001 or
-                      abs(params.get('shear_y', 0.0)) > 0.001):
-                    return 'affine'
-                
-                # If no transform detected, assume no_transform
+    # Helper function to determine transform type consistently
+    def get_transform_type(params):
+        if isinstance(params, dict):
+            t_type = params.get('transform_type', '').lower()
+            if 'no_' in t_type or t_type == '':
                 return 'no_transform'
+            elif 'noise' in t_type or 'gaussian' in t_type:
+                return 'gaussian_noise'
+            elif 'rot' in t_type:
+                return 'rotation'
+            elif 'affine' in t_type or 'trans' in t_type:
+                return 'affine'
             
-            # Handle string case
-            elif isinstance(params, str):
-                t_type = params.lower()
-                if t_type == 'no_transform' or t_type == 'no_transfrom':
-                    return 'no_transform'
-                elif 'noise' in t_type or 'gaussian' in t_type:
-                    return 'gaussian_noise'
-                elif 'rot' in t_type:
-                    return 'rotation'
-                elif 'affine' in t_type or 'trans' in t_type:
-                    return 'affine'
-                return 'no_transform'  # Default
+            # Also check parameters
+            if params.get('noise_std', 0.0) > 0.01:
+                return 'gaussian_noise'
+            elif abs(params.get('rotation_angle', 0.0)) > 0.1:
+                return 'rotation'
+            elif (abs(params.get('translate_x', 0.0)) > 0.001 or 
+                  abs(params.get('translate_y', 0.0)) > 0.001 or
+                  abs(params.get('shear_x', 0.0)) > 0.001 or
+                  abs(params.get('shear_y', 0.0)) > 0.001):
+                return 'affine'
             
-            # Handle unexpected formats
-            else:
-                print(f"Warning: Unexpected params format: {type(params)}")
-                return 'no_transform'  # Default fallback
-                
-        except Exception as e:
-            print(f"Error determining transform type: {e}")
-            return 'no_transform'  # Safe fallback
+            return 'no_transform'
+        elif isinstance(params, str):
+            t_type = params.lower()
+            if 'no_' in t_type:
+                return 'no_transform'
+            elif 'noise' in t_type or 'gaussian' in t_type:
+                return 'gaussian_noise'
+            elif 'rot' in t_type:
+                return 'rotation'
+            elif 'affine' in t_type or 'trans' in t_type:
+                return 'affine'
+            return 'no_transform'
+        else:
+            return 'no_transform'
     
     with torch.no_grad():
-        for i, batch in enumerate(val_loader):
-            if severity > 0:
-                # Unpack batch with transformations
+        if severity > 0:
+            # Evaluation with transformations
+            for batch in tqdm(val_loader, desc=f"Evaluating models (severity {severity})"):
                 orig_images, transformed_images, labels, transform_params = batch
                 orig_images = orig_images.to(device)
                 transformed_images = transformed_images.to(device)
@@ -1513,11 +1453,9 @@ def evaluate_models(main_model, healer_model, dataset_path="tiny-imagenet-200", 
                 results['main']['correct'] += (main_preds == labels).sum().item()
                 results['main']['total'] += labels.size(0)
                 
-                # Track per-transformation accuracy for main model
+                # Track per-transformation accuracy
                 for i, params in enumerate(transform_params):
-                    # Use the helper function to determine transform type based on parameter values
-                    t_type = determine_transform_type(params)
-                    
+                    t_type = get_transform_type(params)
                     results['main']['per_transform'][t_type]['total'] += 1
                     if main_preds[i] == labels[i]:
                         results['main']['per_transform'][t_type]['correct'] += 1
@@ -1538,14 +1476,13 @@ def evaluate_models(main_model, healer_model, dataset_path="tiny-imagenet-200", 
                     
                     # Track per-transformation accuracy for healer
                     for i, params in enumerate(transform_params):
-                        t_type = determine_transform_type(params)
-                        
+                        t_type = get_transform_type(params)
                         results['healer']['per_transform'][t_type]['total'] += 1
                         if healer_preds[i] == labels[i]:
                             results['healer']['per_transform'][t_type]['correct'] += 1
-            else:
-                # Clean data evaluation (no transformations)
-                images, labels = batch
+        else:
+            # Clean data evaluation (no transformations)
+            for images, labels in tqdm(val_loader, desc="Evaluating models (clean data)"):
                 images = images.to(device)
                 labels = labels.to(device)
                 
@@ -1554,25 +1491,25 @@ def evaluate_models(main_model, healer_model, dataset_path="tiny-imagenet-200", 
                 main_preds = torch.argmax(main_outputs, dim=1)
                 results['main']['correct'] += (main_preds == labels).sum().item()
                 results['main']['total'] += labels.size(0)
-        
-        # Calculate overall accuracies
-        for model_name in ['main', 'healer']:
-            if results[model_name] is not None and results[model_name]['total'] > 0:
-                results[model_name]['accuracy'] = results[model_name]['correct'] / results[model_name]['total']
-                
-                # Calculate per-transformation accuracies
-                if severity > 0 and 'per_transform' in results[model_name]:
-                    results[model_name]['per_transform_acc'] = {}
-                    for t_type in transform_types:
-                        t_total = results[model_name]['per_transform'][t_type]['total']
-                        if t_total > 0:
-                            results[model_name]['per_transform_acc'][t_type] = (
-                                results[model_name]['per_transform'][t_type]['correct'] / t_total
-                            )
-                        else:
-                            results[model_name]['per_transform_acc'][t_type] = 0.0
-        
-        return results
+    
+    # Calculate overall accuracies
+    for model_name in ['main', 'healer']:
+        if results[model_name] is not None and results[model_name]['total'] > 0:
+            results[model_name]['accuracy'] = results[model_name]['correct'] / results[model_name]['total']
+            
+            # Calculate per-transformation accuracies
+            if severity > 0 and 'per_transform' in results[model_name]:
+                results[model_name]['per_transform_acc'] = {}
+                for t_type in transform_types:
+                    t_total = results[model_name]['per_transform'][t_type]['total']
+                    if t_total > 0:
+                        results[model_name]['per_transform_acc'][t_type] = (
+                            results[model_name]['per_transform'][t_type]['correct'] / t_total
+                        )
+                    else:
+                        results[model_name]['per_transform_acc'][t_type] = 0.0
+    
+    return results
 
 
 def evaluate_full_pipeline(main_model, healer_model, dataset_path="tiny-imagenet-200", severities=[0.3]):
@@ -1636,6 +1573,47 @@ def evaluate_full_pipeline(main_model, healer_model, dataset_path="tiny-imagenet
                     print(f"    Healer: {ood_results['healer']['per_transform_acc'][t_type]:.4f}")
     
     # Log comprehensive results to wandb
-    log_results_to_wandb(all_results)
+    log_wandb_results(all_results)
     
     return all_results
+
+
+def log_wandb_results(all_results):
+    """
+    Log evaluation results to Weights & Biases
+    """
+    # Log clean data results
+    if 0.0 in all_results:
+        clean_results = all_results[0.0]
+        clean_acc = {
+            "eval/clean_accuracy": clean_results['main']['accuracy']
+        }
+        if clean_results['healer'] is not None:
+            clean_acc["eval/clean_healer_accuracy"] = clean_results['healer']['accuracy']
+        wandb.log(clean_acc)
+    
+    # Log OOD results
+    for severity, results in all_results.items():
+        if severity == 0.0:
+            continue  # Skip clean results, already logged
+        
+        # Main metrics
+        ood_metrics = {
+            f"eval/ood_s{severity}_accuracy": results['main']['accuracy'],
+        }
+        
+        if results['healer'] is not None:
+            ood_metrics[f"eval/ood_s{severity}_healer_accuracy"] = results['healer']['accuracy']
+        
+        # Per-transformation metrics
+        if 'per_transform_acc' in results['main']:
+            for t_type, acc in results['main']['per_transform_acc'].items():
+                ood_metrics[f"eval/ood_s{severity}_{t_type}_accuracy"] = acc
+                
+                if results['healer'] is not None and 'per_transform_acc' in results['healer']:
+                    ood_metrics[f"eval/ood_s{severity}_{t_type}_healer_accuracy"] = (
+                        results['healer']['per_transform_acc'][t_type]
+                    )
+        
+        # Log all metrics together
+        wandb.log(ood_metrics)
