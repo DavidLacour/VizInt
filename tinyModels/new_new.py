@@ -975,7 +975,6 @@ def validate_main_model(model, loader, device):
     
     return val_loss, val_acc
 
-
 def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
     """
     Train the transformation healer model
@@ -1023,7 +1022,17 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
         dataset_path, "train", transform_train, ood_transform=ood_transform
     )
     
-    print(f"Training set size for healer: {len(train_dataset)}")
+    # Create a validation set (20% of training data)
+    # This is important for early stopping
+    dataset_size = len(train_dataset)
+    val_size = int(0.2 * dataset_size)
+    train_size = dataset_size - val_size
+    train_subset, val_subset = torch.utils.data.random_split(
+        train_dataset, [train_size, val_size]
+    )
+    
+    print(f"Training set size for healer: {train_size}")
+    print(f"Validation set size for healer: {val_size}")
     
     # Debug function for collate
     def debug_collate(batch):
@@ -1038,20 +1047,31 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
         return orig_tensor, trans_tensor, labels_tensor, params
     
     # Start with a small batch size for debugging, it will automatically be reduced for memory limits
-    batch_size = find_optimal_batch_size(healer_model,  img_size=64, starting_batch_size=2000, device=None)  # Reduced batch size for debugging
+    batch_size = find_optimal_batch_size(healer_model, img_size=64, starting_batch_size=2000, device=None)
     train_loader = DataLoader(
-        train_dataset, 
+        train_subset, 
         batch_size=batch_size, 
         shuffle=True, 
-        num_workers=0,  # No parallelism for debugging 
+        num_workers=0,
+        pin_memory=True,
+        collate_fn=debug_collate
+    )
+    
+    # Validation loader - no shuffling needed
+    val_loader = DataLoader(
+        val_subset, 
+        batch_size=batch_size, 
+        shuffle=False, 
+        num_workers=0,
         pin_memory=True,
         collate_fn=debug_collate
     )
     
     # Training parameters
-    num_epochs = 15  # Change to 1 for debugging
+    num_epochs = 15
     learning_rate = 5e-5
     warmup_steps = 500
+    patience = 3  # Early stopping patience - same as main model
     
     # Optimizer
     optimizer = torch.optim.AdamW(healer_model.parameters(), lr=learning_rate, weight_decay=0.01)
@@ -1077,13 +1097,17 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
         "epochs": num_epochs,
         "batch_size": batch_size,
         "warmup_steps": warmup_steps,
-        "ood_severity": severity
+        "ood_severity": severity,
+        "early_stopping_patience": patience
     }, allow_val_change=True)
     
     # Training loop
     best_val_loss = float('inf')
+    early_stop_counter = 0
+    best_epoch = 0
     
     for epoch in range(num_epochs):
+        # Training phase
         healer_model.train()
         train_loss = 0
         transform_type_acc = 0
@@ -1191,37 +1215,134 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
             
             # Update progress bar
             progress_bar.set_postfix({'loss': loss.item()})
-            
-            # Break after a few batches for debugging
-            if batch_idx >= 5:
-                print("Breaking after 5 batches for debugging")
-                break
         
         # Calculate training metrics
-        train_loss /= min(5, len(train_loader))
+        train_loss /= len(train_loader)
         transform_type_acc /= total_samples
+        
+        # Validation phase - key for early stopping
+        healer_model.eval()
+        val_loss = 0
+        val_transform_type_acc = 0
+        val_total_samples = 0
+        
+        with torch.no_grad():
+            for batch_idx, (orig_images, transformed_images, labels, transform_params) in enumerate(val_loader):
+                # Move to device
+                orig_images = orig_images.to(device)
+                transformed_images = transformed_images.to(device)
+                
+                # Convert transform_params to target tensors (reuse code from training)
+                targets = {}
+                transform_type_mapping = {
+                    'no_transform': 0,
+                    'gaussian_noise': 1,
+                    'rotation': 2,
+                    'affine': 3
+                }
+                
+                try:
+                    # Initialize tensors
+                    transform_types = []
+                    severity_values = []
+                    noise_std_values = []
+                    rotation_angle_values = []
+                    translate_x_values = []
+                    translate_y_values = []
+                    shear_x_values = []
+                    shear_y_values = []
+                    
+                    for params in transform_params:
+                        # Check if params is a dictionary
+                        if not isinstance(params, dict):
+                            if isinstance(params, tuple) and len(params) >= 2 and isinstance(params[0], str):
+                                # Assume the first element is transform_type and second is severity
+                                transform_type = params[0]
+                                severity = params[1] if len(params) > 1 else 1.0
+                                
+                                transform_types.append(transform_type_mapping.get(transform_type, 0))
+                                severity_values.append(severity)
+                                # Default values for other parameters
+                                noise_std_values.append(0.0)
+                                rotation_angle_values.append(0.0)
+                                translate_x_values.append(0.0)
+                                translate_y_values.append(0.0)
+                                shear_x_values.append(0.0)
+                                shear_y_values.append(0.0)
+                                
+                                continue
+                        
+                        # Normal dictionary case
+                        transform_type = params.get('transform_type', 'gaussian_noise')
+                        transform_types.append(transform_type_mapping.get(transform_type, 0))
+                        
+                        severity_values.append(params.get('severity', 1.0))
+                        noise_std_values.append(params.get('noise_std', 0.0))
+                        rotation_angle_values.append(params.get('rotation_angle', 0.0))
+                        translate_x_values.append(params.get('translate_x', 0.0))
+                        translate_y_values.append(params.get('translate_y', 0.0))
+                        shear_x_values.append(params.get('shear_x', 0.0))
+                        shear_y_values.append(params.get('shear_y', 0.0))
+                    
+                    # Convert lists to tensors
+                    targets['transform_type_idx'] = torch.tensor(transform_types, device=device)
+                    targets['severity'] = torch.tensor(severity_values, device=device).unsqueeze(1)
+                    targets['noise_std'] = torch.tensor(noise_std_values, device=device).unsqueeze(1)
+                    targets['rotation_angle'] = torch.tensor(rotation_angle_values, device=device).unsqueeze(1)
+                    targets['translate_x'] = torch.tensor(translate_x_values, device=device).unsqueeze(1)
+                    targets['translate_y'] = torch.tensor(translate_y_values, device=device).unsqueeze(1)
+                    targets['shear_x'] = torch.tensor(shear_x_values, device=device).unsqueeze(1)
+                    targets['shear_y'] = torch.tensor(shear_y_values, device=device).unsqueeze(1)
+                    
+                except Exception as e:
+                    print(f"Error processing validation parameters: {e}")
+                    continue
+                
+                # Forward pass
+                predictions = healer_model(transformed_images)
+                
+                # Calculate loss
+                loss, loss_dict = healer_loss(predictions, targets)
+                
+                # Update metrics
+                val_loss += loss.item()
+                
+                # Calculate transform type accuracy
+                pred_types = torch.argmax(predictions['transform_type_logits'], dim=1)
+                val_transform_type_acc += (pred_types == targets['transform_type_idx']).sum().item()
+                val_total_samples += len(pred_types)
+        
+        # Calculate validation metrics
+        val_loss /= len(val_loader)
+        val_transform_type_acc /= val_total_samples
         
         # Log metrics
         wandb.log({
             "healer/epoch": epoch + 1,
             "healer/train_loss": train_loss,
-            "healer/transform_type_accuracy": transform_type_acc,
+            "healer/val_loss": val_loss,
+            "healer/train_transform_type_accuracy": transform_type_acc,
+            "healer/val_transform_type_accuracy": val_transform_type_acc,
             **{f"healer/loss_{k}": v for k, v in loss_dict.items()},
             "healer/learning_rate": scheduler.get_last_lr()[0]
         })
         
-        print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {train_loss:.4f}, Transform Type Acc: {transform_type_acc:.4f}")
+        print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+        print(f"Transform Type Acc - Train: {transform_type_acc:.4f}, Val: {val_transform_type_acc:.4f}")
         
-        # Save checkpoint
-        if train_loss < best_val_loss:
-            best_val_loss = train_loss
+        # Early stopping check
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            early_stop_counter = 0
             
+            # Save checkpoint
             checkpoint_path = checkpoints_dir / f"model_epoch{epoch+1}.pt"
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': healer_model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'train_loss': train_loss,
+                'scheduler_state_dict': scheduler.state_dict(),
+                'val_loss': val_loss,
             }, checkpoint_path)
             
             # Save best model
@@ -1229,14 +1350,30 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': healer_model.state_dict(),
-                'train_loss': train_loss,
+                'val_loss': val_loss,
             }, best_model_path)
             
             # Log to wandb
             wandb.save(str(checkpoint_path))
             wandb.save(str(best_model_path))
             
-            print(f"Saved best model with training loss: {train_loss:.4f}")
+            print(f"Saved best model with validation loss: {val_loss:.4f}")
+            
+            # Track the best epoch for later reference
+            best_epoch = epoch + 1
+        else:
+            early_stop_counter += 1
+            
+            if early_stop_counter >= patience:
+                print(f"Early stopping triggered after {epoch+1} epochs")
+                break
+    
+    # Clean up old checkpoints except the best one
+    print("Cleaning up checkpoints to save disk space...")
+    for checkpoint_file in checkpoints_dir.glob("*.pt"):
+        if f"model_epoch{best_epoch}.pt" != checkpoint_file.name:
+            checkpoint_file.unlink()
+            print(f"Deleted {checkpoint_file}")
     
     print(f"Healer model training completed. Best model saved at: {best_model_dir / 'best_model.pt'}")
     
