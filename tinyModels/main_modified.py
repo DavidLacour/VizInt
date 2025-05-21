@@ -255,6 +255,7 @@ def visualize_transformations(model_dir, dataset_path, num_samples=5, severity=0
             
             print(f"Saved visualization for {t_type} transformation")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Transform Healing with Vision Transformers")
     parser.add_argument("--mode", type=str, default="train", choices=["train", "evaluate", "visualize", "all"],
@@ -271,12 +272,13 @@ def main():
                       help="Number of samples to visualize")
     parser.add_argument("--seed", type=int, default=42,
                       help="Random seed for reproducibility")
-    parser.add_argument("--include_blended", action="store_true",
-                      help="Whether to include BlendedTTT model in the pipeline")
-    parser.add_argument("--include_ttt", action="store_true",
-                      help="Whether to include TTT model in the pipeline")
+    # Replace include with exclude options
+    parser.add_argument("--exclude_blended", action="store_true",
+                      help="Whether to exclude BlendedTTT model from the pipeline")
+    parser.add_argument("--exclude_ttt", action="store_true",
+                      help="Whether to exclude TTT model from the pipeline")
     parser.add_argument("--skip_ttt", action="store_true",
-                      help="Skip training TTT model (only relevant when --include_ttt is used)")
+                      help="Skip training TTT model (but still use it for evaluation if available)")
     args = parser.parse_args()
     
     # Set seed for reproducibility
@@ -297,8 +299,10 @@ def main():
     main_model_path = f"{args.model_dir}/bestmodel_main/best_model.pt"
     robust_model_path = f"{args.model_dir}/bestmodel_robust/best_model.pt"
     healer_model_path = f"{args.model_dir}/bestmodel_healer/best_model.pt"
-    ttt_model_path = f"{args.model_dir}/bestmodel_ttt/best_model.pt" if args.include_ttt else None
-    blended_model_path = f"{args.model_dir}/bestmodel_blended/best_model.pt" if args.include_blended else None
+    # Changed from if args.include_ttt to if not args.exclude_ttt
+    ttt_model_path = f"{args.model_dir}/bestmodel_ttt/best_model.pt" if not args.exclude_ttt else None
+    # Changed from if args.include_blended to if not args.exclude_blended
+    blended_model_path = f"{args.model_dir}/bestmodel_blended/best_model.pt" if not args.exclude_blended else None
     
     # Training mode
     if args.mode in ["train", "all"]:
@@ -326,8 +330,8 @@ def main():
             print(f"\n=== Healer Model found at {healer_model_path}, skipping training ===")
             healer_model = load_healer_model(healer_model_path, device)
         
-        # Train TTT model if not skipped and not already existing
-        if not args.skip_ttt:
+        # Train TTT model if not skipped, not excluded, and not already existing
+        if not args.exclude_ttt and not args.skip_ttt:
             if not os.path.exists(ttt_model_path):
                 print("\n=== Training Test-Time Training Model ===")
                 if main_model is None:
@@ -339,17 +343,18 @@ def main():
                     main_model = load_main_model(main_model_path, device)
                 ttt_model = load_ttt_model(ttt_model_path, main_model, device)
         
-        # Train BlendedTTT model if requested and not already existing
-        if not os.path.exists(blended_model_path):
-            print("\n=== Training BlendedTTT Model ===")
-            if main_model is None:
-                main_model = load_main_model(main_model_path, device)
-            blended_model = train_blended_ttt_model(main_model, args.dataset)
-        else:
-            print(f"\n=== BlendedTTT Model found at {blended_model_path}, skipping training ===")
-            if main_model is None:
-                main_model = load_main_model(main_model_path, device)
-            blended_model = load_blended_model(blended_model_path, main_model, device)
+        # Train BlendedTTT model if not excluded and not already existing
+        if not args.exclude_blended:
+            if not os.path.exists(blended_model_path):
+                print("\n=== Training BlendedTTT Model ===")
+                if main_model is None:
+                    main_model = load_main_model(main_model_path, device)
+                blended_model = train_blended_ttt_model(main_model, args.dataset)
+            else:
+                print(f"\n=== BlendedTTT Model found at {blended_model_path}, skipping training ===")
+                if main_model is None:
+                    main_model = load_main_model(main_model_path, device)
+                blended_model = load_blended_model(blended_model_path, main_model, device)
     
     # Evaluation mode
     if args.mode in ["evaluate", "all"]:
@@ -367,10 +372,10 @@ def main():
         if healer_model is None:
             healer_model = load_healer_model(healer_model_path, device)
         
-        if args.include_ttt and ttt_model is None and os.path.exists(ttt_model_path):
+        if not args.exclude_ttt and ttt_model is None and os.path.exists(ttt_model_path):
             ttt_model = load_ttt_model(ttt_model_path, main_model, device)
         
-        if args.include_blended and blended_model is None and os.path.exists(blended_model_path):
+        if not args.exclude_blended and blended_model is None and os.path.exists(blended_model_path):
             blended_model = load_blended_model(blended_model_path, main_model, device)
         
         # Evaluate standard main model
@@ -391,18 +396,19 @@ def main():
             print("\n--- Comparing Standard vs Robust Model Performance ---")
             compare_models_performance(main_results, robust_results, "Standard", "Robust")
         
-        # Include TTT evaluation if requested
-        if args.include_ttt and ttt_model is not None:
+        # Include TTT evaluation if not excluded
+        if not args.exclude_ttt and ttt_model is not None:
             print("\n--- Evaluating TTT Pipeline ---")
-            ttt_results = evaluate_full_pipeline_with_ttt(
-                main_model, healer_model, ttt_model, 
+            # Replace the call to non-existent function with evaluate_full_pipeline_with_blended_and_ttt
+            ttt_results = evaluate_full_pipeline_with_blended_and_ttt(
+                main_model, healer_model, ttt_model, None,  # Pass None for blended_model
                 args.dataset, severities
             )
         
-        # Include BlendedTTT evaluation if requested
-        if args.include_blended and blended_model is not None:
+        # Include BlendedTTT evaluation if not excluded
+        if not args.exclude_blended and blended_model is not None:
             print("\n--- Evaluating BlendedTTT Pipeline ---")
-            blended_results = evaluate_full_pipeline_with_blended(
+            blended_results = evaluate_full_pipeline_with_blended_and_ttt(
                 main_model, healer_model, ttt_model, blended_model, 
                 args.dataset, severities
             )
@@ -418,10 +424,10 @@ def main():
         if healer_model is None:
             healer_model = load_healer_model(healer_model_path, device)
         
-        if args.include_ttt and ttt_model is None and os.path.exists(ttt_model_path):
+        if not args.exclude_ttt and ttt_model is None and os.path.exists(ttt_model_path):
             ttt_model = load_ttt_model(ttt_model_path, main_model, device)
         
-        if args.include_blended and blended_model is None and os.path.exists(blended_model_path):
+        if not args.exclude_blended and blended_model is None and os.path.exists(blended_model_path):
             blended_model = load_blended_model(blended_model_path, main_model, device)
             
         # Generate visualizations for standard model
@@ -431,8 +437,8 @@ def main():
             num_samples=args.num_samples,
             severity=args.severity,
             save_dir=f"{args.visualize_dir}/standard",
-            include_blended=args.include_blended,
-            include_ttt=args.include_ttt
+            include_blended=not args.exclude_blended,
+            include_ttt=not args.exclude_ttt
         )
         
         # Generate visualizations for robust model if available
@@ -465,8 +471,8 @@ def main():
                 num_samples=args.num_samples,
                 severity=args.severity,
                 save_dir=f"{args.visualize_dir}/robust",
-                include_blended=args.include_blended,
-                include_ttt=args.include_ttt
+                include_blended=not args.exclude_blended,
+                include_ttt=not args.exclude_ttt
             )
             
             # Restore original main model
@@ -478,6 +484,7 @@ def main():
                 shutil.rmtree(tmp_model_dir)
     
     print("\nExperiment completed!")
+
 
 # Helper functions for loading models
 def load_main_model(model_path, device):

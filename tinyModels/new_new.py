@@ -230,8 +230,6 @@ class TinyImageNetDataset(Dataset):
         
         return image, label
 
-
-# TransformationHealer - a model that predicts and corrects transformations
 class TransformationHealer(nn.Module):
     def __init__(self, img_size=64, patch_size=8, in_chans=3, embed_dim=384, depth=6, head_dim=64):
         super().__init__()
@@ -301,21 +299,21 @@ class TransformationHealer(nn.Module):
         # Predict transform type probabilities
         transform_type_logits = self.transform_type_head(x)
         
-        # Predict transform-specific severities
+        # Predict transform-specific severities - these already have shape [B, 1] from the linear layer
         severity_noise = torch.sigmoid(self.severity_noise_head(x))
         severity_rotation = torch.sigmoid(self.severity_rotation_head(x))
         severity_affine = torch.sigmoid(self.severity_affine_head(x))
         
-        # Predict various parameters
-        rotation_angle = torch.tanh(self.rotation_head(x)) * 180.0  # -180 to 180 degrees
-        noise_std = torch.sigmoid(self.noise_head(x)) * 0.5  # 0-0.5 range
+        # Predict various parameters - these already have shape [B, 1] from the linear layer
+        rotation_angle = torch.tanh(self.rotation_head(x)) * 180.0
+        noise_std = torch.sigmoid(self.noise_head(x)) * 0.5
         
-        # Affine transformation parameters
-        affine_params = self.affine_head(x)
-        translate_x = torch.tanh(affine_params[:, 0]) * 0.1  # -0.1 to 0.1 range (10% of image size)
-        translate_y = torch.tanh(affine_params[:, 1]) * 0.1  # -0.1 to 0.1 range
-        shear_x = torch.tanh(affine_params[:, 2]) * 15.0  # -15 to 15 degrees
-        shear_y = torch.tanh(affine_params[:, 3]) * 15.0  # -15 to 15 degrees
+        # Affine transformation parameters - fix the shape issue by using proper slicing
+        affine_params = self.affine_head(x)  # [B, 4]
+        translate_x = torch.tanh(affine_params[:, 0:1]) * 0.1  # Use [:, 0:1] instead of [:, 0] to keep dimensions
+        translate_y = torch.tanh(affine_params[:, 1:2]) * 0.1  # Use [:, 1:2] instead of [:, 1]
+        shear_x = torch.tanh(affine_params[:, 2:3]) * 15.0     # Use [:, 2:3] instead of [:, 2]
+        shear_y = torch.tanh(affine_params[:, 3:4]) * 15.0     # Use [:, 3:4] instead of [:, 3]
         
         return {
             'transform_type_logits': transform_type_logits,
@@ -329,142 +327,6 @@ class TransformationHealer(nn.Module):
             'shear_x': shear_x,
             'shear_y': shear_y
         }
-    
-    def apply_correction(self, images, predictions):
-        """
-        Apply inverse transformations to correct the distorted images - optimized for GPU
-        
-        Args:
-            images: Batch of distorted images [B, C, H, W]
-            predictions: Dictionary of transformation predictions
-            
-        Returns:
-            corrected_images: Batch of corrected images [B, C, H, W]
-        """
-        # Get the device
-        device = images.device
-        
-        # Get predicted transform types
-        transform_types = torch.argmax(predictions['transform_type_logits'], dim=1)
-        
-        transform_map = {
-            0: 'no_transform',
-            1: 'gaussian_noise',
-            2: 'rotation',
-            3: 'affine'
-        }
-        
-        # Clone images to create a corrected version
-        corrected_images = images.clone()
-        
-        # Process images by transform type for efficiency
-        # We'll collect indices for each transform type and process them together
-        
-        for transform_idx, transform_name in transform_map.items():
-            # Find all images with this transform type
-            mask = (transform_types == transform_idx)
-            if not mask.any():
-                continue  # Skip if no images have this transform type
-                
-            # Get the subset of images with this transform type
-            subset_indices = torch.where(mask)[0]
-            
-            if transform_name == 'no_transform':
-                # For no transform, keep the original image
-                pass
-                
-            elif transform_name == 'gaussian_noise':
-                # For noise, get predicted severity and std
-                subset_severity = predictions['severity_noise'][mask]
-                subset_std = predictions['noise_std'][mask]
-                
-                # Only apply denoising if significant noise detected
-                significant_noise = (subset_std > 0.05) & (subset_severity > 0.1)
-                if significant_noise.any():
-                    # We need to work with PIL for Gaussian blur
-                    # Process only the images with significant noise
-                    for i, orig_idx in enumerate(subset_indices):
-                        if significant_noise[i]:
-                            img = images[orig_idx].cpu()
-                            sigma = subset_std[i].item() * 2.0
-                            
-                            # Convert to PIL, apply blur, convert back
-                            to_pil = transforms.ToPILImage()
-                            to_tensor = transforms.ToTensor()
-                            pil_img = to_pil(img)
-                            kernel_size = 3
-                            denoised_img = transforms.functional.gaussian_blur(pil_img, kernel_size, sigma)
-                            corrected_img = to_tensor(denoised_img).to(device)
-                            
-                            # Update the corrected images tensor
-                            corrected_images[orig_idx] = corrected_img
-                    
-            elif transform_name == 'rotation':
-                # For rotation, get predicted severity and angles
-                subset_severity = predictions['severity_rotation'][mask]
-                subset_angles = predictions['rotation_angle'][mask]
-                
-                # Only rotate if severity is significant
-                significant_rotation = subset_severity > 0.1
-                if significant_rotation.any():
-                    for i, orig_idx in enumerate(subset_indices):
-                        if significant_rotation[i]:
-                            img = images[orig_idx].cpu()
-                            angle = -subset_angles[i].item()  # Apply negative angle to correct
-                            
-                            # Convert to PIL, rotate, convert back
-                            to_pil = transforms.ToPILImage()
-                            to_tensor = transforms.ToTensor()
-                            pil_img = to_pil(img)
-                            rotated_img = transforms.functional.rotate(pil_img, angle)
-                            corrected_img = to_tensor(rotated_img).to(device)
-                            
-                            # Update the corrected images tensor
-                            corrected_images[orig_idx] = corrected_img
-                    
-            elif transform_name == 'affine':
-                # For affine, get predicted severity and transform parameters
-                subset_severity = predictions['severity_affine'][mask]
-                subset_translate_x = predictions['translate_x'][mask]
-                subset_translate_y = predictions['translate_y'][mask]
-                subset_shear_x = predictions['shear_x'][mask]
-                subset_shear_y = predictions['shear_y'][mask]
-                
-                # Only apply affine transformation if severity is significant
-                significant_affine = subset_severity > 0.1
-                if significant_affine.any():
-                    for i, orig_idx in enumerate(subset_indices):
-                        if significant_affine[i]:
-                            img = images[orig_idx].cpu()
-                            translate_x = -subset_translate_x[i].item()  # Negative to correct
-                            translate_y = -subset_translate_y[i].item()
-                            shear_x = -subset_shear_x[i].item()
-                            shear_y = -subset_shear_y[i].item()
-                            
-                            # Convert to PIL, apply inverse affine, convert back
-                            to_pil = transforms.ToPILImage()
-                            to_tensor = transforms.ToTensor()
-                            pil_img = to_pil(img)
-                            
-                            # Get image size for translation calculation
-                            width, height = pil_img.size
-                            translate_pixels = (translate_x * width, translate_y * height)
-                            
-                            # Apply inverse affine transformation
-                            affine_img = transforms.functional.affine(
-                                pil_img, 
-                                angle=0.0,
-                                translate=translate_pixels,
-                                scale=1.0,
-                                shear=[shear_x, shear_y]
-                            )
-                            corrected_img = to_tensor(affine_img).to(device)
-                            
-                            # Update the corrected images tensor
-                            corrected_images[orig_idx] = corrected_img
-        
-        return corrected_images
-
 
 # Loss function for the healer model
 class HealerLoss(nn.Module):
@@ -1054,7 +916,7 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
         return orig_tensor, trans_tensor, labels_tensor, params
     
     # Determine batch size and data loading parameters
-    batch_size = 250 #find_optimal_batch_size(healer_model, img_size=64, starting_batch_size=128, device=device)
+    batch_size = 50 #find_optimal_batch_size(healer_model, img_size=64, starting_batch_size=128, device=device)
     
     # OPTIMIZED: Use more workers for GPU systems, but pin_memory=False during transformation phase
     # to avoid extra memory usage in CPU-GPU transfer
