@@ -785,7 +785,7 @@ def train_main_model(dataset_path="tiny-imagenet-200"):
     model.to(device)
     
     # Find optimal batch size for the GPU
-    batch_size = find_optimal_batch_size(model, img_size=64, starting_batch_size=128, device=device)
+    batch_size =  find_optimal_batch_size(model, img_size=64, starting_batch_size=128, device=device)
     
     # Define image transformations
     transform_train = transforms.Compose([
@@ -1054,7 +1054,7 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
         return orig_tensor, trans_tensor, labels_tensor, params
     
     # Determine batch size and data loading parameters
-    batch_size = find_optimal_batch_size(healer_model, img_size=64, starting_batch_size=128, device=device)
+    batch_size = 250 #find_optimal_batch_size(healer_model, img_size=64, starting_batch_size=128, device=device)
     
     # OPTIMIZED: Use more workers for GPU systems, but pin_memory=False during transformation phase
     # to avoid extra memory usage in CPU-GPU transfer
