@@ -7,7 +7,7 @@ from copy import deepcopy
 
 from vit_implementation import PatchEmbed
 from transformer_utils import LayerNorm, TransformerTrunk, set_seed
-
+from pathlib import Path
 import os
 import torch
 import wandb
@@ -268,7 +268,7 @@ def train_ttt_model(dataset_path, base_model=None, severity=0.5, epochs=10):
         ttt_model: Trained TTT model
     """
     # Set seed for reproducibility
-    set_seed(42)
+     #set_seed(42) trying not to set seeds coz gpu errors 
     
     # Create checkpoint directories
     checkpoints_dir = Path("checkpoints_ttt")

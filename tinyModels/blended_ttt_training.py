@@ -23,6 +23,8 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
 from new_new import ContinuousTransforms, TinyImageNetDataset
 
+from blended_ttt_model import BlendedTTT
+
 import os
 import torch
 import wandb
@@ -43,6 +45,14 @@ from copy import deepcopy
 # Import our custom ViT model
 from transformer_utils import set_seed, LayerNorm, Mlp, TransformerTrunk
 from vit_implementation import create_vit_model, PatchEmbed, VisionTransformer
+
+
+MAX_ROTATION = 360.0 
+MAX_STD_GAUSSIAN_NOISE = 0.5
+MAX_TRANSLATION_AFFINE = 0.1
+MAX_SHEAR_ANGLE = 15.0
+DEBUG = False 
+
 
 def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
     """
