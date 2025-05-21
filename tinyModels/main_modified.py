@@ -23,7 +23,7 @@ from ttt_evaluation import evaluate_with_ttt, evaluate_with_test_time_adaptation
 from robust_training import *
 
 
-def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities, include_blended=True, include_ttt=True):
+def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities, model_dir="./", include_blended=True, include_ttt=True):
     """
     Evaluate the full transformation healing pipeline on clean and transformed data.
     
@@ -32,6 +32,7 @@ def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities, i
         healer_model: The transformation healer model
         dataset_path: Path to the dataset
         severities: List of severity levels to evaluate
+        model_dir: Directory containing the models
         include_blended: Whether to include BlendedTTT in evaluation
         include_ttt: Whether to include TTT in evaluation
         
@@ -75,12 +76,12 @@ def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities, i
     ttt_model = None
     
     if include_blended:
-        blended_model_path = f"{args.model_dir}/bestmodel_blended/best_model.pt"
+        blended_model_path = f"{model_dir}/bestmodel_blended/best_model.pt"
         if os.path.exists(blended_model_path):
             blended_model = load_blended_model(blended_model_path, main_model, device)
             
     if include_ttt:
-        ttt_model_path = f"{args.model_dir}/bestmodel_ttt/best_model.pt"
+        ttt_model_path = f"{model_dir}/bestmodel_ttt/best_model.pt"
         if os.path.exists(ttt_model_path):
             ttt_model = load_ttt_model(ttt_model_path, main_model, device)
     
@@ -776,7 +777,7 @@ def main():
     parser.add_argument("--skip_ttt", action="store_true",
                       help="Skip training TTT model (but still use it for evaluation if available)")
     # Add new arguments for evaluation with/without transforms
-    parser.add_argument("--severities", type=str, default="0.2,0.5,0.8",
+    parser.add_argument("--severities", type=str, default="0.0,0.3,0.5,0.75,1.0",
                       help="Comma-separated list of transformation severities to evaluate")
     args = parser.parse_args()
     
@@ -881,6 +882,7 @@ def main():
         main_results = evaluate_full_pipeline(
             main_model, healer_model, 
             args.dataset, args.severities,
+            model_dir=args.model_dir,
             include_blended=not args.exclude_blended,
             include_ttt=not args.exclude_ttt
         )
