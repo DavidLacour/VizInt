@@ -16,3 +16,16 @@
 *.json
 *.xml
 *.csv
+
+# Image files
+*.JPEG
+*.jpeg
+*.jpg
+*.JPG
+*.PNG
+
+# Checkpoint and model folders
+checkpoint*/
+bestmodel*/
+tinyModels/checkpoint*/
+tinyModels/bestmodel*/
