@@ -48,10 +48,10 @@ MAX_ROTATION = 360.0
 MAX_STD_GAUSSIAN_NOISE = 0.5
 MAX_TRANSLATION_AFFINE = 0.1
 MAX_SHEAR_ANGLE = 15.0
-
+DEBUG = False 
 
 class BlendedTTT(nn.Module):
-    def __init__(self, base_model, img_size=64, patch_size=12, embed_dim=384,depth=8):
+    def __init__(self, base_model, img_size=64, patch_size=8, embed_dim=384,depth=8):
         super().__init__()
         
         # Use the same patch embedding as the ViT model
@@ -95,7 +95,7 @@ class BlendedTTT(nn.Module):
         self.head = nn.Linear(embed_dim, 200)  # 200 classes for Tiny ImageNet
         
         # Create heads for different transformation parameters
-        self.transform_type_head = nn.Linear(embed_dim, 3)  # 3 transform types (noise, rotation, affine)
+        self.transform_type_head = nn.Linear(embed_dim, 4)  # 3 transform types (no transform,noise, rotation, affine)
         
         # Separate severity heads for each transform type
         self.severity_noise_head = nn.Linear(embed_dim, 1)   

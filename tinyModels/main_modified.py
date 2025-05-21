@@ -82,7 +82,7 @@ def visualize_transformations(model_dir, dataset_path, num_samples=5, severity=0
             img_size=64, 
             patch_size=8,
             embed_dim=384, 
-            depth=4
+            depth=8
         )
         blended_checkpoint = torch.load(f"{model_dir}/bestmodel_blended/best_model.pt", map_location=device)
         blended_model.load_state_dict(blended_checkpoint['model_state_dict'])
