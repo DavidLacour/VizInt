@@ -20,6 +20,7 @@ from blended_ttt_evaluation import evaluate_models_with_blended, evaluate_full_p
 # Import new TTT modules
 from ttt_model import TestTimeTrainer, train_ttt_model
 from ttt_evaluation import evaluate_with_ttt, evaluate_with_test_time_adaptation
+from robust_training import *
 
 def visualize_transformations(model_dir, dataset_path, num_samples=5, severity=0.5, save_dir="visualizations", include_blended=True, include_ttt=True):
     """
@@ -1306,3 +1307,8 @@ def log_wandb_results_with_all_models(all_results):
         
         # Log all metrics together
         wandb.log(ood_metrics)
+
+
+
+if __name__ == "__main__":
+    main()

@@ -5,6 +5,28 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
 from new_new import ContinuousTransforms, TinyImageNetDataset
 
+import os
+import torch
+import wandb
+import numpy as np
+import shutil
+from pathlib import Path
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
+from sklearn.metrics import accuracy_score
+from tqdm import tqdm
+from PIL import Image
+import torch.nn as nn
+import torch.nn.functional as F
+import random
+import math
+from copy import deepcopy
+
+# Import our custom ViT model
+from transformer_utils import set_seed, LayerNorm, Mlp, TransformerTrunk
+from vit_implementation import create_vit_model, PatchEmbed, VisionTransformer
+
+
 def evaluate_with_ttt(main_model, ttt_model, dataset_path, severity=0.5, batch_size=64):
     """
     Evaluate the TTT model on test-time adaptation.
