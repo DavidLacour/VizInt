@@ -1373,7 +1373,7 @@ def evaluate_models(main_model, healer_model, dataset_path="tiny-imagenet-200", 
     
     return results
 
-
+'''
 def evaluate_full_pipeline(main_model, healer_model, dataset_path="tiny-imagenet-200", severities=[0.3]):
     """
     Comprehensive evaluation across multiple severities including clean data.
@@ -1438,7 +1438,7 @@ def evaluate_full_pipeline(main_model, healer_model, dataset_path="tiny-imagenet
     log_wandb_results(all_results)
     
     return all_results
-
+'''
 
 def log_wandb_results(all_results):
     """
