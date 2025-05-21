@@ -6,6 +6,10 @@ import numpy as np
 from torchvision import transforms
 from PIL import Image
 from pathlib import Path
+import shutil
+from copy import deepcopy
+from tqdm import tqdm
+from torch.utils.data import DataLoader
 
 from new_new import * 
 # Import BlendedTTT modules
@@ -820,15 +824,6 @@ def evaluate_full_pipeline_with_blended_only(main_model, blended_model, dataset_
         print(f"Evaluating BlendedTTT model...")
         blended_results = evaluate_models_with_blended(main_model, blended_model, dataset_path, severity=severity)
         
-        # TTT evaluation
-        print(f"Evaluating TTT model (pre-adaptation)...")
-        ttt_standard_results = evaluate_with_ttt(main_model, ttt_model, dataset_path, severity=severity)
-        
-        print(f"Evaluating TTT model with test-time adaptation...")
-        ttt_adaptation_results = evaluate_with_test_time_adaptation(
-            main_model, ttt_model, dataset_path, severity=severity
-        )
-        
         # Create combined results
         ood_results = {
             'main': main_only_results[severity]['main'],
@@ -837,14 +832,8 @@ def evaluate_full_pipeline_with_blended_only(main_model, blended_model, dataset_
                 'accuracy': blended_results['blended_accuracy'],
                 'per_transform_acc': blended_results['per_transform_acc']['blended']
             },
-            'ttt': {
-                'accuracy': ttt_standard_results['ttt_accuracy'],
-                'per_transform_acc': ttt_standard_results['per_transform_acc']['ttt']
-            },
-            'ttt_adapted': {
-                'accuracy': ttt_adaptation_results['ttt_accuracy'],
-                'per_transform_acc': ttt_adaptation_results['per_transform_acc']['ttt']
-            }
+            'ttt': None,
+            'ttt_adapted': None
         }
         
         all_results[severity] = ood_results
@@ -853,20 +842,14 @@ def evaluate_full_pipeline_with_blended_only(main_model, blended_model, dataset_
         print(f"OOD Accuracy (Severity {severity}):")
         print(f"  Main Model: {ood_results['main']['accuracy']:.4f}")
         print(f"  BlendedTTT Model: {ood_results['blended']['accuracy']:.4f}")
-        print(f"  TTT Model: {ood_results['ttt']['accuracy']:.4f}")
-        print(f"  TTT Model (adapted): {ood_results['ttt_adapted']['accuracy']:.4f}")
         
         # Calculate robustness metrics
         main_drop = clean_results[0.0]['main']['accuracy'] - ood_results['main']['accuracy']
         blended_drop = clean_results[0.0]['main']['accuracy'] - ood_results['blended']['accuracy']
-        ttt_drop = clean_results[0.0]['main']['accuracy'] - ood_results['ttt']['accuracy']
-        ttt_adapted_drop = clean_results[0.0]['main']['accuracy'] - ood_results['ttt_adapted']['accuracy']
         
         print(f"\nAccuracy Drop from Clean Data:")
         print(f"  Main Model: {main_drop:.4f} ({main_drop/clean_results[0.0]['main']['accuracy']*100:.1f}%)")
         print(f"  BlendedTTT Model: {blended_drop:.4f} ({blended_drop/clean_results[0.0]['main']['accuracy']*100:.1f}%)")
-        print(f"  TTT Model: {ttt_drop:.4f} ({ttt_drop/clean_results[0.0]['main']['accuracy']*100:.1f}%)")
-        print(f"  TTT Model (adapted): {ttt_adapted_drop:.4f} ({ttt_adapted_drop/clean_results[0.0]['main']['accuracy']*100:.1f}%)")
         
         # Print per-transformation accuracies
         print("\nPer-Transformation Accuracy:")
@@ -874,13 +857,11 @@ def evaluate_full_pipeline_with_blended_only(main_model, blended_model, dataset_
             print(f"  {t_type.upper()}:")
             print(f"    Main: {ood_results['main']['per_transform_acc'][t_type]:.4f}")
             print(f"    BlendedTTT: {ood_results['blended']['per_transform_acc'][t_type]:.4f}")
-            print(f"    TTT: {ood_results['ttt']['per_transform_acc'][t_type]:.4f}")
-            print(f"    TTT (adapted): {ood_results['ttt_adapted']['per_transform_acc'][t_type]:.4f}")
     
     # Log results to wandb if available
     try:
         import wandb
-        log_wandb_results_with_blended_and_ttt(all_results)
+        log_wandb_results_with_blended_only(all_results)
     except:
         print("Note: wandb not available or error in logging.")
     
@@ -1061,67 +1042,6 @@ def log_wandb_results_with_blended_and_ttt(all_results):
         
         # Log all metrics together
         wandb.log(ood_metrics)
-    
-    # For clean data, we don't use BlendedTTT, just main model
-    # Use evaluate_main_model_only for clean data evaluation
-    clean_results = evaluate_main_model_only(main_model, dataset_path, [])
-    all_results[0.0] = clean_results[0.0]
-    
-    # Print clean data results
-    print(f"Clean Data Accuracy:")
-    print(f"  Main Model: {clean_results[0.0]['main']['accuracy']:.4f}")
-    
-    # Then evaluate on transformed data with both models
-    for severity in severities:
-        print(f"\nEvaluating with severity {severity}...")
-        
-        # Get BlendedTTT evaluation
-        blended_results = evaluate_models_with_blended(main_model, blended_model, dataset_path, severity=severity)
-        
-        # Create combined results
-        ood_results = {
-            'main': {
-                'accuracy': blended_results['main_accuracy'],
-                'per_transform_acc': blended_results['per_transform_acc']['main']
-            },
-            'healer': None,  # No healer model
-            'blended': {
-                'accuracy': blended_results['blended_accuracy'],
-                'per_transform_acc': blended_results['per_transform_acc']['blended']
-            },
-            'ttt': None       # No TTT model
-        }
-        
-        all_results[severity] = ood_results
-        
-        # Print results
-        print(f"OOD Accuracy (Severity {severity}):")
-        print(f"  Main Model: {ood_results['main']['accuracy']:.4f}")
-        print(f"  BlendedTTT Model: {ood_results['blended']['accuracy']:.4f}")
-        
-        # Calculate robustness metrics
-        main_drop = clean_results[0.0]['main']['accuracy'] - ood_results['main']['accuracy']
-        blended_drop = clean_results[0.0]['main']['accuracy'] - ood_results['blended']['accuracy']
-        
-        print(f"\nAccuracy Drop from Clean Data:")
-        print(f"  Main Model: {main_drop:.4f} ({main_drop/clean_results[0.0]['main']['accuracy']*100:.1f}%)")
-        print(f"  BlendedTTT Model: {blended_drop:.4f} ({blended_drop/clean_results[0.0]['main']['accuracy']*100:.1f}%)")
-        
-        # Print per-transformation accuracies
-        print("\nPer-Transformation Accuracy:")
-        for t_type in ['no_transform', 'gaussian_noise', 'rotation', 'affine']:
-            print(f"  {t_type.upper()}:")
-            print(f"    Main: {ood_results['main']['per_transform_acc'][t_type]:.4f}")
-            print(f"    BlendedTTT: {ood_results['blended']['per_transform_acc'][t_type]:.4f}")
-    
-    # Log results to wandb if available
-    try:
-        import wandb
-        log_wandb_results_with_blended_only(all_results)
-    except:
-        print("Note: wandb not available or error in logging.")
-    
-    return all_results
 
 def evaluate_full_pipeline_with_ttt_only(main_model, ttt_model, dataset_path, severities):
     """
@@ -1230,220 +1150,93 @@ def evaluate_full_pipeline_with_blended_and_ttt(main_model, ttt_model, blended_m
     Returns:
         all_results: Dictionary of evaluation results
     """
-    """
-    Evaluate the full pipeline including the TTT model.
-    
-    Args:
-        main_model: The classification model
-        healer_model: The transformation healer model
-        ttt_model: The test-time training model
-        dataset_path: Path to the dataset
-        severities: List of severity levels to evaluate
-    
-    Returns:
-        all_results: Dictionary of evaluation results
-    """
     all_results = {}
     
     # First evaluate on clean data (severity 0.0)
     print("\nEvaluating on clean data (no transformations)...")
-    clean_results = evaluate_models(main_model, healer_model, dataset_path, severity=0.0)
-    all_results[0.0] = clean_results
+    
+    # For clean data, we just use the main model
+    clean_results = evaluate_main_model_only(main_model, dataset_path, [])
+    all_results[0.0] = clean_results[0.0]
     
     # Print clean data results
     print(f"Clean Data Accuracy:")
-    print(f"  Main Model: {clean_results['main']['accuracy']:.4f}")
+    print(f"  Main Model: {clean_results[0.0]['main']['accuracy']:.4f}")
     
-    if clean_results['healer'] is not None:
-        print(f"  Healer Model: {clean_results['healer']['accuracy']:.4f}")
-    
-    # Then evaluate on transformed data with different models
+    # Then evaluate on transformed data with both models
     for severity in severities:
         print(f"\nEvaluating with severity {severity}...")
         
-        # Basic evaluation with main and healer models
-        ood_results = evaluate_models(main_model, healer_model, dataset_path, severity=severity)
+        # Basic main model evaluation
+        main_only_results = evaluate_main_model_only(main_model, dataset_path, [severity])
         
-        # Add BlendedTTT evaluation
-        if blended_model is not None:
-            print(f"Evaluating BlendedTTT model...")
-            blended_results = evaluate_models_with_blended(main_model, blended_model, dataset_path, severity=severity)
-            
-            # Add BlendedTTT results to the overall results
-            ood_results['blended'] = {
+        # BlendedTTT evaluation
+        print(f"Evaluating BlendedTTT model...")
+        blended_results = evaluate_models_with_blended(main_model, blended_model, dataset_path, severity=severity)
+        
+        # TTT evaluation
+        print(f"Evaluating TTT model (pre-adaptation)...")
+        ttt_standard_results = evaluate_with_ttt(main_model, ttt_model, dataset_path, severity=severity)
+        
+        print(f"Evaluating TTT model with test-time adaptation...")
+        ttt_adaptation_results = evaluate_with_test_time_adaptation(
+            main_model, ttt_model, dataset_path, severity=severity
+        )
+        
+        # Create combined results
+        ood_results = {
+            'main': main_only_results[severity]['main'],
+            'healer': None,  # No healer model
+            'blended': {
                 'accuracy': blended_results['blended_accuracy'],
                 'per_transform_acc': blended_results['per_transform_acc']['blended']
-            }
-        
-        # Add TTT evaluation
-        if ttt_model is not None:
-            print(f"Evaluating TTT model (pre-adaptation)...")
-            ttt_standard_results = evaluate_with_ttt(main_model, ttt_model, dataset_path, severity=severity)
-            
-            print(f"Evaluating TTT model with test-time adaptation...")
-            ttt_adaptation_results = evaluate_with_test_time_adaptation(
-                main_model, ttt_model, dataset_path, severity=severity
-            )
-            
-            # Add TTT results to the overall results
-            ood_results['ttt'] = {
+            },
+            'ttt': {
                 'accuracy': ttt_standard_results['ttt_accuracy'],
                 'per_transform_acc': ttt_standard_results['per_transform_acc']['ttt']
-            }
-            
-            ood_results['ttt_adapted'] = {
+            },
+            'ttt_adapted': {
                 'accuracy': ttt_adaptation_results['ttt_accuracy'],
                 'per_transform_acc': ttt_adaptation_results['per_transform_acc']['ttt']
             }
+        }
         
         all_results[severity] = ood_results
         
         # Print results
         print(f"OOD Accuracy (Severity {severity}):")
         print(f"  Main Model: {ood_results['main']['accuracy']:.4f}")
-        
-        if ood_results['healer'] is not None:
-            print(f"  Healer Model: {ood_results['healer']['accuracy']:.4f}")
-        
-        if 'blended' in ood_results:
-            print(f"  BlendedTTT Model: {ood_results['blended']['accuracy']:.4f}")
-        
-        if 'ttt' in ood_results:
-            print(f"  TTT Model: {ood_results['ttt']['accuracy']:.4f}")
-        
-        if 'ttt_adapted' in ood_results:
-            print(f"  TTT Model (adapted): {ood_results['ttt_adapted']['accuracy']:.4f}")
+        print(f"  BlendedTTT Model: {ood_results['blended']['accuracy']:.4f}")
+        print(f"  TTT Model: {ood_results['ttt']['accuracy']:.4f}")
+        print(f"  TTT Model (adapted): {ood_results['ttt_adapted']['accuracy']:.4f}")
         
         # Calculate robustness metrics
-        main_drop = clean_results['main']['accuracy'] - ood_results['main']['accuracy']
+        main_drop = clean_results[0.0]['main']['accuracy'] - ood_results['main']['accuracy']
+        blended_drop = clean_results[0.0]['main']['accuracy'] - ood_results['blended']['accuracy']
+        ttt_drop = clean_results[0.0]['main']['accuracy'] - ood_results['ttt']['accuracy']
+        ttt_adapted_drop = clean_results[0.0]['main']['accuracy'] - ood_results['ttt_adapted']['accuracy']
+        
         print(f"\nAccuracy Drop from Clean Data:")
-        print(f"  Main Model: {main_drop:.4f} ({main_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if ood_results['healer'] is not None:
-            healer_drop = clean_results['main']['accuracy'] - ood_results['healer']['accuracy']
-            print(f"  Healer Model: {healer_drop:.4f} ({healer_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if 'blended' in ood_results:
-            blended_drop = clean_results['main']['accuracy'] - ood_results['blended']['accuracy']
-            print(f"  BlendedTTT Model: {blended_drop:.4f} ({blended_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if 'ttt' in ood_results:
-            ttt_drop = clean_results['main']['accuracy'] - ood_results['ttt']['accuracy']
-            print(f"  TTT Model: {ttt_drop:.4f} ({ttt_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if 'ttt_adapted' in ood_results:
-            ttt_adapted_drop = clean_results['main']['accuracy'] - ood_results['ttt_adapted']['accuracy']
-            print(f"  TTT Model (adapted): {ttt_adapted_drop:.4f} ({ttt_adapted_drop/clean_results['main']['accuracy']*100:.1f}%)")
+        print(f"  Main Model: {main_drop:.4f} ({main_drop/clean_results[0.0]['main']['accuracy']*100:.1f}%)")
+        print(f"  BlendedTTT Model: {blended_drop:.4f} ({blended_drop/clean_results[0.0]['main']['accuracy']*100:.1f}%)")
+        print(f"  TTT Model: {ttt_drop:.4f} ({ttt_drop/clean_results[0.0]['main']['accuracy']*100:.1f}%)")
+        print(f"  TTT Model (adapted): {ttt_adapted_drop:.4f} ({ttt_adapted_drop/clean_results[0.0]['main']['accuracy']*100:.1f}%)")
         
         # Print per-transformation accuracies
         print("\nPer-Transformation Accuracy:")
         for t_type in ['no_transform', 'gaussian_noise', 'rotation', 'affine']:
             print(f"  {t_type.upper()}:")
             print(f"    Main: {ood_results['main']['per_transform_acc'][t_type]:.4f}")
-            
-            if ood_results['healer'] is not None:
-                print(f"    Healer: {ood_results['healer']['per_transform_acc'][t_type]:.4f}")
-            
-            if 'blended' in ood_results:
-                print(f"    BlendedTTT: {ood_results['blended']['per_transform_acc'][t_type]:.4f}")
-            
-            if 'ttt' in ood_results:
-                print(f"    TTT: {ood_results['ttt']['per_transform_acc'][t_type]:.4f}")
-            
-            if 'ttt_adapted' in ood_results:
-                print(f"    TTT (adapted): {ood_results['ttt_adapted']['per_transform_acc'][t_type]:.4f}")
+            print(f"    BlendedTTT: {ood_results['blended']['per_transform_acc'][t_type]:.4f}")
+            print(f"    TTT: {ood_results['ttt']['per_transform_acc'][t_type]:.4f}")
+            print(f"    TTT (adapted): {ood_results['ttt_adapted']['per_transform_acc'][t_type]:.4f}")
     
     # Log results to wandb if available
     try:
         import wandb
-        log_wandb_results_with_all_models(all_results)
+        log_wandb_results_with_blended_and_ttt(all_results)
     except:
         print("Note: wandb not available or error in logging.")
-    
-    return all_results
-        print(f"  Healer Model: {clean_results['healer']['accuracy']:.4f}")
-    
-    # Then evaluate on transformed data with different models
-    for severity in severities:
-        print(f"\nEvaluating with severity {severity}...")
-        
-        # Basic evaluation with main and healer models
-        ood_results = evaluate_models(main_model, healer_model, dataset_path, severity=severity)
-        
-        # Add additional TTT evaluation
-        if ttt_model is not None:
-            print(f"Evaluating TTT model (pre-adaptation)...")
-            ttt_standard_results = evaluate_with_ttt(main_model, ttt_model, dataset_path, severity=severity)
-            
-            print(f"Evaluating TTT model with test-time adaptation...")
-            ttt_adaptation_results = evaluate_with_test_time_adaptation(
-                main_model, ttt_model, dataset_path, severity=severity
-            )
-            
-            # Add TTT results to the overall results
-            ood_results['ttt'] = {
-                'accuracy': ttt_standard_results['ttt_accuracy'],
-                'per_transform_acc': ttt_standard_results['per_transform_acc']['ttt']
-            }
-            
-            ood_results['ttt_adapted'] = {
-                'accuracy': ttt_adaptation_results['ttt_accuracy'],
-                'per_transform_acc': ttt_adaptation_results['per_transform_acc']['ttt']
-            }
-        
-        all_results[severity] = ood_results
-        
-        # Print results
-        print(f"OOD Accuracy (Severity {severity}):")
-        print(f"  Main Model: {ood_results['main']['accuracy']:.4f}")
-        
-        if ood_results['healer'] is not None:
-            print(f"  Healer Model: {ood_results['healer']['accuracy']:.4f}")
-        
-        if 'ttt' in ood_results:
-            print(f"  TTT Model: {ood_results['ttt']['accuracy']:.4f}")
-        
-        if 'ttt_adapted' in ood_results:
-            print(f"  TTT Model (adapted): {ood_results['ttt_adapted']['accuracy']:.4f}")
-        
-        # Calculate robustness metrics
-        main_drop = clean_results['main']['accuracy'] - ood_results['main']['accuracy']
-        print(f"\nAccuracy Drop from Clean Data:")
-        print(f"  Main Model: {main_drop:.4f} ({main_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if ood_results['healer'] is not None:
-            healer_drop = clean_results['main']['accuracy'] - ood_results['healer']['accuracy']
-            print(f"  Healer Model: {healer_drop:.4f} ({healer_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if 'ttt' in ood_results:
-            ttt_drop = clean_results['main']['accuracy'] - ood_results['ttt']['accuracy']
-            print(f"  TTT Model: {ttt_drop:.4f} ({ttt_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if 'ttt_adapted' in ood_results:
-            ttt_adapted_drop = clean_results['main']['accuracy'] - ood_results['ttt_adapted']['accuracy']
-            print(f"  TTT Model (adapted): {ttt_adapted_drop:.4f} ({ttt_adapted_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        # Print per-transformation accuracies
-        print("\nPer-Transformation Accuracy:")
-        for t_type in ['no_transform', 'gaussian_noise', 'rotation', 'affine']:
-            print(f"  {t_type.upper()}:")
-            print(f"    Main: {ood_results['main']['per_transform_acc'][t_type]:.4f}")
-            
-            if ood_results['healer'] is not None:
-                print(f"    Healer: {ood_results['healer']['per_transform_acc'][t_type]:.4f}")
-            
-            if 'ttt' in ood_results:
-                print(f"    TTT: {ood_results['ttt']['per_transform_acc'][t_type]:.4f}")
-            
-            if 'ttt_adapted' in ood_results:
-                print(f"    TTT (adapted): {ood_results['ttt_adapted']['per_transform_acc'][t_type]:.4f}")
-    
-    # Log results
-    try:
-        import wandb
-        log_wandb_results_with_ttt(all_results)
-    except:
-        pass
     
     return all_results
 
@@ -1460,7 +1253,7 @@ def log_wandb_results_with_all_models(all_results):
         clean_acc = {
             "eval/clean_accuracy": clean_results['main']['accuracy']
         }
-        if clean_results['healer'] is not None:
+        if 'healer' in clean_results and clean_results['healer'] is not None:
             clean_acc["eval/clean_healer_accuracy"] = clean_results['healer']['accuracy']
         wandb.log(clean_acc)
     
@@ -1474,16 +1267,16 @@ def log_wandb_results_with_all_models(all_results):
             f"eval/ood_s{severity}_accuracy": results['main']['accuracy'],
         }
         
-        if results['healer'] is not None:
+        if 'healer' in results and results['healer'] is not None:
             ood_metrics[f"eval/ood_s{severity}_healer_accuracy"] = results['healer']['accuracy']
         
-        if 'blended' in results:
+        if 'blended' in results and results['blended'] is not None:
             ood_metrics[f"eval/ood_s{severity}_blended_accuracy"] = results['blended']['accuracy']
         
-        if 'ttt' in results:
+        if 'ttt' in results and results['ttt'] is not None:
             ood_metrics[f"eval/ood_s{severity}_ttt_accuracy"] = results['ttt']['accuracy']
         
-        if 'ttt_adapted' in results:
+        if 'ttt_adapted' in results and results['ttt_adapted'] is not None:
             ood_metrics[f"eval/ood_s{severity}_ttt_adapted_accuracy"] = results['ttt_adapted']['accuracy']
         
         # Per-transformation metrics
@@ -1491,161 +1284,25 @@ def log_wandb_results_with_all_models(all_results):
             for t_type, acc in results['main']['per_transform_acc'].items():
                 ood_metrics[f"eval/ood_s{severity}_{t_type}_accuracy"] = acc
                 
-                if results['healer'] is not None and 'per_transform_acc' in results['healer']:
+                if 'healer' in results and results['healer'] is not None and 'per_transform_acc' in results['healer']:
                     ood_metrics[f"eval/ood_s{severity}_{t_type}_healer_accuracy"] = (
                         results['healer']['per_transform_acc'][t_type]
                     )
                 
-                if 'blended' in results and 'per_transform_acc' in results['blended']:
+                if 'blended' in results and results['blended'] is not None and 'per_transform_acc' in results['blended']:
                     ood_metrics[f"eval/ood_s{severity}_{t_type}_blended_accuracy"] = (
                         results['blended']['per_transform_acc'][t_type]
                     )
                 
-                if 'ttt' in results and 'per_transform_acc' in results['ttt']:
+                if 'ttt' in results and results['ttt'] is not None and 'per_transform_acc' in results['ttt']:
                     ood_metrics[f"eval/ood_s{severity}_{t_type}_ttt_accuracy"] = (
                         results['ttt']['per_transform_acc'][t_type]
                     )
                 
-                if 'ttt_adapted' in results and 'per_transform_acc' in results['ttt_adapted']:
+                if 'ttt_adapted' in results and results['ttt_adapted'] is not None and 'per_transform_acc' in results['ttt_adapted']:
                     ood_metrics[f"eval/ood_s{severity}_{t_type}_ttt_adapted_accuracy"] = (
                         results['ttt_adapted']['per_transform_acc'][t_type]
                     )
         
         # Log all metrics together
         wandb.log(ood_metrics)
-def evaluate_full_pipeline_with_all_models(main_model, healer_model, ttt_model, blended_model, dataset_path, severities):
-    """
-    Evaluate the full pipeline with all available models.
-    
-    Args:
-        main_model: The classification model
-        healer_model: The transformation healer model
-        ttt_model: The test-time training model
-        blended_model: The blended TTT model
-        dataset_path: Path to the dataset
-        severities: List of severity levels to evaluate
-    
-    Returns:
-        all_results: Dictionary of evaluation results
-    """
-    all_results = {}
-    
-    # First evaluate on clean data (severity 0.0)
-    print("\nEvaluating on clean data (no transformations)...")
-    clean_results = evaluate_models(main_model, healer_model, dataset_path, severity=0.0)
-    all_results[0.0] = clean_results
-    
-    # Print clean data results
-    print(f"Clean Data Accuracy:")
-    print(f"  Main Model: {clean_results['main']['accuracy']:.4f}")
-    
-    if clean_results['healer'] is not None:
-        print(f"  Healer Model: {clean_results['healer']['accuracy']:.4f}")
-    
-    # Then evaluate on transformed data with different models
-    for severity in severities:
-        print(f"\nEvaluating with severity {severity}...")
-        
-        # Basic evaluation with main and healer models
-        ood_results = evaluate_models(main_model, healer_model, dataset_path, severity=severity)
-        
-        # Add BlendedTTT evaluation
-        if blended_model is not None:
-            print(f"Evaluating BlendedTTT model...")
-            blended_results = evaluate_models_with_blended(main_model, blended_model, dataset_path, severity=severity)
-            
-            # Add BlendedTTT results to the overall results
-            ood_results['blended'] = {
-                'accuracy': blended_results['blended_accuracy'],
-                'per_transform_acc': blended_results['per_transform_acc']['blended']
-            }
-        
-        # Add TTT evaluation
-        if ttt_model is not None:
-            print(f"Evaluating TTT model (pre-adaptation)...")
-            ttt_standard_results = evaluate_with_ttt(main_model, ttt_model, dataset_path, severity=severity)
-            
-            print(f"Evaluating TTT model with test-time adaptation...")
-            ttt_adaptation_results = evaluate_with_test_time_adaptation(
-                main_model, ttt_model, dataset_path, severity=severity
-            )
-            
-            # Add TTT results to the overall results
-            ood_results['ttt'] = {
-                'accuracy': ttt_standard_results['ttt_accuracy'],
-                'per_transform_acc': ttt_standard_results['per_transform_acc']['ttt']
-            }
-            
-            ood_results['ttt_adapted'] = {
-                'accuracy': ttt_adaptation_results['ttt_accuracy'],
-                'per_transform_acc': ttt_adaptation_results['per_transform_acc']['ttt']
-            }
-        
-        all_results[severity] = ood_results
-        
-        # Print results
-        print(f"OOD Accuracy (Severity {severity}):")
-        print(f"  Main Model: {ood_results['main']['accuracy']:.4f}")
-        
-        if ood_results['healer'] is not None:
-            print(f"  Healer Model: {ood_results['healer']['accuracy']:.4f}")
-        
-        if 'blended' in ood_results:
-            print(f"  BlendedTTT Model: {ood_results['blended']['accuracy']:.4f}")
-        
-        if 'ttt' in ood_results:
-            print(f"  TTT Model: {ood_results['ttt']['accuracy']:.4f}")
-        
-        if 'ttt_adapted' in ood_results:
-            print(f"  TTT Model (adapted): {ood_results['ttt_adapted']['accuracy']:.4f}")
-        
-        # Calculate robustness metrics
-        main_drop = clean_results['main']['accuracy'] - ood_results['main']['accuracy']
-        print(f"\nAccuracy Drop from Clean Data:")
-        print(f"  Main Model: {main_drop:.4f} ({main_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if ood_results['healer'] is not None:
-            healer_drop = clean_results['main']['accuracy'] - ood_results['healer']['accuracy']
-            print(f"  Healer Model: {healer_drop:.4f} ({healer_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if 'blended' in ood_results:
-            blended_drop = clean_results['main']['accuracy'] - ood_results['blended']['accuracy']
-            print(f"  BlendedTTT Model: {blended_drop:.4f} ({blended_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if 'ttt' in ood_results:
-            ttt_drop = clean_results['main']['accuracy'] - ood_results['ttt']['accuracy']
-            print(f"  TTT Model: {ttt_drop:.4f} ({ttt_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        if 'ttt_adapted' in ood_results:
-            ttt_adapted_drop = clean_results['main']['accuracy'] - ood_results['ttt_adapted']['accuracy']
-            print(f"  TTT Model (adapted): {ttt_adapted_drop:.4f} ({ttt_adapted_drop/clean_results['main']['accuracy']*100:.1f}%)")
-        
-        # Print per-transformation accuracies
-        print("\nPer-Transformation Accuracy:")
-        for t_type in ['no_transform', 'gaussian_noise', 'rotation', 'affine']:
-            print(f"  {t_type.upper()}:")
-            print(f"    Main: {ood_results['main']['per_transform_acc'][t_type]:.4f}")
-            
-            if ood_results['healer'] is not None:
-                print(f"    Healer: {ood_results['healer']['per_transform_acc'][t_type]:.4f}")
-            
-            if 'blended' in ood_results:
-                print(f"    BlendedTTT: {ood_results['blended']['per_transform_acc'][t_type]:.4f}")
-            
-            if 'ttt' in ood_results:
-                print(f"    TTT: {ood_results['ttt']['per_transform_acc'][t_type]:.4f}")
-            
-            if 'ttt_adapted' in ood_results:
-                print(f"    TTT (adapted): {ood_results['ttt_adapted']['per_transform_acc'][t_type]:.4f}")
-    
-    # Log results to wandb if available
-    try:
-        import wandb
-        log_wandb_results_with_all_models(all_results)
-    except:
-        print("Note: wandb not available or error in logging.")
-    
-    return all_results
-    
-if __name__ == "__main__":
-    main()
