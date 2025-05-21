@@ -382,7 +382,7 @@ def train_ttt_model(dataset_path, base_model=None, severity=0.5, epochs=10):
         return orig_tensor, trans_tensor, labels_tensor, transform_types_tensor
     
     # Determine batch size and data loading parameters
-    batch_size = min(64, find_optimal_batch_size(ttt_model, img_size=64, starting_batch_size=64, device=device))
+    batch_size = 50  # min(64, find_optimal_batch_size(ttt_model, img_size=64, starting_batch_size=64, device=device))
     
     # DataLoaders
     train_loader = DataLoader(
