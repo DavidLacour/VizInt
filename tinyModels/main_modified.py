@@ -189,8 +189,9 @@ def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities, m
                 ttt_correct += (predicted == labels).sum().item()
                 
                 # TTT with adaptation (for each batch)
-                adapted_outputs = ttt_model.adapt(images, reset=True)
-                _, adapted_predicted = torch.max(adapted_outputs, 1)
+                with torch.enable_grad(): # cant do ttt without 
+                    adapted_outputs = ttt_model.adapt(images, reset=True)
+                    _, adapted_predicted = torch.max(adapted_outputs, 1)
                 
                 # Update adapted metrics
                 ttt_adapted_correct += (adapted_predicted == labels).sum().item()
@@ -336,8 +337,9 @@ def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities, m
                     ttt_correct += (ttt_predicted == labels).sum().item()
                     
                     # TTT with adaptation (for each batch)
-                    ttt_adapted_outputs = ttt_model.adapt(trans_images, reset=True)
-                    _, ttt_adapted_predicted = torch.max(ttt_adapted_outputs, 1)
+                    with torch.enable_grad(): # cant do ttt without 
+                        ttt_adapted_outputs = ttt_model.adapt(trans_images, reset=True)
+                        _, ttt_adapted_predicted = torch.max(ttt_adapted_outputs, 1)
                     
                     # Update TTT adapted metrics
                     ttt_adapted_correct += (ttt_adapted_predicted == labels).sum().item()
