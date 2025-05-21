@@ -327,7 +327,7 @@ def main():
             healer_model = load_healer_model(healer_model_path, device)
         
         # Train TTT model if not skipped and not already existing
-        if args.include_ttt and not args.skip_ttt:
+        if not args.skip_ttt:
             if not os.path.exists(ttt_model_path):
                 print("\n=== Training Test-Time Training Model ===")
                 if main_model is None:
@@ -340,17 +340,16 @@ def main():
                 ttt_model = load_ttt_model(ttt_model_path, main_model, device)
         
         # Train BlendedTTT model if requested and not already existing
-        if args.include_blended:
-            if not os.path.exists(blended_model_path):
-                print("\n=== Training BlendedTTT Model ===")
-                if main_model is None:
-                    main_model = load_main_model(main_model_path, device)
-                blended_model = train_blended_ttt_model(main_model, args.dataset)
-            else:
-                print(f"\n=== BlendedTTT Model found at {blended_model_path}, skipping training ===")
-                if main_model is None:
-                    main_model = load_main_model(main_model_path, device)
-                blended_model = load_blended_model(blended_model_path, main_model, device)
+        if not os.path.exists(blended_model_path):
+            print("\n=== Training BlendedTTT Model ===")
+            if main_model is None:
+                main_model = load_main_model(main_model_path, device)
+            blended_model = train_blended_ttt_model(main_model, args.dataset)
+        else:
+            print(f"\n=== BlendedTTT Model found at {blended_model_path}, skipping training ===")
+            if main_model is None:
+                main_model = load_main_model(main_model_path, device)
+            blended_model = load_blended_model(blended_model_path, main_model, device)
     
     # Evaluation mode
     if args.mode in ["evaluate", "all"]:
