@@ -23,6 +23,8 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
 from new_new import ContinuousTransforms, TinyImageNetDataset
 
+from blended_ttt_model import BlendedTTT
+
 import os
 import torch
 import wandb
