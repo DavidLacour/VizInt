@@ -23,7 +23,7 @@ from ttt_evaluation import evaluate_with_ttt, evaluate_with_test_time_adaptation
 from robust_training import *
 
 
-def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities, model_dir="./", include_blended=True, include_ttt=True):
+def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities=[0.1,0.2,0.3,0.4,0.6], model_dir="./", include_blended=True, include_ttt=True):
     """
     Evaluate the full transformation healing pipeline on clean and transformed data.
     
@@ -808,7 +808,7 @@ def main():
     blended_model_path = f"{args.model_dir}/bestmodel_blended/best_model.pt" if not args.exclude_blended else None
     
     # Training mode
-    if args.mode in ["train", "all"]:
+    if args.mode not in ["eval"]:
         # Check if main model exists
         if not os.path.exists(main_model_path):
             print("\n=== Training Main Classification Model ===")
@@ -860,7 +860,7 @@ def main():
                 blended_model = load_blended_model(blended_model_path, main_model, device)
     
     # Evaluation mode
-    if args.mode in ["evaluate", "all"]:
+    if args.mode not in ["train", "force"]:
         print("\n=== Comprehensive Evaluation With and Without Transforms ===")
         
         # Make sure models are loaded before evaluation
@@ -1044,7 +1044,6 @@ def load_blended_model(model_path, main_model, device):
     """Load the BlendedTTT model from a checkpoint"""
     print(f"Loading BlendedTTT model from {model_path}")
     blended_model = BlendedTTT(
-        base_model=main_model,
         img_size=64,
         patch_size=8,
         embed_dim=384,

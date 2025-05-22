@@ -51,7 +51,7 @@ MAX_SHEAR_ANGLE = 15.0
 DEBUG = False 
 
 class BlendedTTT(nn.Module):
-    def __init__(self, base_model, img_size=64, patch_size=8, embed_dim=384,depth=8):
+    def __init__(self, img_size=64, patch_size=8, embed_dim=384,depth=8):
         super().__init__()
         
         # Use the same patch embedding as the ViT model
@@ -73,14 +73,9 @@ class BlendedTTT(nn.Module):
         )
         nn.init.normal_(self.pos_embed, std=0.02)
         
-        # Use only 4 transformer blocks
-        # If base_model has a transformer attribute with blocks, use those
-        if hasattr(base_model, 'transformer') and hasattr(base_model.transformer, 'blocks'):
-            # Use first 4 blocks of the base model
-            self.blocks = nn.ModuleList(base_model.transformer.blocks[:4])
-        else:
-            # Otherwise create a new transformer trunk with 4 blocks
-            self.blocks = TransformerTrunk(
+        
+           
+        self.blocks = TransformerTrunk(
                 dim=embed_dim,
                 depth=depth,  # 
                 head_dim=64,

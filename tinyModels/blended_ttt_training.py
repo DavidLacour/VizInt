@@ -56,7 +56,7 @@ DEBUG = False
 
 def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
     """
-    Train the BlendedTTT model on the Tiny ImageNet dataset
+    Train the BlendedTTT model on the Tiny ImageNet dataset with validation-based early stopping
     """
     # Set seed for reproducibility
     set_seed(42)
@@ -111,14 +111,14 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
         val_dataset = Subset(val_dataset, val_indices)
         print(f"DEBUG MODE: Using {len(train_dataset)} training samples and {len(val_dataset)} validation samples")
     
-    # Set batch size and epochs based on debug mode
-    if DEBUG:
-        batch_size = 1
-        num_epochs = 1
-        print("DEBUG MODE: Using batch size of 1 and 1 epoch")
-    else:
-        batch_size = 64
-        num_epochs = 30
+    # Training parameters - following main model structure
+    num_epochs = 50
+    learning_rate = 1e-4
+    warmup_steps = 1000 if not DEBUG else 10
+    patience = 5  # Early stopping patience
+    
+    # Find optimal batch size (similar to main model)
+    batch_size = 128 if not DEBUG else 8
     
     # Custom collate function for the blended model
     def blended_collate(batch):
@@ -271,17 +271,22 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
         total_loss = (
             transform_type_loss + 
             0.5 * severity_loss + 
-            0.3 * (rotation_loss + noise_loss) +
-            0.2 * affine_loss
+            0.5 * (rotation_loss + noise_loss) +
+            0.5 * affine_loss
         )
         
-        return total_loss
+        # Return individual components for logging
+        loss_components = {
+            'transform_type_loss': transform_type_loss.item(),
+            'severity_loss': severity_loss.item(),
+            'rotation_loss': rotation_loss.item(),
+            'noise_loss': noise_loss.item(),
+            'affine_loss': affine_loss.item()
+        }
+        
+        return total_loss, loss_components
     
-    # Training parameters
-    learning_rate = 1e-4
-    warmup_steps = 500 if not DEBUG else 10
-    
-    # Optimizer
+    # Optimizer and scheduler (following main model structure)
     optimizer = torch.optim.AdamW(blended_model.parameters(), lr=learning_rate, weight_decay=0.05)
     
     # Learning rate scheduler
@@ -305,20 +310,34 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
         "epochs": num_epochs,
         "batch_size": batch_size,
         "aux_loss_weight": 0.05,  # 5% for auxiliary task
+        "warmup_steps": warmup_steps,
+        "early_stopping_patience": patience,
         "debug_mode": DEBUG
     }, allow_val_change=True)
     
-    # Initialize best validation accuracy
+    # Initialize early stopping variables (following main model structure)
     best_val_acc = 0
+    early_stop_counter = 0
+    best_epoch = 0
     
     # Training loop
     for epoch in range(num_epochs):
+        # Training phase
         blended_model.train()
         train_loss = 0
         train_class_loss = 0
         train_aux_loss = 0
-        class_correct = 0
-        total_samples = 0
+        all_preds = []
+        all_labels = []
+        
+        # Auxiliary loss components for logging
+        aux_loss_components = {
+            'transform_type_loss': 0,
+            'severity_loss': 0,
+            'rotation_loss': 0,
+            'noise_loss': 0,
+            'affine_loss': 0
+        }
         
         # Training step
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}")
@@ -337,7 +356,7 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
             
             # Calculate losses
             class_loss = class_loss_fn(logits, labels)
-            aux_loss = compute_aux_loss(aux_outputs, transform_targets)
+            aux_loss, aux_components = compute_aux_loss(aux_outputs, transform_targets)
             
             # Combined loss with 95% classification, 5% auxiliary
             loss = 0.95 * class_loss + 0.05 * aux_loss
@@ -354,10 +373,14 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
             train_class_loss += class_loss.item()
             train_aux_loss += aux_loss.item()
             
+            # Accumulate auxiliary loss components
+            for key in aux_loss_components:
+                aux_loss_components[key] += aux_components[key]
+            
             # Calculate classification accuracy
             class_preds = torch.argmax(logits, dim=1)
-            class_correct += (class_preds == labels).sum().item()
-            total_samples += len(labels)
+            all_preds.extend(class_preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
             
             # Update progress bar
             progress_bar.set_postfix({'loss': loss.item()})
@@ -372,51 +395,49 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
         train_loss /= max(1, num_batches)
         train_class_loss /= max(1, num_batches)
         train_aux_loss /= max(1, num_batches)
-        train_class_acc = class_correct / max(1, total_samples)
+        train_class_acc = accuracy_score(all_labels, all_preds)
+        
+        # Average auxiliary loss components
+        for key in aux_loss_components:
+            aux_loss_components[key] /= max(1, num_batches)
         
         # Validation step - standard validation on clean data with only class output
-        blended_model.eval()
-        val_loss = 0
-        val_correct = 0
-        val_total = 0
+        val_loss, val_acc = validate_blended_model(blended_model, val_loader, class_loss_fn, device, DEBUG)
         
-        with torch.no_grad():
-            for batch_idx, (images, labels) in enumerate(val_loader):
-                # In debug mode, only evaluate on one batch
-                if DEBUG and batch_idx > 0:
-                    break
-                    
-                images, labels = images.to(device), labels.to(device)
-                
-                # Forward pass - only care about classification for validation
-                logits, _ = blended_model(images)
-                val_loss += class_loss_fn(logits, labels).item()
-                
-                # Calculate accuracy
-                _, predicted = torch.max(logits, 1)
-                val_total += labels.size(0)
-                val_correct += (predicted == labels).sum().item()
-        
-        # Avoid division by zero
-        val_loss /= max(1, len(val_loader) if not DEBUG else 1)
-        val_acc = val_correct / max(1, val_total)
-        
-        # Log metrics
-        wandb.log({
+        # Log metrics (following main model structure)
+        log_metrics = {
             "blended/epoch": epoch + 1,
             "blended/train_loss": train_loss,
             "blended/train_class_loss": train_class_loss,
             "blended/train_aux_loss": train_aux_loss,
-            "blended/train_class_accuracy": train_class_acc,
+            "blended/train_accuracy": train_class_acc,
             "blended/val_loss": val_loss,
-            "blended/val_accuracy": val_acc
-        })
+            "blended/val_accuracy": val_acc,
+            "blended/learning_rate": scheduler.get_last_lr()[0]
+        }
         
-        print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {train_loss:.4f}, Class Acc: {train_class_acc:.4f}, Val Acc: {val_acc:.4f}")
+        # Add auxiliary loss components to logging
+        for key, value in aux_loss_components.items():
+            log_metrics[f"blended/train_{key}"] = value
         
-        # Save checkpoint if it's the best model or in debug mode
-        if val_acc > best_val_acc or DEBUG:
+        wandb.log(log_metrics)
+        
+        print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {train_loss:.4f}, Train Acc: {train_class_acc:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
+        
+        # Early stopping check (following main model structure)
+        if val_acc > best_val_acc:
             best_val_acc = val_acc
+            early_stop_counter = 0
+            
+            # Save checkpoint
+            checkpoint_path = checkpoints_dir / f"model_epoch{epoch+1}.pt"
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': blended_model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'val_acc': val_acc,
+            }, checkpoint_path)
             
             # Save best model
             best_model_path = best_model_dir / "best_model.pt"
@@ -426,10 +447,30 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
                 'val_acc': val_acc,
             }, best_model_path)
             
-            if not DEBUG:  # Only print this in non-debug mode
+            if not DEBUG:
+                # Log to wandb
+                wandb.save(str(checkpoint_path))
+                wandb.save(str(best_model_path))
                 print(f"Saved best model with validation accuracy: {val_acc:.4f}")
             else:
-                print(f"DEBUG MODE: Saved model checkpoint regardless of accuracy")
+                print(f"DEBUG MODE: Saved model checkpoint")
+            
+            # Track the best epoch for later reference
+            best_epoch = epoch + 1
+        else:
+            early_stop_counter += 1
+            
+            if early_stop_counter >= patience:
+                print(f"Early stopping triggered after {epoch+1} epochs")
+                break
+    
+    # Clean up old checkpoints except the best one (following main model structure)
+    if not DEBUG:
+        print("Cleaning up checkpoints to save disk space...")
+        for checkpoint_file in checkpoints_dir.glob("*.pt"):
+            if f"model_epoch{best_epoch}.pt" != checkpoint_file.name:
+                checkpoint_file.unlink()
+                print(f"Deleted {checkpoint_file}")
     
     # Make sure at least one best model has been saved
     best_model_path = best_model_dir / "best_model.pt"
@@ -442,9 +483,44 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
         }, best_model_path)
     
     print(f"BlendedTTT model training completed. Best model saved at: {best_model_dir / 'best_model.pt'}")
+    print(f"Best validation accuracy: {best_val_acc:.4f}")
     
     # Load and return the best model
     checkpoint = torch.load(best_model_path)
     blended_model.load_state_dict(checkpoint['model_state_dict'])
     
     return blended_model
+
+
+def validate_blended_model(model, loader, loss_fn, device, debug_mode=False):
+    """
+    Validation function for BlendedTTT model - classification only (following main model structure)
+    """
+    model.eval()
+    val_loss = 0
+    all_preds = []
+    all_labels = []
+    
+    with torch.no_grad():
+        for batch_idx, (images, labels) in enumerate(loader):
+            # In debug mode, only evaluate on one batch
+            if debug_mode and batch_idx > 0:
+                break
+                
+            images, labels = images.to(device), labels.to(device)
+            
+            # Forward pass - only care about classification for validation
+            logits, _ = model(images)
+            val_loss += loss_fn(logits, labels).item()
+            
+            # Calculate accuracy
+            preds = torch.argmax(logits, dim=1)
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+    
+    # Avoid division by zero
+    num_batches = min(1, len(loader)) if debug_mode else len(loader)
+    val_loss /= max(1, num_batches)
+    val_acc = accuracy_score(all_labels, all_preds)
+    
+    return val_loss, val_acc
