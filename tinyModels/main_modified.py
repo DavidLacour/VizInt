@@ -1047,7 +1047,7 @@ def load_blended_model(model_path, main_model, device):
         img_size=64,
         patch_size=8,
         embed_dim=384,
-        depth=4
+        depth=8
     )
     checkpoint = torch.load(model_path, map_location=device)
     blended_model.load_state_dict(checkpoint['model_state_dict'])
