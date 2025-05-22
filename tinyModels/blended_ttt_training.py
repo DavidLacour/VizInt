@@ -74,7 +74,7 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
     print(f"Using device: {device}")
     
     # Initialize BlendedTTT model
-    blended_model = BlendedTTT(base_model)
+    blended_model = BlendedTTT()
     blended_model.to(device)
     
     # Define image transformations

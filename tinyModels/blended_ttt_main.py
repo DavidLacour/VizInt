@@ -152,7 +152,7 @@ def main_with_blended():
     if os.path.exists(blended_model_path):
         print(f"Found existing BlendedTTT model at {blended_model_path}")
         # Initialize the model with the base model
-        blended_model = BlendedTTT(base_model)
+        blended_model = BlendedTTT()
         # Load the saved weights
         checkpoint = torch.load(blended_model_path)
         blended_model.load_state_dict(checkpoint['model_state_dict'])
