@@ -96,18 +96,31 @@ class ResNetBackbone(nn.Module, BackboneBase):
     def __init__(self, model_name='resnet50', pretrained=True, feature_dim=2048):
         super().__init__()
         self.feature_dim = feature_dim
+        self.pretrained = pretrained
         
         if model_name == 'resnet18':
-            self.backbone = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None)
+            if pretrained:
+                self.backbone = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+            else:
+                self.backbone = models.resnet18(weights=None)
             self.feature_dim = 512
         elif model_name == 'resnet34':
-            self.backbone = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1 if pretrained else None)
+            if pretrained:
+                self.backbone = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
+            else:
+                self.backbone = models.resnet34(weights=None)
             self.feature_dim = 512
         elif model_name == 'resnet50':
-            self.backbone = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1 if pretrained else None)
+            if pretrained:
+                self.backbone = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+            else:
+                self.backbone = models.resnet50(weights=None)
             self.feature_dim = 2048
         elif model_name == 'resnet101':
-            self.backbone = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1 if pretrained else None)
+            if pretrained:
+                self.backbone = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
+            else:
+                self.backbone = models.resnet101(weights=None)
             self.feature_dim = 2048
         else:
             raise ValueError(f"Unsupported ResNet model: {model_name}")
@@ -135,15 +148,28 @@ class VGGBackbone(nn.Module, BackboneBase):
     
     def __init__(self, model_name='vgg16', pretrained=True):
         super().__init__()
+        self.pretrained = pretrained
         
         if model_name == 'vgg11':
-            self.backbone = models.vgg11(weights=models.VGG11_Weights.IMAGENET1K_V1 if pretrained else None)
+            if pretrained:
+                self.backbone = models.vgg11(weights=models.VGG11_Weights.IMAGENET1K_V1)
+            else:
+                self.backbone = models.vgg11(weights=None)
         elif model_name == 'vgg13':
-            self.backbone = models.vgg13(weights=models.VGG13_Weights.IMAGENET1K_V1 if pretrained else None)
+            if pretrained:
+                self.backbone = models.vgg13(weights=models.VGG13_Weights.IMAGENET1K_V1)
+            else:
+                self.backbone = models.vgg13(weights=None)
         elif model_name == 'vgg16':
-            self.backbone = models.vgg16(weights=VGG16_Weights.IMAGENET1K_V1 if pretrained else None)
+            if pretrained:
+                self.backbone = models.vgg16(weights=VGG16_Weights.IMAGENET1K_V1)
+            else:
+                self.backbone = models.vgg16(weights=None)
         elif model_name == 'vgg19':
-            self.backbone = models.vgg19(weights=models.VGG19_Weights.IMAGENET1K_V1 if pretrained else None)
+            if pretrained:
+                self.backbone = models.vgg19(weights=models.VGG19_Weights.IMAGENET1K_V1)
+            else:
+                self.backbone = models.vgg19(weights=None)
         else:
             raise ValueError(f"Unsupported VGG model: {model_name}")
         
@@ -169,6 +195,7 @@ class TimmBackbone(nn.Module, BackboneBase):
     
     def __init__(self, model_name='vit_base_patch16_224', pretrained=True, img_size=64):
         super().__init__()
+        self.pretrained = pretrained
         
         # Create model without classification head
         self.backbone = timm.create_model(
@@ -229,8 +256,9 @@ class BackboneFactory:
         """Return list of supported backbone types"""
         return ['vit', 'resnet', 'vgg', 'timm']
 
-# Example usage and configuration
+# Enhanced backbone configurations with both pretrained and non-pretrained versions
 BACKBONE_CONFIGS = {
+    # Custom ViT models (no pretrained versions available)
     'vit_small': {
         'type': 'vit',
         'img_size': 64,
@@ -247,6 +275,74 @@ BACKBONE_CONFIGS = {
         'depth': 12,
         'head_dim': 64
     },
+    
+    # ResNet models - pretrained versions
+    'resnet50_pretrained': {
+        'type': 'resnet',
+        'model_name': 'resnet50',
+        'pretrained': True
+    },
+    'resnet18_pretrained': {
+        'type': 'resnet',
+        'model_name': 'resnet18',
+        'pretrained': True
+    },
+    
+    # ResNet models - non-pretrained versions
+    'resnet50_scratch': {
+        'type': 'resnet',
+        'model_name': 'resnet50',
+        'pretrained': False
+    },
+    'resnet18_scratch': {
+        'type': 'resnet',
+        'model_name': 'resnet18',
+        'pretrained': False
+    },
+    
+    # VGG models - pretrained versions
+    'vgg16_pretrained': {
+        'type': 'vgg',
+        'model_name': 'vgg16',
+        'pretrained': True
+    },
+    
+    # VGG models - non-pretrained versions
+    'vgg16_scratch': {
+        'type': 'vgg',
+        'model_name': 'vgg16',
+        'pretrained': False
+    },
+    
+    # Timm models - pretrained versions
+    'deit_small_pretrained': {
+        'type': 'timm',
+        'model_name': 'deit_small_patch16_224',
+        'pretrained': True,
+        'img_size': 64
+    },
+    'swin_small_pretrained': {
+        'type': 'timm',
+        'model_name': 'swin_small_patch4_window7_224',
+        'pretrained': True,
+        'img_size': 64
+    },
+    
+    # Timm models - non-pretrained versions
+    'deit_small_scratch': {
+        'type': 'timm',
+        'model_name': 'deit_small_patch16_224',
+        'pretrained': False,
+        'img_size': 64
+    },
+    'swin_small_scratch': {
+        'type': 'timm',
+        'model_name': 'swin_small_patch4_window7_224',
+        'pretrained': False,
+        'img_size': 64
+    },
+    
+    # Backward compatibility - keep original names as pretrained versions
     'resnet50': {
         'type': 'resnet',
         'model_name': 'resnet50',
