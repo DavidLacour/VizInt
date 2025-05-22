@@ -15,7 +15,9 @@ WANDB=$2
 NUM_GPUS=$3
 
 # Activate conda environment
-source ~/anaconda3/etc/profile.d/conda.sh && conda activate ./autoflexenv
+cd /home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex
+source ~/anaconda3/etc/profile.d/conda.sh
+conda activate ./autoflexenv
 export WANDB_ENTITY=david-lacour-epfl
 export WANDB_API_KEY=1d6641b737cd13fe32a9371dd3780308fee23512 
 python3 auto_train_all.py
