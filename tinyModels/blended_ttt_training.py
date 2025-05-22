@@ -359,7 +359,7 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
             aux_loss, aux_components = compute_aux_loss(aux_outputs, transform_targets)
             
             # Combined loss with 95% classification, 5% auxiliary
-            loss = 0.95 * class_loss + 0.05 * aux_loss
+            loss = 0.95 * torch.sigmoid ( class_loss ) + 0.05 * torch.sigmoid ( aux_loss )
             
             # Backward pass and optimization
             optimizer.zero_grad()
