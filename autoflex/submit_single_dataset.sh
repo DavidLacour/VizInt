@@ -15,10 +15,10 @@
 
 DATASET_PATH=${1:-"oxford_pets"}
 
-# Activate environment
-~/miniconda3/bin/conda init bash
-source ~/.bashrc
-conda activate nanofm
+# Activate local conda environment
+cd /home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex
+source ~/anaconda3/etc/profile.d/conda.sh
+conda activate ./autoflexenv
 
 # Set up WandB
 export WANDB_ENTITY=david-lacour-epfl

@@ -22,16 +22,19 @@ class ExperimentalAttention(nn.Module):
         super().__init__()
         self.attention_type = attention_type
         
+        # Filter out patch_size from kwargs as attention modules don't need it
+        attn_kwargs = {k: v for k, v in kwargs.items() if k != 'patch_size'}
+        
         if attention_type == 'fourier':
-            self.attn = FourierAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop, **kwargs)
+            self.attn = FourierAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop, **attn_kwargs)
         elif attention_type == 'linear':
-            self.attn = LinearAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop, **kwargs)
+            self.attn = LinearAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop, **attn_kwargs)
         elif attention_type == 'elfatt':
             self.attn = EfficientLinearAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop)
         elif attention_type == 'kan':
-            self.attn = KANAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop, **kwargs)
+            self.attn = KANAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop, **attn_kwargs)
         elif attention_type == 'hybrid':
-            self.attn = HybridAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop, **kwargs)
+            self.attn = HybridAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop, **attn_kwargs)
         else:  # standard
             self.attn = StandardAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop)
 
@@ -123,30 +126,36 @@ class ExperimentalBlock(nn.Module):
         
         if use_mamba:
             # Use Mamba block instead of attention + MLP
+            # Filter out unnecessary kwargs for mamba block
+            mamba_kwargs = {k: v for k, v in kwargs.items() if k not in ['patch_size', 'attention_type', 'mlp_type']}
             self.mamba_block = VisionMambaBlock(
                 d_model=dim, 
                 mlp_ratio=mlp_ratio, 
                 drop=drop, 
-                **kwargs
+                **mamba_kwargs
             )
         else:
             # Standard transformer structure with experimental components
             self.norm1 = norm_layer(dim)
+            # Pass kwargs but filter out mamba-specific ones
+            attn_kwargs = {k: v for k, v in kwargs.items() if k not in ['d_state', 'd_conv', 'expand']}
             self.attn = ExperimentalAttention(
                 dim, num_heads=num_heads, qkv_bias=qkv_bias,
                 attn_drop=attn_drop, proj_drop=drop, 
-                attention_type=attention_type, **kwargs
+                attention_type=attention_type, **attn_kwargs
             )
             
             self.norm2 = norm_layer(dim)
             mlp_hidden_dim = int(dim * mlp_ratio)
+            # Filter kwargs for MLP
+            mlp_kwargs = {k: v for k, v in kwargs.items() if k not in ['patch_size', 'attention_type', 'd_state', 'd_conv', 'expand']}
             self.mlp = ExperimentalMLP(
                 in_features=dim,
                 hidden_features=mlp_hidden_dim,
                 act_layer=act_layer,
                 drop=drop,
                 mlp_type=mlp_type,
-                **kwargs
+                **mlp_kwargs
             )
 
     def forward(self, x):

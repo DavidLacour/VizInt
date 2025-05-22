@@ -678,6 +678,8 @@ def compare_with_without_transforms(results):
     return comparison
 
 
+
+
 def plot_transform_comparison(results, save_path="transform_comparison.png"):
     """
     Create and save a plot comparing model performance with and without transforms.
@@ -750,10 +752,17 @@ def plot_transform_comparison(results, save_path="transform_comparison.png"):
     # Adjust x-axis ticks
     plt.xticks(severities)
     
+    # Ensure the directory exists before saving
+    save_dir = os.path.dirname(save_path)
+    if save_dir:  # Only create directory if save_path includes a directory
+        os.makedirs(save_dir, exist_ok=True)
+    
     # Save and show plot
     plt.tight_layout()
     plt.savefig(save_path)
     print(f"Transform comparison plot saved to {save_path}")
+
+
 
 
 def main():

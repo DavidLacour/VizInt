@@ -13,37 +13,25 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=$USER@epfl.ch
 
-# Load required modules
-module load gcc/9.3.0
-module load cuda/11.8
-module load python/3.9.7
+# Activate local conda environment
+cd /home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex
+source ~/anaconda3/etc/profile.d/conda.sh
+conda activate ./autoflexenv
 
 # Set up Python environment
 export CUDA_VISIBLE_DEVICES=0
-export TORCH_HOME=/scratch/$USER/torch_cache
-export HF_HOME=/scratch/$USER/hf_cache
+export TORCH_HOME=/scratch/izar/$USER/torch_cache
+export HF_HOME=/scratch/izar/$USER/hf_cache
 
 # Create scratch directories if they don't exist
-mkdir -p /scratch/$USER/torch_cache
-mkdir -p /scratch/$USER/hf_cache
-mkdir -p /scratch/$USER/experimental_vit_results
+mkdir -p /scratch/izar/$USER/torch_cache
+mkdir -p /scratch/izar/$USER/hf_cache
+mkdir -p /scratch/izar/$USER/experimental_vit_results
 
 # Navigate to working directory
 cd $SLURM_SUBMIT_DIR
 
-# Activate virtual environment (create if it doesn't exist)
-if [ ! -d "venv" ]; then
-    echo "Creating virtual environment..."
-    python -m venv venv
-    source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements-debug.txt
-    # Install additional requirements for experimental features
-    pip install mamba-ssm  # For Vision Mamba
-    pip install flash-attn  # For efficient attention
-else
-    source venv/bin/activate
-fi
+# The conda environment should have all required packages already installed
 
 echo "Starting experimental vision transformer training..."
 echo "Job ID: $SLURM_JOB_ID"
@@ -53,7 +41,7 @@ echo "Working directory: $(pwd)"
 
 # Set experiment configurations
 export EXPERIMENT_NAME="experimental_vit_$(date +%Y%m%d_%H%M%S)"
-export RESULTS_DIR="/scratch/$USER/experimental_vit_results/$EXPERIMENT_NAME"
+export RESULTS_DIR="/scratch/izar/$USER/experimental_vit_results/$EXPERIMENT_NAME"
 mkdir -p $RESULTS_DIR
 
 # Create experimental training script

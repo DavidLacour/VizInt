@@ -203,7 +203,7 @@ def train_healer_model(
     healer_model.to(device)
     
     # Custom loss wrapper for healer model
-    class HealerModelWithLoss(nn.Module):
+    class HealerModelWithLoss(torch.nn.Module):
         def __init__(self, healer_model, healer_loss):
             super().__init__()
             self.healer_model = healer_model
