@@ -277,6 +277,7 @@ class TransformationHealer(nn.Module):
         
         self.norm = LayerNorm(embed_dim, bias=False)
         
+
     def apply_correction(self, transformed_images, predictions):
         """
         Apply inverse transformations to correct distorted images based on healer predictions.
@@ -318,9 +319,14 @@ class TransformationHealer(nn.Module):
                     to_tensor = transforms.ToTensor()
                     pil_img = to_pil(img_cpu.squeeze(0))
                     
-                    # Adjust blur size based on noise level
+                    # Adjust blur size based on noise level and ensure it's an odd integer
                     blur_radius = min(2.0, noise_std * 4.0)
-                    denoised_img = transforms.functional.gaussian_blur(pil_img, blur_radius)
+                    # Convert to odd integer (gaussian_blur requires odd kernel size)
+                    kernel_size = max(3, int(blur_radius * 2) + 1)  # Ensure odd and at least 3
+                    if kernel_size % 2 == 0:
+                        kernel_size += 1  # Make sure it's odd
+                    
+                    denoised_img = transforms.functional.gaussian_blur(pil_img, kernel_size)
                     corrected_img = to_tensor(denoised_img).unsqueeze(0).to(device)
                     corrected_images[i] = corrected_img.squeeze(0)
             
@@ -368,6 +374,8 @@ class TransformationHealer(nn.Module):
                 corrected_images[i] = corrected_img.squeeze(0)
         
         return corrected_images
+
+
 
     def forward(self, x):
         B = x.shape[0]
