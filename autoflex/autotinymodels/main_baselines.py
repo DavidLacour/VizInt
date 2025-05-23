@@ -1596,7 +1596,7 @@ def main():
                       help="Mode of operation: train, evaluate, visualize, or all")
     parser.add_argument("--dataset", type=str, default="../tiny-imagenet-200",
                       help="Path to the dataset")
-    parser.add_argument("--model_dir", type=str, default="./",
+    parser.add_argument("--model_dir", type=str, default="../../../currentmodels",
                       help="Directory to save/load models")
     parser.add_argument("--visualize_dir", type=str, default="visualizations",
                       help="Directory to save visualizations")
