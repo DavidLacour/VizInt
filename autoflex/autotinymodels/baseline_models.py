@@ -104,6 +104,31 @@ class EfficientNetB0_Custom(nn.Module):
     def forward(self, x):
         return self.efficientnet(x)
 
+class SimpleVGG16(nn.Module):
+    """
+    VGG16 adapted for Tiny ImageNet (64x64, 200 classes)
+    Classic architecture that should give good baseline results
+    """
+    def __init__(self, num_classes=200):
+        super(SimpleVGG16, self).__init__()
+        # Use torchvision VGG16 but modify for our input size and classes
+        self.vgg = models.vgg16(pretrained=False)
+        
+        # VGG16 already works well with 64x64 input, but we need to adjust the classifier
+        # The feature extractor will output 512 * 2 * 2 = 2048 features for 64x64 input
+        self.vgg.classifier = nn.Sequential(
+            nn.Linear(512 * 2 * 2, 4096),
+            nn.ReLU(True),
+            nn.Dropout(),
+            nn.Linear(4096, 4096),
+            nn.ReLU(True),
+            nn.Dropout(),
+            nn.Linear(4096, num_classes),
+        )
+        
+    def forward(self, x):
+        return self.vgg(x)
+
 def train_baseline_model(model, dataset_path, model_name="baseline", epochs=50, lr=0.001):
     """
     Training function for baseline models
@@ -233,6 +258,11 @@ def get_expected_performance():
             "clean_accuracy": "~50-60%",
             "training_time": "~3-4 hours on GPU", 
             "description": "Best performance, but slower to train"
+        },
+        "SimpleVGG16": {
+            "clean_accuracy": "~40-50%",
+            "training_time": "~2-3 hours on GPU",
+            "description": "Classic architecture, good baseline"
         }
     }
     return expected_results

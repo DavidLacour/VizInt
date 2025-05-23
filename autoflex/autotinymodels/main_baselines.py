@@ -24,7 +24,7 @@ from ttt_evaluation import evaluate_with_ttt, evaluate_with_test_time_adaptation
 from robust_training import *
 
 # Import baseline models
-from baseline_models import SimpleResNet18, train_baseline_model
+from baseline_models import SimpleResNet18, SimpleVGG16, train_baseline_model
 
 
 def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities=[0.1,0.2,0.3,0.4,0.6], model_dir="./", include_blended=True, include_ttt=True):
@@ -788,6 +788,28 @@ def load_baseline_model(model_path, device):
     model.eval()
     return model
 
+def train_baseline_vgg16(dataset_path):
+    """Train a VGG16 baseline model"""
+    print("Training VGG16 baseline model...")
+    model = SimpleVGG16(num_classes=200)
+    trained_model = train_baseline_model(
+        model, dataset_path, 
+        model_name="vgg16_baseline", 
+        epochs=50, 
+        lr=0.001
+    )
+    return trained_model
+
+def load_vgg16_model(model_path, device):
+    """Load baseline VGG16 model from checkpoint"""
+    print(f"Loading VGG16 model from {model_path}")
+    model = SimpleVGG16(num_classes=200)
+    checkpoint = torch.load(model_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model = model.to(device)
+    model.eval()
+    return model
+
 # Pretrained model class and functions
 class PretrainedResNet18(nn.Module):
     """
@@ -1239,6 +1261,15 @@ def evaluate_all_model_combinations(dataset_path, severities, model_dir, args, d
         else:
             print("⚠️  Missing: Pretrained ResNet18 - use --train_pretrained to train it")
     
+    # Load VGG16 baseline model
+    if args.compare_vgg16:
+        vgg16_model_path = f"{model_dir}/bestmodel_vgg16_baseline/best_model.pt"
+        if os.path.exists(vgg16_model_path):
+            models['vgg16'] = load_vgg16_model(vgg16_model_path, device)
+            print("✅ Loaded: Baseline VGG16 (from scratch)")
+        else:
+            print("⚠️  Missing: Baseline VGG16 - use --train_vgg16 to train it")
+    
     print(f"\n📊 Evaluating {len(models)} model combinations on {len(severities)} severity levels...")
     
     # Define evaluation combinations
@@ -1254,6 +1285,7 @@ def evaluate_all_model_combinations(dataset_path, severities, model_dir, args, d
         ("BlendedTTT+Main_Robust", "blended_robust", None, "BlendedTTT + Main ViT (robust)"),
         ("Baseline", "baseline", None, "ResNet18 (from scratch)"),
         ("Pretrained", "pretrained", None, "ResNet18 (ImageNet pretrained)"),
+        ("VGG16", "vgg16", None, "VGG16 (from scratch)"),
     ]
     
     # Evaluate each combination
@@ -1588,6 +1620,10 @@ def main():
                       help="Train pretrained ResNet18 model (ImageNet → Tiny ImageNet)")
     parser.add_argument("--compare_pretrained", action="store_true",
                       help="Include pretrained model comparison in evaluation")
+    parser.add_argument("--train_vgg16", action="store_true",
+                      help="Train baseline VGG16 model")
+    parser.add_argument("--compare_vgg16", action="store_true",
+                      help="Include VGG16 comparison in evaluation")
     
     args = parser.parse_args()
     
@@ -1688,6 +1724,16 @@ def main():
             print(f"✓ Pretrained model found at {pretrained_model_path}")
             if args.compare_pretrained:
                 pretrained_model = load_pretrained_model(pretrained_model_path, device)
+        
+        # VGG16: Check if VGG16 should be trained
+        vgg16_model_path = f"{args.model_dir}/bestmodel_vgg16_baseline/best_model.pt"
+        if args.train_vgg16 or (args.compare_vgg16 and not os.path.exists(vgg16_model_path)):
+            print("\n=== Training Baseline VGG16 Model ===")
+            vgg16_model = train_baseline_vgg16(args.dataset)
+        elif os.path.exists(vgg16_model_path):
+            print(f"✓ VGG16 model found at {vgg16_model_path}")
+            if args.compare_vgg16:
+                vgg16_model = load_vgg16_model(vgg16_model_path, device)
     
     # Evaluation mode
     if args.mode in ["evaluate", "visualize", "all"]:
