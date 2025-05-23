@@ -22,8 +22,9 @@ class ExperimentalAttention(nn.Module):
         super().__init__()
         self.attention_type = attention_type
         
-        # Filter out patch_size from kwargs as attention modules don't need it
-        attn_kwargs = {k: v for k, v in kwargs.items() if k != 'patch_size'}
+        # Filter out parameters that attention modules don't need
+        excluded_params = ['patch_size', 'fourier_scale']
+        attn_kwargs = {k: v for k, v in kwargs.items() if k not in excluded_params}
         
         if attention_type == 'fourier':
             self.attn = FourierAttention(dim, num_heads, qkv_bias, attn_drop, proj_drop, **attn_kwargs)

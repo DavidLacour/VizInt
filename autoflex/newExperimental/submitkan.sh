@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=fourier         # Change as needed
+#SBATCH --job-name=kan         # Change as needed
 #SBATCH --time=6:00:00
 #SBATCH --account=cs-503
 #SBATCH --qos=cs-503
@@ -7,8 +7,8 @@
 #SBATCH --mem=64G
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=10               # Adjust CPU allocation if needed
-#SBATCH --output=interactive_job_fourier.out    # Output log file
-#SBATCH --error=interactive_job_fourier.err     # Error log file
+#SBATCH --output=interactive_job_kan.out    # Output log file
+#SBATCH --error=interactive_job_kan.err     # Error log file
 
 CONFIG_FILE=$1
 WANDB=$2
@@ -20,4 +20,4 @@ source ~/.bashrc
 conda activate nanofm
 export WANDB_ENTITY=david-lacour-epfl
 export WANDB_API_KEY=1d6641b737cd13fe32a9371dd3780308fee23512 
-python train_experimental.py --architecture fourier --data-root ../../../tiny-imagenet-200 --epochs 100 --batch-size 128
+python train_experimental.py --architecture kan --data-root ../../../tiny-imagenet-200 --epochs 80 --batch-size 64
