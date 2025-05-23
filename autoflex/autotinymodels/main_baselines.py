@@ -23,8 +23,12 @@ from ttt_model import TestTimeTrainer, train_ttt_model
 from ttt_evaluation import evaluate_with_ttt, evaluate_with_test_time_adaptation
 from robust_training import *
 
-# Import baseline models
-from baseline_models import SimpleResNet18, SimpleVGG16, train_baseline_model
+# Import baseline models - use enhanced version with early stopping
+try:
+    from baseline_models_enhanced import SimpleResNet18, SimpleVGG16, train_baseline_model_with_early_stopping as train_baseline_model
+except ImportError:
+    # Fallback to original if enhanced version not available
+    from baseline_models import SimpleResNet18, SimpleVGG16, train_baseline_model
 
 
 def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities=[0.1,0.2,0.3,0.4,0.6], model_dir="./", include_blended=True, include_ttt=True):
