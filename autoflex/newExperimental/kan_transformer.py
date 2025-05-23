@@ -131,7 +131,9 @@ class KANLinear(nn.Module):
         base_out = torch.matmul(base, self.scale_base.T)  # (batch*seq, out_features)
         
         # Combine base and spline
-        y = base_out + self.scale_spline.T.unsqueeze(0) * spline
+        # Scale spline contributions properly
+        spline_out = torch.matmul(spline, self.scale_spline.T)  # (batch*seq, out_features)
+        y = base_out + spline_out
         
         # Add bias
         y = y + self.base_bias.sum(dim=1).unsqueeze(0)
