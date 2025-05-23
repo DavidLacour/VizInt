@@ -32,7 +32,7 @@ class ContinuousTransforms:
     def __init__(self, severity=1.0):
         self.severity = severity
         self.transform_types = ['no_transform', 'gaussian_noise', 'rotation', 'affine']
-        self.transform_probs = [0.3, 1.0, 1.0, 1.0]  # Adjusted weights
+        self.transform_probs = [3.0, 1.0, 1.0, 1.0]  # Adjusted weights
         
     def apply_transforms(self, img, transform_type=None, severity=None, return_params=False):
         """
@@ -770,7 +770,7 @@ def train_main_model(dataset_path="tiny-imagenet-200"):
     num_epochs = 50
     learning_rate = 1e-4
     warmup_steps = 1000
-    patience = 5
+    patience = 3
     
     # Optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.05)

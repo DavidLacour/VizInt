@@ -1,5 +1,6 @@
 import os
 import torch
+import torch.nn as nn
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,6 +22,9 @@ from blended_ttt_evaluation import evaluate_models_with_blended
 from ttt_model import TestTimeTrainer, train_ttt_model
 from ttt_evaluation import evaluate_with_ttt, evaluate_with_test_time_adaptation
 from robust_training import *
+
+# Import baseline models
+from baseline_models import SimpleResNet18, train_baseline_model
 
 
 def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities=[0.1,0.2,0.3,0.4,0.6], model_dir="./", include_blended=True, include_ttt=True):
@@ -678,8 +682,6 @@ def compare_with_without_transforms(results):
     return comparison
 
 
-
-
 def plot_transform_comparison(results, save_path="transform_comparison.png"):
     """
     Create and save a plot comparing model performance with and without transforms.
@@ -763,13 +765,800 @@ def plot_transform_comparison(results, save_path="transform_comparison.png"):
     print(f"Transform comparison plot saved to {save_path}")
 
 
+# Baseline helper functions
+def train_baseline_resnet18(dataset_path):
+    """Train a ResNet18 baseline model"""
+    print("Training ResNet18 baseline model...")
+    model = SimpleResNet18(num_classes=200)
+    trained_model = train_baseline_model(
+        model, dataset_path, 
+        model_name="resnet18_baseline", 
+        epochs=50, 
+        lr=0.001
+    )
+    return trained_model
+
+def load_baseline_model(model_path, device):
+    """Load baseline ResNet18 model from checkpoint"""
+    print(f"Loading baseline model from {model_path}")
+    model = SimpleResNet18(num_classes=200)
+    checkpoint = torch.load(model_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model = model.to(device)
+    model.eval()
+    return model
+
+# Pretrained model class and functions
+class PretrainedResNet18(nn.Module):
+    """
+    ResNet18 with ImageNet pretrained weights, fine-tuned for Tiny ImageNet
+    This shows the benefit of pretraining vs training from scratch
+    """
+    def __init__(self, num_classes=200):
+        super(PretrainedResNet18, self).__init__()
+        # Use ImageNet pretrained weights
+        from torchvision import models
+        self.resnet = models.resnet18(pretrained=True)  # ✅ PRETRAINED = TRUE
+        
+        # Modify first conv layer for 64x64 input (instead of 224x224)
+        # We'll keep the pretrained weights but adjust the layer
+        old_conv = self.resnet.conv1
+        self.resnet.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        
+        # Initialize new conv layer with interpolated weights from pretrained layer
+        with torch.no_grad():
+            # Get center crop of the 7x7 pretrained kernel to make it 3x3
+            old_weight = old_conv.weight
+            new_weight = old_weight[:, :, 2:5, 2:5].clone()  # Extract center 3x3
+            self.resnet.conv1.weight.copy_(new_weight)
+        
+        # Remove maxpool since input is smaller
+        self.resnet.maxpool = nn.Identity()
+        
+        # Modify final layer for 200 classes (this will be randomly initialized)
+        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, num_classes)
+        
+    def forward(self, x):
+        return self.resnet(x)
+
+def train_pretrained_resnet18(dataset_path):
+    """Train pretrained ResNet18 model with fine-tuning"""
+    import torch.optim as optim
+    from torch.utils.data import DataLoader
+    from torchvision import transforms
+    import os
+    from tqdm import tqdm
+    
+    print("Training pretrained ResNet18 model (ImageNet → Tiny ImageNet)...")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    model = PretrainedResNet18(num_classes=200).to(device)
+    
+    # Data transforms
+    transform_train = transforms.Compose([
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(degrees=10),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    
+    transform_val = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    
+    # Load datasets
+    train_dataset = TinyImageNetDataset(dataset_path, "train", transform_train)
+    val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
+    
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4)
+    
+    # Fine-tuning setup (lower learning rate for pretrained features)
+    criterion = nn.CrossEntropyLoss()
+    
+    # Different learning rates: lower for pretrained features, higher for new classifier
+    backbone_params = []
+    classifier_params = []
+    
+    for name, param in model.named_parameters():
+        if 'fc' in name:  # Final classifier layer
+            classifier_params.append(param)
+        else:  # Pretrained backbone
+            backbone_params.append(param)
+    
+    optimizer = optim.Adam([
+        {'params': backbone_params, 'lr': 0.0001},    # Lower LR for pretrained features
+        {'params': classifier_params, 'lr': 0.001}    # Higher LR for new classifier
+    ], weight_decay=1e-4)
+    
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
+    
+    # Train for fewer epochs since we start from pretrained weights
+    epochs = 30  # Reduced from 50 since we have pretrained weights
+    best_val_acc = 0.0
+    
+    print(f"Fine-tuning for {epochs} epochs...")
+    print(f"Backbone LR: 0.0001, Classifier LR: 0.001")
+    
+    for epoch in range(epochs):
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+        
+        for images, labels in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]"):
+            images, labels = images.to(device), labels.to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            
+            train_loss += loss.item()
+            _, predicted = torch.max(outputs, 1)
+            train_total += labels.size(0)
+            train_correct += (predicted == labels).sum().item()
+        
+        train_acc = train_correct / train_total
+        
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+        
+        with torch.no_grad():
+            for images, labels in tqdm(val_loader, desc=f"Epoch {epoch+1}/{epochs} [Val]"):
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                
+                val_loss += loss.item()
+                _, predicted = torch.max(outputs, 1)
+                val_total += labels.size(0)
+                val_correct += (predicted == labels).sum().item()
+        
+        val_acc = val_correct / val_total
+        
+        print(f"Epoch {epoch+1}/{epochs}:")
+        print(f"  Train Loss: {train_loss/len(train_loader):.4f}, Train Acc: {train_acc:.4f}")
+        print(f"  Val Loss: {val_loss/len(val_loader):.4f}, Val Acc: {val_acc:.4f}")
+        
+        # Save best model
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            os.makedirs("./bestmodel_pretrained_resnet18", exist_ok=True)
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'val_acc': val_acc,
+            }, "./bestmodel_pretrained_resnet18/best_model.pt")
+            print(f"  ✅ New best pretrained model saved with val_acc: {val_acc:.4f}")
+        
+        scheduler.step()
+        print()
+    
+    print(f"Fine-tuning completed. Best validation accuracy: {best_val_acc:.4f}")
+    print(f"Expected improvement over from-scratch: +10-15% accuracy")
+    return model
+
+def load_pretrained_model(model_path, device):
+    """Load pretrained ResNet18 model from checkpoint"""
+    print(f"Loading pretrained model from {model_path}")
+    model = PretrainedResNet18(num_classes=200)
+    checkpoint = torch.load(model_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model = model.to(device)
+    model.eval()
+    return model
+
+class IdentityHealer(nn.Module):
+    """Dummy healer that does nothing - for baseline comparison"""
+    def __init__(self):
+        super().__init__()
+        
+    def forward(self, x):
+        return torch.zeros(x.size(0), 1, device=x.device)
+        
+    def apply_correction(self, images, predictions):
+        return images
+
+def compare_with_baseline(your_results, baseline_results):
+    """Compare your model results with baseline ResNet18"""
+    print("\n" + "="*60)
+    print("COMPARISON WITH BASELINE RESNET18")
+    print("="*60)
+    
+    # Compare clean performance
+    if 0.0 in your_results and 0.0 in baseline_results:
+        your_clean = your_results[0.0]['main']['accuracy']
+        baseline_clean = baseline_results[0.0]['main']['accuracy']
+        improvement = your_clean - baseline_clean
+        
+        print(f"\nClean Data Performance:")
+        print(f"  Your ViT Model: {your_clean:.4f} ({your_clean*100:.1f}%)")
+        print(f"  Baseline:       {baseline_clean:.4f} ({baseline_clean*100:.1f}%)")
+        print(f"  Improvement:    {improvement:.4f} ({improvement*100:.1f} percentage points)")
+        
+        if improvement > 0:
+            print(f"  ✓ Your ViT is {improvement*100:.1f}% better on clean data")
+        else:
+            print(f"  ⚠ Your ViT is {abs(improvement)*100:.1f}% worse on clean data")
+    
+    # Compare transform robustness
+    print(f"\nTransform Robustness Comparison:")
+    for severity in sorted([s for s in your_results.keys() if s > 0]):
+        if severity in baseline_results:
+            your_acc = your_results[severity]['main']['accuracy']
+            baseline_acc = baseline_results[severity]['main']['accuracy']
+            improvement = your_acc - baseline_acc
+            
+            print(f"\n  Severity {severity}:")
+            print(f"    Your ViT:       {your_acc:.4f}")
+            print(f"    Baseline:       {baseline_acc:.4f}")
+            print(f"    Improvement:    {improvement:.4f}")
+            
+            # Compare with healer if available
+            if ('healer' in your_results[severity] and 
+                your_results[severity]['healer'] is not None):
+                your_healer_acc = your_results[severity]['healer']['accuracy']
+                healer_vs_baseline = your_healer_acc - baseline_acc
+                healer_vs_your_main = your_healer_acc - your_acc
+                print(f"    Your ViT+Healer: {your_healer_acc:.4f}")
+                print(f"    Healer vs Baseline: {healer_vs_baseline:.4f}")
+                print(f"    Healer Benefit: {healer_vs_your_main:.4f}")
+
+def compare_with_pretrained(your_results, pretrained_results):
+    """Compare your model results with pretrained ResNet18"""
+    print("\n" + "="*60)
+    print("COMPARISON WITH PRETRAINED RESNET18 (ImageNet → Tiny ImageNet)")
+    print("="*60)
+    
+    # Compare clean performance
+    if 0.0 in your_results and 0.0 in pretrained_results:
+        your_clean = your_results[0.0]['main']['accuracy']
+        pretrained_clean = pretrained_results[0.0]['main']['accuracy']
+        gap = pretrained_clean - your_clean
+        
+        print(f"\nClean Data Performance:")
+        print(f"  Your ViT Model:     {your_clean:.4f} ({your_clean*100:.1f}%)")
+        print(f"  Pretrained ResNet:  {pretrained_clean:.4f} ({pretrained_clean*100:.1f}%)")
+        print(f"  Pretraining Gap:    {gap:.4f} ({gap*100:.1f} percentage points)")
+        
+        if gap > 0:
+            print(f"  📈 Pretraining provides {gap*100:.1f}% advantage")
+        else:
+            print(f"  🎯 Your ViT overcomes pretraining by {abs(gap)*100:.1f}%!")
+    
+    # Compare transform robustness
+    print(f"\nTransform Robustness Comparison:")
+    for severity in sorted([s for s in your_results.keys() if s > 0]):
+        if severity in pretrained_results:
+            your_acc = your_results[severity]['main']['accuracy']
+            pretrained_acc = pretrained_results[severity]['main']['accuracy']
+            gap = pretrained_acc - your_acc
+            
+            print(f"\n  Severity {severity}:")
+            print(f"    Your ViT:           {your_acc:.4f}")
+            print(f"    Pretrained ResNet:  {pretrained_acc:.4f}")
+            print(f"    Pretraining Gap:    {gap:.4f}")
+            
+            # Compare with healer if available
+            if ('healer' in your_results[severity] and 
+                your_results[severity]['healer'] is not None):
+                your_healer_acc = your_results[severity]['healer']['accuracy']
+                healer_vs_pretrained = your_healer_acc - pretrained_acc
+                healer_vs_your_main = your_healer_acc - your_acc
+                
+                print(f"    Your ViT+Healer:    {your_healer_acc:.4f}")
+                print(f"    Healer vs Pretrained: {healer_vs_pretrained:.4f}")
+                print(f"    Healer Benefit:     {healer_vs_your_main:.4f}")
+                
+                if healer_vs_pretrained > 0:
+                    print(f"    🎯 Healer beats pretraining by {healer_vs_pretrained*100:.1f}%!")
+
+def compare_three_models(your_results, baseline_results, pretrained_results):
+    """Compare all three: Your models vs Baseline vs Pretrained"""
+    print("\n" + "="*80)
+    print("🏆 THREE-WAY CHAMPIONSHIP: YOUR MODELS vs BASELINE vs PRETRAINED")
+    print("="*80)
+    
+    # Clean data comparison
+    if (0.0 in your_results and 0.0 in baseline_results and 0.0 in pretrained_results):
+        your_clean = your_results[0.0]['main']['accuracy']
+        baseline_clean = baseline_results[0.0]['main']['accuracy']
+        pretrained_clean = pretrained_results[0.0]['main']['accuracy']
+        
+        # Check if healer beats everyone
+        your_healer_clean = your_results[0.0]['healer']['accuracy'] if 'healer' in your_results[0.0] else your_clean
+        
+        print(f"\n🥇 CLEAN DATA LEADERBOARD:")
+        models = [
+            ("Your ViT", your_clean),
+            ("Your ViT+Healer", your_healer_clean),
+            ("Baseline ResNet18", baseline_clean),
+            ("Pretrained ResNet18", pretrained_clean)
+        ]
+        
+        # Sort by accuracy
+        models.sort(key=lambda x: x[1], reverse=True)
+        
+        for i, (name, acc) in enumerate(models):
+            medal = ["🥇", "🥈", "🥉", "4️⃣"][i] if i < 4 else f"{i+1}️⃣"
+            print(f"  {medal} {name}: {acc:.4f} ({acc*100:.1f}%)")
+        
+        # Analysis
+        winner = models[0]
+        print(f"\n🏆 CLEAN DATA WINNER: {winner[0]} with {winner[1]:.4f}")
+        
+        if "Your" in winner[0]:
+            print("🎉 Your approach wins on clean data!")
+        elif "Pretrained" in winner[0]:
+            print("📈 Pretraining dominates on clean data")
+        else:
+            print("📊 Simple baseline leads")
+    
+    # Transform robustness comparison
+    print(f"\n🛡️ TRANSFORM ROBUSTNESS COMPARISON:")
+    
+    for severity in sorted([s for s in your_results.keys() if s > 0]):
+        if severity in baseline_results and severity in pretrained_results:
+            your_acc = your_results[severity]['main']['accuracy']
+            baseline_acc = baseline_results[severity]['main']['accuracy']
+            pretrained_acc = pretrained_results[severity]['main']['accuracy']
+            
+            your_healer_acc = (your_results[severity]['healer']['accuracy'] 
+                             if 'healer' in your_results[severity] and your_results[severity]['healer'] 
+                             else your_acc)
+            
+            print(f"\n  Severity {severity} Leaderboard:")
+            models = [
+                ("Your ViT", your_acc),
+                ("Your ViT+Healer", your_healer_acc),
+                ("Baseline ResNet18", baseline_acc),
+                ("Pretrained ResNet18", pretrained_acc)
+            ]
+            
+            models.sort(key=lambda x: x[1], reverse=True)
+            
+            for i, (name, acc) in enumerate(models):
+                medal = ["🥇", "🥈", "🥉", "4️⃣"][i] if i < 4 else f"{i+1}️⃣"
+                print(f"    {medal} {name}: {acc:.4f}")
+            
+            # Highlight if healer is particularly good at this severity
+            if models[0][0] == "Your ViT+Healer":
+                print(f"    🎯 Healer dominates at severity {severity}!")
+    
+    print(f"\n" + "="*80)
+    print("💡 KEY INSIGHTS:")
+    print("• Pretrained models usually win on clean data (ImageNet knowledge)")
+    print("• Your Healer should excel at transform robustness")
+    print("• Baseline shows the minimum performance bar")
+    print("• Compare drops from clean→transformed to see robustness")
+    print("="*80)
+
+
+# 🚀 NEW COMPREHENSIVE EVALUATION FUNCTIONS
+
+def evaluate_all_model_combinations(dataset_path, severities, model_dir, args, device):
+    """
+    Evaluate ALL model combinations:
+    1. Main (not robust)
+    2. Main robust  
+    3. Healer + Main (not robust)
+    4. Healer + Main robust
+    5. TTT + Main (not robust)
+    6. TTT + Main robust
+    7. BlendedTTT + Main (not robust) 
+    8. BlendedTTT + Main robust
+    9. Baseline (ResNet18 from scratch)
+    10. Pretrained (ResNet18 with ImageNet pretraining)
+    """
+    
+    print("\n" + "="*100)
+    print("🏆 COMPREHENSIVE MODEL EVALUATION - ALL COMBINATIONS")
+    print("="*100)
+    
+    all_model_results = {}
+    
+    # Load all models
+    models = {}
+    
+    # 1. Load main models
+    main_model_path = f"{model_dir}/bestmodel_main/best_model.pt"
+    robust_model_path = f"{model_dir}/bestmodel_robust/best_model.pt"
+    healer_model_path = f"{model_dir}/bestmodel_healer/best_model.pt"
+    
+    if os.path.exists(main_model_path):
+        models['main'] = load_main_model(main_model_path, device)
+        print("✅ Loaded: Main Model (not robust)")
+    else:
+        print("❌ Missing: Main Model")
+        return None
+        
+    if os.path.exists(robust_model_path):
+        models['main_robust'] = load_main_model(robust_model_path, device)
+        print("✅ Loaded: Main Model (robust)")
+    else:
+        print("⚠️  Missing: Main Model (robust) - will skip robust combinations")
+        
+    if os.path.exists(healer_model_path):
+        models['healer'] = load_healer_model(healer_model_path, device)
+        print("✅ Loaded: Healer Model")
+    else:
+        print("❌ Missing: Healer Model")
+        return None
+    
+    # 2. Load TTT models
+    if not args.exclude_ttt:
+        ttt_model_path = f"{model_dir}/bestmodel_ttt/best_model.pt"
+        if os.path.exists(ttt_model_path):
+            models['ttt'] = load_ttt_model(ttt_model_path, models['main'], device)
+            print("✅ Loaded: TTT Model (based on main)")
+            
+            # Create TTT model based on robust main if available
+            if 'main_robust' in models:
+                models['ttt_robust'] = load_ttt_model(ttt_model_path, models['main_robust'], device)
+                print("✅ Loaded: TTT Model (based on robust)")
+        else:
+            print("⚠️  Missing: TTT Model - will skip TTT combinations")
+    
+    # 3. Load BlendedTTT models  
+    if not args.exclude_blended:
+        blended_model_path = f"{model_dir}/bestmodel_blended/best_model.pt"
+        if os.path.exists(blended_model_path):
+            models['blended'] = load_blended_model(blended_model_path, models['main'], device)
+            print("✅ Loaded: BlendedTTT Model (based on main)")
+            
+            # Create BlendedTTT based on robust main if available
+            if 'main_robust' in models:
+                models['blended_robust'] = load_blended_model(blended_model_path, models['main_robust'], device)
+                print("✅ Loaded: BlendedTTT Model (based on robust)")
+        else:
+            print("⚠️  Missing: BlendedTTT Model - will skip BlendedTTT combinations")
+    
+    # 4. Load baseline models
+    if args.compare_baseline:
+        baseline_model_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
+        if os.path.exists(baseline_model_path):
+            models['baseline'] = load_baseline_model(baseline_model_path, device)
+            print("✅ Loaded: Baseline ResNet18 (from scratch)")
+        else:
+            print("⚠️  Missing: Baseline ResNet18 - use --train_baseline to train it")
+    
+    if args.compare_pretrained:
+        pretrained_model_path = f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt"
+        if os.path.exists(pretrained_model_path):
+            models['pretrained'] = load_pretrained_model(pretrained_model_path, device)
+            print("✅ Loaded: Pretrained ResNet18 (ImageNet)")
+        else:
+            print("⚠️  Missing: Pretrained ResNet18 - use --train_pretrained to train it")
+    
+    print(f"\n📊 Evaluating {len(models)} model combinations on {len(severities)} severity levels...")
+    
+    # Define evaluation combinations
+    combinations = [
+        # Format: (name, main_model_key, healer_model_key, description)
+        ("Main", "main", None, "Main ViT (not robust)"),
+        ("Main_Robust", "main_robust", None, "Main ViT (robust training)"),
+        ("Healer+Main", "main", "healer", "Healer + Main ViT (not robust)"),
+        ("Healer+Main_Robust", "main_robust", "healer", "Healer + Main ViT (robust)"),
+        ("TTT+Main", "ttt", None, "TTT + Main ViT (not robust)"),
+        ("TTT+Main_Robust", "ttt_robust", None, "TTT + Main ViT (robust)"),
+        ("BlendedTTT+Main", "blended", None, "BlendedTTT + Main ViT (not robust)"),
+        ("BlendedTTT+Main_Robust", "blended_robust", None, "BlendedTTT + Main ViT (robust)"),
+        ("Baseline", "baseline", None, "ResNet18 (from scratch)"),
+        ("Pretrained", "pretrained", None, "ResNet18 (ImageNet pretrained)"),
+    ]
+    
+    # Evaluate each combination
+    for combo_name, main_key, healer_key, description in combinations:
+        if main_key not in models:
+            print(f"⏭️  Skipping {combo_name}: {main_key} model not available")
+            continue
+            
+        if healer_key and healer_key not in models:
+            print(f"⏭️  Skipping {combo_name}: {healer_key} model not available")
+            continue
+            
+        print(f"\n🔍 Evaluating: {description}")
+        
+        main_model = models[main_key]
+        healer_model = models[healer_key] if healer_key else IdentityHealer().to(device)
+        
+        # Evaluate this combination
+        results = evaluate_model_combination(main_model, healer_model, dataset_path, severities, device, main_key)
+        
+        all_model_results[combo_name] = {
+            'results': results,
+            'description': description
+        }
+    
+    return all_model_results
+
+def evaluate_model_combination(main_model, healer_model, dataset_path, severities, device, model_type):
+    """Evaluate a specific model + healer combination"""
+    results = {}
+    
+    # Standard validation transforms
+    transform_val = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    
+    # Evaluate on each severity level
+    for severity in severities:
+        print(f"    Severity {severity}...", end=" ")
+        
+        if severity == 0.0:
+            # Clean data evaluation
+            val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
+            val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4)
+            
+            correct = 0
+            total = 0
+            
+            main_model.eval()
+            healer_model.eval()
+            
+            with torch.no_grad():
+                for images, labels in val_loader:
+                    images, labels = images.to(device), labels.to(device)
+                    
+                    # Apply healer if not identity
+                    if not isinstance(healer_model, IdentityHealer):
+                        healer_predictions = healer_model(images)
+                        images = healer_model.apply_correction(images, healer_predictions)
+                    
+                    # Forward pass - handle different model types
+                    if 'ttt' in model_type.lower():
+                        outputs, _ = main_model(images)  # TTT models return tuple
+                    elif 'blended' in model_type.lower():
+                        outputs, _ = main_model(images)  # BlendedTTT models return tuple
+                    else:
+                        outputs = main_model(images)  # Regular models
+                    
+                    _, predicted = torch.max(outputs, 1)
+                    
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+            
+            accuracy = correct / total
+            results[severity] = accuracy
+            print(f"{accuracy:.4f}")
+            
+        else:
+            # Transformed data evaluation
+            ood_transform = ContinuousTransforms(severity=severity)
+            ood_val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val, ood_transform=ood_transform)
+            
+            def collate_fn(batch):
+                orig_imgs, trans_imgs, labels, params = zip(*batch)
+                return torch.stack(orig_imgs), torch.stack(trans_imgs), torch.tensor(labels), params
+            
+            ood_val_loader = DataLoader(ood_val_dataset, batch_size=128, shuffle=False, num_workers=4, collate_fn=collate_fn)
+            
+            correct = 0
+            total = 0
+            
+            main_model.eval()
+            healer_model.eval()
+            
+            with torch.no_grad():
+                for orig_images, trans_images, labels, params in ood_val_loader:
+                    trans_images, labels = trans_images.to(device), labels.to(device)
+                    
+                    # Apply healer if not identity
+                    if not isinstance(healer_model, IdentityHealer):
+                        healer_predictions = healer_model(trans_images)
+                        trans_images = healer_model.apply_correction(trans_images, healer_predictions)
+                    
+                    # Forward pass - handle different model types
+                    if 'ttt' in model_type.lower():
+                        outputs, _ = main_model(trans_images)  # TTT models return tuple
+                    elif 'blended' in model_type.lower():
+                        outputs, _ = main_model(trans_images)  # BlendedTTT models return tuple
+                    else:
+                        outputs = main_model(trans_images)  # Regular models
+                    
+                    _, predicted = torch.max(outputs, 1)
+                    
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+            
+            accuracy = correct / total
+            results[severity] = accuracy
+            print(f"{accuracy:.4f}")
+    
+    return results
+
+def print_comprehensive_results(all_model_results, severities):
+    """Print comprehensive comparison of all model combinations"""
+    
+    print("\n" + "="*120)
+    print("🏆 COMPREHENSIVE RESULTS - ALL MODEL COMBINATIONS")
+    print("="*120)
+    
+    # Create results table
+    print(f"\n{'Model Combination':<30} {'Description':<35} ", end="")
+    for severity in severities:
+        if severity == 0.0:
+            print(f"{'Clean':<8}", end="")
+        else:
+            print(f"{'S'+str(severity):<8}", end="")
+    print()
+    print("-" * 120)
+    
+    # Sort models by clean data performance
+    model_items = [(name, data) for name, data in all_model_results.items()]
+    model_items.sort(key=lambda x: x[1]['results'].get(0.0, 0), reverse=True)
+    
+    for name, data in model_items:
+        results = data['results']
+        description = data['description']
+        
+        print(f"{name:<30} {description:<35} ", end="")
+        for severity in severities:
+            if severity in results:
+                acc = results[severity]
+                print(f"{acc:.4f}  ", end="")
+            else:
+                print(f"{'--':<8}", end="")
+        print()
+    
+    # Analysis section
+    print("\n" + "="*120)
+    print("📊 ANALYSIS")
+    print("="*120)
+    
+    # Find best performers
+    clean_best = max(model_items, key=lambda x: x[1]['results'].get(0.0, 0))
+    print(f"🥇 Best Clean Data Performance: {clean_best[0]} ({clean_best[1]['results'][0.0]:.4f})")
+    
+    # Find best transform robustness (smallest drop from clean)
+    robustness_scores = []
+    for name, data in model_items:
+        results = data['results']
+        if 0.0 in results and len([s for s in severities if s > 0 and s in results]) > 0:
+            clean_acc = results[0.0]
+            avg_transform_acc = np.mean([results[s] for s in severities if s > 0 and s in results])
+            drop = clean_acc - avg_transform_acc
+            drop_percent = (drop / clean_acc) * 100 if clean_acc > 0 else 100
+            robustness_scores.append((name, drop_percent, avg_transform_acc))
+    
+    if robustness_scores:
+        most_robust = min(robustness_scores, key=lambda x: x[1])
+        print(f"🛡️  Most Transform Robust: {most_robust[0]} ({most_robust[1]:.1f}% average drop)")
+    
+    # Compare key combinations
+    print(f"\n🔍 KEY COMPARISONS:")
+    
+    # Your best vs pretrained
+    your_best_clean = 0
+    your_best_name = ""
+    for name, data in model_items:
+        if any(keyword in name.lower() for keyword in ['main', 'healer', 'ttt', 'blended']):
+            if data['results'].get(0.0, 0) > your_best_clean:
+                your_best_clean = data['results'].get(0.0, 0)
+                your_best_name = name
+    
+    pretrained_acc = all_model_results.get('Pretrained', {}).get('results', {}).get(0.0, 0)
+    if your_best_clean > 0 and pretrained_acc > 0:
+        gap = pretrained_acc - your_best_clean
+        if gap > 0:
+            print(f"📈 Pretraining Advantage: {gap:.4f} ({gap*100:.1f} points)")
+            print(f"   Your Best: {your_best_name} ({your_best_clean:.4f})")
+            print(f"   Pretrained: ({pretrained_acc:.4f})")
+        else:
+            print(f"🎯 Your Model Wins! {your_best_name} beats pretraining by {abs(gap):.4f}")
+    
+    # Healer benefit analysis
+    main_acc = all_model_results.get('Main', {}).get('results', {}).get(0.0, 0)
+    healer_main_acc = all_model_results.get('Healer+Main', {}).get('results', {}).get(0.0, 0)
+    
+    if main_acc > 0 and healer_main_acc > 0:
+        healer_benefit = healer_main_acc - main_acc
+        print(f"🔧 Healer Benefit (Clean): {healer_benefit:.4f} ({healer_benefit*100:.1f} points)")
+        
+        # Check healer benefit on transforms
+        avg_severities = [s for s in severities if s > 0]
+        if avg_severities:
+            main_transform_avg = np.mean([all_model_results['Main']['results'].get(s, 0) for s in avg_severities])
+            healer_transform_avg = np.mean([all_model_results['Healer+Main']['results'].get(s, 0) for s in avg_severities])
+            transform_benefit = healer_transform_avg - main_transform_avg
+            print(f"🔧 Healer Benefit (Transforms): {transform_benefit:.4f} ({transform_benefit*100:.1f} points)")
+    
+    # Robust training benefit
+    main_acc = all_model_results.get('Main', {}).get('results', {}).get(0.0, 0)
+    main_robust_acc = all_model_results.get('Main_Robust', {}).get('results', {}).get(0.0, 0)
+    
+    if main_acc > 0 and main_robust_acc > 0:
+        robust_cost = main_acc - main_robust_acc  # Usually robust training hurts clean performance
+        print(f"💪 Robust Training Cost (Clean): {robust_cost:.4f} ({robust_cost*100:.1f} points)")
+
+def run_comprehensive_evaluation(args, device):
+    """Run the comprehensive evaluation of all model combinations"""
+    
+    # Evaluate all combinations
+    all_results = evaluate_all_model_combinations(
+        args.dataset, args.severities, args.model_dir, args, device
+    )
+    
+    if all_results is None:
+        print("❌ Cannot run comprehensive evaluation - missing required models")
+        return None
+    
+    # Print comprehensive results
+    print_comprehensive_results(all_results, args.severities)
+    
+    # Generate plots for key comparisons
+    create_comprehensive_plots(all_results, args.severities, args.visualize_dir)
+    
+    return all_results
+
+def create_comprehensive_plots(all_results, severities, save_dir):
+    """Create comprehensive comparison plots"""
+    os.makedirs(save_dir, exist_ok=True)
+    
+    plt.figure(figsize=(15, 10))
+    
+    # Plot all model combinations
+    for name, data in all_results.items():
+        results = data['results']
+        sev_list = sorted([s for s in severities if s in results])
+        acc_list = [results[s] for s in sev_list]
+        
+        if len(sev_list) > 1:
+            plt.plot(sev_list, acc_list, 'o-', linewidth=2, markersize=6, label=name)
+    
+    plt.xlabel('Transform Severity', fontsize=12)
+    plt.ylabel('Accuracy', fontsize=12)
+    plt.title('Comprehensive Model Comparison: All Combinations', fontsize=14)
+    plt.grid(True, alpha=0.3)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    
+    save_path = f"{save_dir}/comprehensive_comparison.png"
+    plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    print(f"📊 Comprehensive comparison plot saved to {save_path}")
+    plt.close()
+    
+    # Create leaderboard plot (clean data)
+    clean_results = [(name, data['results'].get(0.0, 0)) for name, data in all_results.items() if 0.0 in data['results']]
+    clean_results.sort(key=lambda x: x[1], reverse=True)
+    
+    if clean_results:
+        plt.figure(figsize=(12, 8))
+        names, accs = zip(*clean_results)
+        colors = plt.cm.viridis(np.linspace(0, 1, len(names)))
+        
+        bars = plt.barh(range(len(names)), accs, color=colors)
+        plt.yticks(range(len(names)), names)
+        plt.xlabel('Clean Data Accuracy', fontsize=12)
+        plt.title('Clean Data Performance Leaderboard', fontsize=14)
+        plt.grid(True, alpha=0.3, axis='x')
+        
+        # Add value labels
+        for i, (name, acc) in enumerate(clean_results):
+            plt.text(acc + 0.005, i, f'{acc:.3f}', va='center', fontsize=10)
+        
+        plt.tight_layout()
+        save_path = f"{save_dir}/clean_data_leaderboard.png"
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+        print(f"🏆 Clean data leaderboard saved to {save_path}")
+        plt.close()
 
 
 def main():
     parser = argparse.ArgumentParser(description="Transform Healing with Vision Transformers")
     parser.add_argument("--mode", type=str, default="evaluate", choices=["train", "evaluate", "visualize", "all"],
                       help="Mode of operation: train, evaluate, visualize, or all")
-    parser.add_argument("--dataset", type=str, default="tiny-imagenet-200",
+    parser.add_argument("--dataset", type=str, default="../tiny-imagenet-200",
                       help="Path to the dataset")
     parser.add_argument("--model_dir", type=str, default="./",
                       help="Directory to save/load models")
@@ -787,9 +1576,19 @@ def main():
                       help="Whether to exclude TTT model from the pipeline")
     parser.add_argument("--skip_ttt", action="store_true",
                       help="Skip training TTT model (but still use it for evaluation if available)")
-    # Add new arguments for evaluation with/without transforms
     parser.add_argument("--severities", type=str, default="0.0,0.3,0.5,0.75,1.0",
                       help="Comma-separated list of transformation severities to evaluate")
+    
+    # BASELINE ARGUMENTS
+    parser.add_argument("--train_baseline", action="store_true",
+                      help="Train baseline ResNet18 model")
+    parser.add_argument("--compare_baseline", action="store_true",
+                      help="Include baseline comparison in evaluation")
+    parser.add_argument("--train_pretrained", action="store_true",
+                      help="Train pretrained ResNet18 model (ImageNet → Tiny ImageNet)")
+    parser.add_argument("--compare_pretrained", action="store_true",
+                      help="Include pretrained model comparison in evaluation")
+    
     args = parser.parse_args()
     
     # Parse severities from string to list of floats
@@ -808,6 +1607,7 @@ def main():
     healer_model = None
     ttt_model = None
     blended_model = None
+    baseline_model = None
     
     # Check if models exist before training
     main_model_path = f"{args.model_dir}/bestmodel_main/best_model.pt"
@@ -815,15 +1615,18 @@ def main():
     healer_model_path = f"{args.model_dir}/bestmodel_healer/best_model.pt"
     ttt_model_path = f"{args.model_dir}/bestmodel_ttt/best_model.pt" if not args.exclude_ttt else None
     blended_model_path = f"{args.model_dir}/bestmodel_blended/best_model.pt" if not args.exclude_blended else None
+    baseline_model_path = f"{args.model_dir}/bestmodel_resnet18_baseline/best_model.pt"
     
-    # Training mode
-    if args.mode not in ["eval"]:
+    # Training mode - FIXED: Now properly checks if models exist and trains missing ones
+    if args.mode in ["train", "evaluate", "all"]:
+        print(f"\n=== Checking for existing models (mode: {args.mode}) ===")
+        
         # Check if main model exists
         if not os.path.exists(main_model_path):
             print("\n=== Training Main Classification Model ===")
             main_model = train_main_model(args.dataset)
         else:
-            print(f"\n=== Main Classification Model found at {main_model_path}, skipping training ===")
+            print(f"✓ Main model found at {main_model_path}")
             main_model = load_main_model(main_model_path, device)
         
         # Check if robust main model exists
@@ -831,7 +1634,7 @@ def main():
             print("\n=== Training Robust Main Classification Model ===")
             main_model_robust = train_main_model_robust(args.dataset, severity=args.severity)
         else:
-            print(f"\n=== Robust Main Classification Model found at {robust_model_path}, skipping training ===")
+            print(f"✓ Robust model found at {robust_model_path}")
             main_model_robust = load_main_model(robust_model_path, device)
         
         # Check if healer model exists
@@ -839,87 +1642,102 @@ def main():
             print("\n=== Training Transformation Healer Model ===")
             healer_model = train_healer_model(args.dataset, severity=args.severity)
         else:
-            print(f"\n=== Healer Model found at {healer_model_path}, skipping training ===")
+            print(f"✓ Healer model found at {healer_model_path}")
             healer_model = load_healer_model(healer_model_path, device)
         
         # Train TTT model if not skipped, not excluded, and not already existing
         if not args.exclude_ttt and not args.skip_ttt:
-            if not os.path.exists(ttt_model_path):
+            if ttt_model_path and not os.path.exists(ttt_model_path):
                 print("\n=== Training Test-Time Training Model ===")
                 if main_model is None:
                     main_model = load_main_model(main_model_path, device)
                 ttt_model = train_ttt_model(args.dataset, base_model=main_model, severity=args.severity)
-            else:
-                print(f"\n=== TTT Model found at {ttt_model_path}, skipping training ===")
+            elif ttt_model_path:
+                print(f"✓ TTT model found at {ttt_model_path}")
                 if main_model is None:
                     main_model = load_main_model(main_model_path, device)
                 ttt_model = load_ttt_model(ttt_model_path, main_model, device)
         
         # Train BlendedTTT model if not excluded and not already existing
         if not args.exclude_blended:
-            if not os.path.exists(blended_model_path):
+            if blended_model_path and not os.path.exists(blended_model_path):
                 print("\n=== Training BlendedTTT Model ===")
                 if main_model is None:
                     main_model = load_main_model(main_model_path, device)
                 blended_model = train_blended_ttt_model(main_model, args.dataset)
-            else:
-                print(f"\n=== BlendedTTT Model found at {blended_model_path}, skipping training ===")
+            elif blended_model_path:
+                print(f"✓ BlendedTTT model found at {blended_model_path}")
                 if main_model is None:
                     main_model = load_main_model(main_model_path, device)
                 blended_model = load_blended_model(blended_model_path, main_model, device)
+        
+        # BASELINE: Check if baseline should be trained
+        if args.train_baseline or (args.compare_baseline and not os.path.exists(baseline_model_path)):
+            print("\n=== Training Baseline ResNet18 Model ===")
+            baseline_model = train_baseline_resnet18(args.dataset)
+        elif os.path.exists(baseline_model_path):
+            print(f"✓ Baseline model found at {baseline_model_path}")
+            if args.compare_baseline:
+                baseline_model = load_baseline_model(baseline_model_path, device)
+        
+        # PRETRAINED: Check if pretrained model should be trained
+        if args.train_pretrained or (args.compare_pretrained and not os.path.exists(pretrained_model_path)):
+            print("\n=== Training Pretrained ResNet18 Model ===")
+            pretrained_model = train_pretrained_resnet18(args.dataset)
+        elif os.path.exists(pretrained_model_path):
+            print(f"✓ Pretrained model found at {pretrained_model_path}")
+            if args.compare_pretrained:
+                pretrained_model = load_pretrained_model(pretrained_model_path, device)
     
     # Evaluation mode
-    if args.mode not in ["train", "force"]:
+    if args.mode in ["evaluate", "visualize", "all"]:
         print("\n=== Comprehensive Evaluation With and Without Transforms ===")
         
-        # Make sure models are loaded before evaluation
-        if main_model is None:
+        # Load any models that weren't already loaded during training phase
+        if main_model is None and os.path.exists(main_model_path):
             main_model = load_main_model(main_model_path, device)
         
         if main_model_robust is None and os.path.exists(robust_model_path):
             main_model_robust = load_main_model(robust_model_path, device)
         
-        if healer_model is None:
+        if healer_model is None and os.path.exists(healer_model_path):
             healer_model = load_healer_model(healer_model_path, device)
         
-        if not args.exclude_ttt and ttt_model is None and os.path.exists(ttt_model_path):
+        if not args.exclude_ttt and ttt_model is None and ttt_model_path and os.path.exists(ttt_model_path):
             ttt_model = load_ttt_model(ttt_model_path, main_model, device)
         
-        if not args.exclude_blended and blended_model is None and os.path.exists(blended_model_path):
+        if not args.exclude_blended and blended_model is None and blended_model_path and os.path.exists(blended_model_path):
             blended_model = load_blended_model(blended_model_path, main_model, device)
         
-        # Evaluate standard main model with and without transforms
-        print("\n--- Evaluating Standard Main Model Pipeline ---")
-        main_results = evaluate_full_pipeline(
-            main_model, healer_model, 
-            args.dataset, args.severities,
-            model_dir=args.model_dir,
-            include_blended=not args.exclude_blended,
-            include_ttt=not args.exclude_ttt
-        )
+        if args.compare_baseline and baseline_model is None and os.path.exists(baseline_model_path):
+            baseline_model = load_baseline_model(baseline_model_path, device)
         
-        # Generate comparison between with and without transforms
-        transform_comparison = compare_with_without_transforms(main_results)
+        if args.compare_pretrained and pretrained_model is None and os.path.exists(pretrained_model_path):
+            pretrained_model = load_pretrained_model(pretrained_model_path, device)
         
-        # Create and save comparison plot
-        plot_transform_comparison(main_results, save_path=f"{args.visualize_dir}/transform_comparison.png")
+        # Check if we have the minimum required models
+        if main_model is None or healer_model is None:
+            print("❌ ERROR: Missing required models!")
+            print("Required models status:")
+            print(f"  Main model: {'✓ Found' if os.path.exists(main_model_path) else '❌ Missing'} at {main_model_path}")
+            print(f"  Healer model: {'✓ Found' if os.path.exists(healer_model_path) else '❌ Missing'} at {healer_model_path}")
+            print(f"\nDataset path: {args.dataset}")
+            print(f"Dataset exists: {'✓' if os.path.exists(args.dataset) else '❌'}")
+            print("\n💡 Tip: Models should be trained automatically in 'evaluate' mode.")
+            print("If this error persists, try running:")
+            print(f"   python main_modified.py --mode train --dataset {args.dataset}")
+            return
         
-        # Evaluate robust main model if available
-        if main_model_robust is not None:
-            print("\n--- Evaluating Robust Main Model Pipeline ---")
-            robust_results = evaluate_full_pipeline(
-                main_model_robust, healer_model, 
-                args.dataset, args.severities,
-                include_blended=not args.exclude_blended,
-                include_ttt=not args.exclude_ttt
-            )
-            
-            # Generate comparison between robust and standard models
-            print("\n--- Comparing Standard vs Robust Model Performance ---")
-            compare_models_performance(main_results, robust_results, "Standard", "Robust")
-            
-            # Create and save comparison plot for robust model
-            plot_transform_comparison(robust_results, save_path=f"{args.visualize_dir}/robust_transform_comparison.png")
+        # 🚀 NEW: Run comprehensive evaluation of ALL model combinations
+        print("\n" + "="*100)
+        print("🔥 RUNNING COMPREHENSIVE EVALUATION OF ALL MODEL COMBINATIONS")
+        print("="*100)
+        
+        all_results = run_comprehensive_evaluation(args, device)
+        
+        if all_results is None:
+            print("❌ Comprehensive evaluation failed")
+            return
     
     # Visualization mode
     if args.mode in ["visualize", "all"]:
@@ -1121,8 +1939,6 @@ def compare_models_performance(main_results, robust_results, main_label="Main", 
     print(f"{'='*60}")
 
 
-# The rest of the helper functions (evaluate_main_model_only, evaluate_full_pipeline_with_blended_only, etc.)
-# should remain the same as they are used by the main functions we've modified above
 def log_wandb_results_with_all_models(all_results):
     """
     Log comprehensive evaluation results to Weights & Biases

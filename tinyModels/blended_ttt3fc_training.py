@@ -1,4 +1,3 @@
-
 import os
 import torch
 import wandb
@@ -23,7 +22,7 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
 from new_new import ContinuousTransforms, TinyImageNetDataset
 
-from blended_ttt_model import BlendedTTT
+from blended_ttt3fc_model import BlendedTTT3fc
 
 import os
 import torch
@@ -54,16 +53,16 @@ MAX_SHEAR_ANGLE = 15.0
 DEBUG = False 
 
 
-def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
+def train_blended_ttt3fc_model(base_model, dataset_path="tiny-imagenet-200"):
     """
-    Train the BlendedTTT model on the Tiny ImageNet dataset with validation-based early stopping
+    Train the BlendedTTT3fc model on the Tiny ImageNet dataset with validation-based early stopping
     """
     # Set seed for reproducibility
     set_seed(42)
     
     # Create checkpoint directories
-    checkpoints_dir = Path("checkpoints_blended")
-    best_model_dir = Path("bestmodel_blended")
+    checkpoints_dir = Path("checkpoints_blended3fc")
+    best_model_dir = Path("bestmodel_blended3fc")
     
     # Create directories if they don't exist
     checkpoints_dir.mkdir(exist_ok=True)
@@ -73,9 +72,16 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    # Initialize BlendedTTT model
-    blended_model = BlendedTTT()
-    blended_model.to(device)
+    # Initialize BlendedTTT3fc model
+    blended3fc_model = BlendedTTT3fc(
+        img_size=64,
+        patch_size=8,
+        embed_dim=384,
+        depth=8,
+        hidden_dim=512,
+        dropout_rate=0.1
+    )
+    blended3fc_model.to(device)
     
     # Define image transformations
     transform_train = transforms.Compose([
@@ -117,8 +123,8 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
     warmup_steps = 1000 if not DEBUG else 10
     patience = 5  # Early stopping patience
     
-    # Find optimal batch size (similar to main model)
-    batch_size = 128 if not DEBUG else 8
+    # Find optimal batch size (smaller for deeper model)
+    batch_size = 64 if not DEBUG else 8  # Reduced from 128 due to deeper MLPs
     
     # Custom collate function for the blended model
     def blended_collate(batch):
@@ -287,7 +293,7 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
         return total_loss, loss_components
     
     # Optimizer and scheduler (following main model structure)
-    optimizer = torch.optim.AdamW(blended_model.parameters(), lr=learning_rate, weight_decay=0.05)
+    optimizer = torch.optim.AdamW(blended3fc_model.parameters(), lr=learning_rate, weight_decay=0.05)
     
     # Learning rate scheduler
     def get_lr(step, total_steps, warmup_steps, base_lr):
@@ -304,16 +310,21 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
     )
     
     # Logging with wandb
-    wandb.config.update({
-        "model": "blended_ttt",
-        "learning_rate": learning_rate,
-        "epochs": num_epochs,
-        "batch_size": batch_size,
-        "aux_loss_weight": 0.05,  # 5% for auxiliary task
-        "warmup_steps": warmup_steps,
-        "early_stopping_patience": patience,
-        "debug_mode": DEBUG
-    }, allow_val_change=True)
+    try:
+        wandb.config.update({
+            "model": "blended_ttt3fc",
+            "learning_rate": learning_rate,
+            "epochs": num_epochs,
+            "batch_size": batch_size,
+            "hidden_dim": 512,
+            "dropout_rate": 0.1,
+            "aux_loss_weight": 0.05,  # 5% for auxiliary task
+            "warmup_steps": warmup_steps,
+            "early_stopping_patience": patience,
+            "debug_mode": DEBUG
+        }, allow_val_change=True)
+    except:
+        pass
     
     # Initialize early stopping variables (following main model structure)
     best_val_acc = 0
@@ -323,7 +334,7 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
     # Training loop
     for epoch in range(num_epochs):
         # Training phase
-        blended_model.train()
+        blended3fc_model.train()
         train_loss = 0
         train_class_loss = 0
         train_aux_loss = 0
@@ -352,19 +363,19 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
                 transform_targets[key] = transform_targets[key].to(device)
             
             # Forward pass on transformed images
-            logits, aux_outputs = blended_model(transformed_images)
+            logits, aux_outputs = blended3fc_model(transformed_images)
             
             # Calculate losses
             class_loss = class_loss_fn(logits, labels)
             aux_loss, aux_components = compute_aux_loss(aux_outputs, transform_targets)
             
             # Combined loss with 95% classification, 5% auxiliary
-            loss = 0.95 * torch.sigmoid ( class_loss ) + 0.05 * torch.sigmoid ( aux_loss )
+            loss = 0.95 * class_loss + 0.05 * aux_loss
             
             # Backward pass and optimization
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(blended_model.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(blended3fc_model.parameters(), max_norm=1.0)
             optimizer.step()
             scheduler.step()
             
@@ -402,25 +413,28 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
             aux_loss_components[key] /= max(1, num_batches)
         
         # Validation step - standard validation on clean data with only class output
-        val_loss, val_acc = validate_blended_model(blended_model, val_loader, class_loss_fn, device, DEBUG)
+        val_loss, val_acc = validate_blended3fc_model(blended3fc_model, val_loader, class_loss_fn, device, DEBUG)
         
         # Log metrics (following main model structure)
         log_metrics = {
-            "blended/epoch": epoch + 1,
-            "blended/train_loss": train_loss,
-            "blended/train_class_loss": train_class_loss,
-            "blended/train_aux_loss": train_aux_loss,
-            "blended/train_accuracy": train_class_acc,
-            "blended/val_loss": val_loss,
-            "blended/val_accuracy": val_acc,
-            "blended/learning_rate": scheduler.get_last_lr()[0]
+            "blended3fc/epoch": epoch + 1,
+            "blended3fc/train_loss": train_loss,
+            "blended3fc/train_class_loss": train_class_loss,
+            "blended3fc/train_aux_loss": train_aux_loss,
+            "blended3fc/train_accuracy": train_class_acc,
+            "blended3fc/val_loss": val_loss,
+            "blended3fc/val_accuracy": val_acc,
+            "blended3fc/learning_rate": scheduler.get_last_lr()[0]
         }
         
         # Add auxiliary loss components to logging
         for key, value in aux_loss_components.items():
-            log_metrics[f"blended/train_{key}"] = value
+            log_metrics[f"blended3fc/train_{key}"] = value
         
-        wandb.log(log_metrics)
+        try:
+            wandb.log(log_metrics)
+        except:
+            pass
         
         print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {train_loss:.4f}, Train Acc: {train_class_acc:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
         
@@ -433,7 +447,7 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
             checkpoint_path = checkpoints_dir / f"model_epoch{epoch+1}.pt"
             torch.save({
                 'epoch': epoch,
-                'model_state_dict': blended_model.state_dict(),
+                'model_state_dict': blended3fc_model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'scheduler_state_dict': scheduler.state_dict(),
                 'val_acc': val_acc,
@@ -443,14 +457,17 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
             best_model_path = best_model_dir / "best_model.pt"
             torch.save({
                 'epoch': epoch,
-                'model_state_dict': blended_model.state_dict(),
+                'model_state_dict': blended3fc_model.state_dict(),
                 'val_acc': val_acc,
             }, best_model_path)
             
             if not DEBUG:
                 # Log to wandb
-                wandb.save(str(checkpoint_path))
-                wandb.save(str(best_model_path))
+                try:
+                    wandb.save(str(checkpoint_path))
+                    wandb.save(str(best_model_path))
+                except:
+                    pass
                 print(f"Saved best model with validation accuracy: {val_acc:.4f}")
             else:
                 print(f"DEBUG MODE: Saved model checkpoint")
@@ -478,23 +495,23 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200"):
         print("WARNING: No best model was saved. Saving current model as best.")
         torch.save({
             'epoch': num_epochs - 1,
-            'model_state_dict': blended_model.state_dict(),
+            'model_state_dict': blended3fc_model.state_dict(),
             'val_acc': 0.0,  # Default accuracy
         }, best_model_path)
     
-    print(f"BlendedTTT model training completed. Best model saved at: {best_model_dir / 'best_model.pt'}")
+    print(f"BlendedTTT3fc model training completed. Best model saved at: {best_model_dir / 'best_model.pt'}")
     print(f"Best validation accuracy: {best_val_acc:.4f}")
     
     # Load and return the best model
     checkpoint = torch.load(best_model_path)
-    blended_model.load_state_dict(checkpoint['model_state_dict'])
+    blended3fc_model.load_state_dict(checkpoint['model_state_dict'])
     
-    return blended_model
+    return blended3fc_model
 
 
-def validate_blended_model(model, loader, loss_fn, device, debug_mode=False):
+def validate_blended3fc_model(model, loader, loss_fn, device, debug_mode=False):
     """
-    Validation function for BlendedTTT model - classification only (following main model structure)
+    Validation function for BlendedTTT3fc model - classification only (following main model structure)
     """
     model.eval()
     val_loss = 0

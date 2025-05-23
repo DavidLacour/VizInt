@@ -1,4 +1,3 @@
-
 import os
 import torch
 import wandb
@@ -50,8 +49,30 @@ MAX_TRANSLATION_AFFINE = 0.1
 MAX_SHEAR_ANGLE = 15.0
 DEBUG = False 
 
-class BlendedTTT(nn.Module):
-    def __init__(self, img_size=64, patch_size=8, embed_dim=384,depth=8):
+
+class MLP3Layer(nn.Module):
+    """3-layer MLP with ReLU activations and dropout"""
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout_rate=0.1):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dim, output_dim)
+        )
+    
+    def forward(self, x):
+        return self.layers(x)
+
+
+class BlendedTTT3fc(nn.Module):
+    """
+    BlendedTTT model with 3 fully connected layers before classification and transform predictions
+    """
+    def __init__(self, img_size=64, patch_size=8, embed_dim=384, depth=8, hidden_dim=512, dropout_rate=0.1):
         super().__init__()
         
         # Use the same patch embedding as the ViT model
@@ -73,11 +94,10 @@ class BlendedTTT(nn.Module):
         )
         nn.init.normal_(self.pos_embed, std=0.02)
         
-        
-           
+        # Transformer backbone
         self.blocks = TransformerTrunk(
                 dim=embed_dim,
-                depth=depth,  # 
+                depth=depth,
                 head_dim=64,
                 mlp_ratio=4.0,
                 use_bias=False
@@ -86,21 +106,21 @@ class BlendedTTT(nn.Module):
         # Normalization layer
         self.norm = LayerNorm(embed_dim, bias=False)
         
-        # Classification head
-        self.head = nn.Linear(embed_dim, 200)  # 200 classes for Tiny ImageNet
+        # 3-layer MLP for classification head (instead of single linear layer)
+        self.head = MLP3Layer(embed_dim, hidden_dim, 200, dropout_rate)  # 200 classes for Tiny ImageNet
         
-        # Create heads for different transformation parameters
-        self.transform_type_head = nn.Linear(embed_dim, 4)  # 3 transform types (no transform,noise, rotation, affine)
+        # 3-layer MLP for transform type prediction
+        self.transform_type_head = MLP3Layer(embed_dim, hidden_dim, 4, dropout_rate)  # 4 transform types
         
-        # Separate severity heads for each transform type
-        self.severity_noise_head = nn.Linear(embed_dim, 1)   
-        self.severity_rotation_head = nn.Linear(embed_dim, 1)      
-        self.severity_affine_head = nn.Linear(embed_dim, 1)   
+        # 3-layer MLPs for severity heads for each transform type
+        self.severity_noise_head = MLP3Layer(embed_dim, hidden_dim, 1, dropout_rate)   
+        self.severity_rotation_head = MLP3Layer(embed_dim, hidden_dim, 1, dropout_rate)      
+        self.severity_affine_head = MLP3Layer(embed_dim, hidden_dim, 1, dropout_rate)   
         
-        # Specific parameter heads for each transform type
-        self.rotation_head = nn.Linear(embed_dim, 1)        # Rotation angle
-        self.noise_head = nn.Linear(embed_dim, 1)           # Noise std
-        self.affine_head = nn.Linear(embed_dim, 4)          # Affine params
+        # 3-layer MLPs for specific parameter heads for each transform type
+        self.rotation_head = MLP3Layer(embed_dim, hidden_dim, 1, dropout_rate)        # Rotation angle
+        self.noise_head = MLP3Layer(embed_dim, hidden_dim, 1, dropout_rate)           # Noise std
+        self.affine_head = MLP3Layer(embed_dim, hidden_dim, 4, dropout_rate)          # Affine params
     
     def forward_features(self, x):
         B = x.shape[0]
@@ -131,7 +151,7 @@ class BlendedTTT(nn.Module):
         # Get CLS token
         cls_features = features[:, 0]
         
-        # For the auxiliary task, predict transformations
+        # For the auxiliary task, predict transformations using 3-layer MLPs
         aux_outputs = {
             'transform_type_logits': self.transform_type_head(cls_features),
             'severity_noise': torch.sigmoid(self.severity_noise_head(cls_features)),
@@ -148,7 +168,7 @@ class BlendedTTT(nn.Module):
         if aux_only:
             return aux_outputs
         
-        # For classification, use CLS token
+        # For classification, use CLS token with 3-layer MLP
         logits = self.head(cls_features)
         
         return logits, aux_outputs
