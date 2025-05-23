@@ -45,7 +45,7 @@ cd newExperimental
 
 # Set dataset path (adjust as needed)
 # Update this path to your actual dataset location on SCITAS
-DATASET_PATH="/scratch/izar/dlacour/VizInt/autoflex/tiny-imagenet-200"
+DATASET_PATH="/scratch/izar/dlacour/tiny-imagenet-200"
 
 # Architecture-specific configurations
 case $ARCH in
