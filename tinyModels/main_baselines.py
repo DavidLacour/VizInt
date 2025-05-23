@@ -27,6 +27,23 @@ from robust_training import *
 from baseline_models import SimpleResNet18, train_baseline_model
 
 
+import os
+import torch
+import torch.nn as nn
+import argparse
+import shutil
+from pathlib import Path
+from copy import deepcopy
+
+# Import baseline models - ADD THIS IMPORT
+from baseline_models import (
+    SimpleResNet18, PretrainedResNet18, SimpleVGG16, PretrainedVGG16,
+    train_baseline_model, train_pretrained_model,
+    train_resnet18_baseline, train_resnet18_pretrained,
+    train_vgg16_baseline, train_vgg16_pretrained,
+    load_baseline_model
+)
+
 def evaluate_full_pipeline(main_model, healer_model, dataset_path, severities=[0.1,0.2,0.3,0.4,0.6], model_dir="./", include_blended=True, include_ttt=True):
     """
     Evaluate the full transformation healing pipeline on clean and transformed data.
@@ -1579,17 +1596,54 @@ def main():
     parser.add_argument("--severities", type=str, default="0.1,0.2,0.3,0.4,0.6",
                       help="Comma-separated list of transformation severities to evaluate")
     
-    # BASELINE ARGUMENTS
+    # BASELINE ARGUMENTS - UPDATED
+    parser.add_argument("--train_resnet18_baseline", action="store_true",
+                      help="Train ResNet18 baseline model (from scratch)")
+    parser.add_argument("--train_resnet18_pretrained", action="store_true",
+                      help="Train ResNet18 pretrained model (ImageNet → Tiny ImageNet)")
+    parser.add_argument("--train_vgg16_baseline", action="store_true",
+                      help="Train VGG16 baseline model (from scratch)")
+    parser.add_argument("--train_vgg16_pretrained", action="store_true",
+                      help="Train VGG16 pretrained model (ImageNet → Tiny ImageNet)")
+    
+    parser.add_argument("--compare_resnet18_baseline", action="store_true",
+                      help="Include ResNet18 baseline comparison in evaluation")
+    parser.add_argument("--compare_resnet18_pretrained", action="store_true",
+                      help="Include ResNet18 pretrained model comparison in evaluation")
+    parser.add_argument("--compare_vgg16_baseline", action="store_true",
+                      help="Include VGG16 baseline comparison in evaluation")
+    parser.add_argument("--compare_vgg16_pretrained", action="store_true",
+                      help="Include VGG16 pretrained model comparison in evaluation")
+    
+    # Legacy arguments (for backward compatibility)
     parser.add_argument("--train_baseline", action="store_true",
-                      help="Train baseline ResNet18 model")
+                      help="Train baseline ResNet18 model (same as --train_resnet18_baseline)")
     parser.add_argument("--compare_baseline", action="store_true",
-                      help="Include baseline comparison in evaluation")
+                      help="Include baseline comparison in evaluation (same as --compare_resnet18_baseline)")
     parser.add_argument("--train_pretrained", action="store_true",
-                      help="Train pretrained ResNet18 model (ImageNet → Tiny ImageNet)")
+                      help="Train pretrained ResNet18 model (same as --train_resnet18_pretrained)")
     parser.add_argument("--compare_pretrained", action="store_true",
-                      help="Include pretrained model comparison in evaluation")
+                      help="Include pretrained model comparison in evaluation (same as --compare_resnet18_pretrained)")
+    
+    # Add timeout parameter to prevent hanging during evaluation
+    parser.add_argument("--eval_timeout", type=int, default=60,
+                      help="Timeout in seconds for model evaluation to prevent hanging")
+    
+    # Add batch size parameter to allow for memory-constrained environments
+    parser.add_argument("--batch_size", type=int, default=64,
+                      help="Batch size for evaluation (lower this if running out of memory)")
     
     args = parser.parse_args()
+    
+    # Handle legacy arguments
+    if args.train_baseline:
+        args.train_resnet18_baseline = True
+    if args.compare_baseline:
+        args.compare_resnet18_baseline = True
+    if args.train_pretrained:
+        args.train_resnet18_pretrained = True
+    if args.compare_pretrained:
+        args.compare_resnet18_pretrained = True
     
     # Parse severities from string to list of floats
     args.severities = [float(s) for s in args.severities.split(',')]
@@ -1607,7 +1661,14 @@ def main():
     healer_model = None
     ttt_model = None
     blended_model = None
-    baseline_model = None
+    
+    # Define all baseline model paths - FIXED
+    baseline_model_paths = {
+        'resnet18_baseline': f"{args.model_dir}/bestmodel_resnet18_baseline/best_model.pt",
+        'resnet18_pretrained': f"{args.model_dir}/bestmodel_resnet18_pretrained/best_model.pt",
+        'vgg16_baseline': f"{args.model_dir}/bestmodel_vgg16_baseline/best_model.pt",
+        'vgg16_pretrained': f"{args.model_dir}/bestmodel_vgg16_pretrained/best_model.pt",
+    }
     
     # Check if models exist before training
     main_model_path = f"{args.model_dir}/bestmodel_main/best_model.pt"
@@ -1615,7 +1676,6 @@ def main():
     healer_model_path = f"{args.model_dir}/bestmodel_healer/best_model.pt"
     ttt_model_path = f"{args.model_dir}/bestmodel_ttt/best_model.pt" if not args.exclude_ttt else None
     blended_model_path = f"{args.model_dir}/bestmodel_blended/best_model.pt" if not args.exclude_blended else None
-    baseline_model_path = f"{args.model_dir}/bestmodel_resnet18_baseline/best_model.pt"
     
     # Training mode - FIXED: Now properly checks if models exist and trains missing ones
     if args.mode in ["train", "evaluate", "all"]:
@@ -1671,23 +1731,38 @@ def main():
                     main_model = load_main_model(main_model_path, device)
                 blended_model = load_blended_model(blended_model_path, main_model, device)
         
-        # BASELINE: Check if baseline should be trained
-        if args.train_baseline or (args.compare_baseline and not os.path.exists(baseline_model_path)):
-            print("\n=== Training Baseline ResNet18 Model ===")
-            baseline_model = train_baseline_resnet18(args.dataset)
-        elif os.path.exists(baseline_model_path):
-            print(f"✓ Baseline model found at {baseline_model_path}")
-            if args.compare_baseline:
-                baseline_model = load_baseline_model(baseline_model_path, device)
+        # BASELINE MODELS - UPDATED
+        # ResNet18 Baseline (from scratch)
+        if (args.train_resnet18_baseline or 
+            (args.compare_resnet18_baseline and not os.path.exists(baseline_model_paths['resnet18_baseline']))):
+            print("\n=== Training ResNet18 Baseline Model (from scratch) ===")
+            train_resnet18_baseline(args.dataset)
+        elif os.path.exists(baseline_model_paths['resnet18_baseline']):
+            print(f"✓ ResNet18 baseline model found at {baseline_model_paths['resnet18_baseline']}")
         
-        # PRETRAINED: Check if pretrained model should be trained
-        if args.train_pretrained or (args.compare_pretrained and not os.path.exists(pretrained_model_path)):
-            print("\n=== Training Pretrained ResNet18 Model ===")
-            pretrained_model = train_pretrained_resnet18(args.dataset)
-        elif os.path.exists(pretrained_model_path):
-            print(f"✓ Pretrained model found at {pretrained_model_path}")
-            if args.compare_pretrained:
-                pretrained_model = load_pretrained_model(pretrained_model_path, device)
+        # ResNet18 Pretrained
+        if (args.train_resnet18_pretrained or 
+            (args.compare_resnet18_pretrained and not os.path.exists(baseline_model_paths['resnet18_pretrained']))):
+            print("\n=== Training ResNet18 Pretrained Model (ImageNet → Tiny ImageNet) ===")
+            train_resnet18_pretrained(args.dataset)
+        elif os.path.exists(baseline_model_paths['resnet18_pretrained']):
+            print(f"✓ ResNet18 pretrained model found at {baseline_model_paths['resnet18_pretrained']}")
+        
+        # VGG16 Baseline (from scratch)
+        if (args.train_vgg16_baseline or 
+            (args.compare_vgg16_baseline and not os.path.exists(baseline_model_paths['vgg16_baseline']))):
+            print("\n=== Training VGG16 Baseline Model (from scratch) ===")
+            train_vgg16_baseline(args.dataset)
+        elif os.path.exists(baseline_model_paths['vgg16_baseline']):
+            print(f"✓ VGG16 baseline model found at {baseline_model_paths['vgg16_baseline']}")
+        
+        # VGG16 Pretrained
+        if (args.train_vgg16_pretrained or 
+            (args.compare_vgg16_pretrained and not os.path.exists(baseline_model_paths['vgg16_pretrained']))):
+            print("\n=== Training VGG16 Pretrained Model (ImageNet → Tiny ImageNet) ===")
+            train_vgg16_pretrained(args.dataset)
+        elif os.path.exists(baseline_model_paths['vgg16_pretrained']):
+            print(f"✓ VGG16 pretrained model found at {baseline_model_paths['vgg16_pretrained']}")
     
     # Evaluation mode
     if args.mode in ["evaluate", "visualize", "all"]:
@@ -1709,12 +1784,6 @@ def main():
         if not args.exclude_blended and blended_model is None and blended_model_path and os.path.exists(blended_model_path):
             blended_model = load_blended_model(blended_model_path, main_model, device)
         
-        if args.compare_baseline and baseline_model is None and os.path.exists(baseline_model_path):
-            baseline_model = load_baseline_model(baseline_model_path, device)
-        
-        if args.compare_pretrained and pretrained_model is None and os.path.exists(pretrained_model_path):
-            pretrained_model = load_pretrained_model(pretrained_model_path, device)
-        
         # Check if we have the minimum required models
         if main_model is None or healer_model is None:
             print("❌ ERROR: Missing required models!")
@@ -1733,11 +1802,40 @@ def main():
         print("🔥 RUNNING COMPREHENSIVE EVALUATION OF ALL MODEL COMBINATIONS")
         print("="*100)
         
-        all_results = run_comprehensive_evaluation(args, device)
-        
-        if all_results is None:
-            print("❌ Comprehensive evaluation failed")
-            return
+        try:
+            # Set timeout for evaluation to prevent hanging
+            import signal
+            
+            class TimeoutException(Exception):
+                pass
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutException("Evaluation timed out")
+            
+            # Set the signal handler for SIGALRM
+            signal.signal(signal.SIGALRM, timeout_handler)
+            
+            # Set the alarm for evaluation_timeout seconds
+            signal.alarm(args.eval_timeout)
+            
+            # Run evaluation with timeout protection
+            all_results = run_comprehensive_evaluation(args, device)
+            
+            # Cancel the alarm if evaluation completes successfully
+            signal.alarm(0)
+            
+            if all_results is None:
+                print("❌ Comprehensive evaluation failed")
+                return
+                
+        except TimeoutException:
+            print("⚠️ Evaluation timed out. Try increasing --eval_timeout or check for model issues.")
+            print("Continuing with visualization if requested...")
+        except KeyboardInterrupt:
+            print("\n⚠️ Evaluation interrupted by user. Continuing with visualization if requested...")
+        except Exception as e:
+            print(f"❌ Error during evaluation: {str(e)}")
+            print("Continuing with visualization if requested...")
     
     # Visualization mode
     if args.mode in ["visualize", "all"]:
@@ -1814,6 +1912,455 @@ def main():
     
     print("\nExperiment completed!")
 
+# UPDATED: New evaluation functions for all baseline models
+def evaluate_all_model_combinations(dataset_path, severities, model_dir, args, device):
+    """
+    Evaluate ALL model combinations including new baseline models:
+    1. Main (not robust)
+    2. Main robust
+    3. Healer + Main (not robust)
+    4. Healer + Main robust
+    5. TTT + Main (not robust)
+    6. TTT + Main robust
+    7. BlendedTTT + Main (not robust)
+    8. BlendedTTT + Main robust
+    9. ResNet18 Baseline (from scratch)
+    10. ResNet18 Pretrained (ImageNet)
+    11. VGG16 Baseline (from scratch)
+    12. VGG16 Pretrained (ImageNet)
+    """
+    
+    print("\n" + "="*100)
+    print("🏆 COMPREHENSIVE MODEL EVALUATION - ALL COMBINATIONS INCLUDING BASELINES")
+    print("="*100)
+    
+    all_model_results = {}
+    
+    # Load all models
+    models = {}
+    
+    # 1. Load main models
+    main_model_path = f"{model_dir}/bestmodel_main/best_model.pt"
+    robust_model_path = f"{model_dir}/bestmodel_robust/best_model.pt"
+    healer_model_path = f"{model_dir}/bestmodel_healer/best_model.pt"
+    
+    if os.path.exists(main_model_path):
+        models['main'] = load_main_model(main_model_path, device)
+        print("✅ Loaded: Main Model (not robust)")
+    else:
+        print("❌ Missing: Main Model")
+        return None
+        
+    if os.path.exists(robust_model_path):
+        models['main_robust'] = load_main_model(robust_model_path, device)
+        print("✅ Loaded: Main Model (robust)")
+    else:
+        print("⚠️  Missing: Main Model (robust) - will skip robust combinations")
+        
+    if os.path.exists(healer_model_path):
+        models['healer'] = load_healer_model(healer_model_path, device)
+        print("✅ Loaded: Healer Model")
+    else:
+        print("❌ Missing: Healer Model")
+        return None
+    
+    # 2. Load TTT models
+    if not args.exclude_ttt:
+        ttt_model_path = f"{model_dir}/bestmodel_ttt/best_model.pt"
+        if os.path.exists(ttt_model_path):
+            models['ttt'] = load_ttt_model(ttt_model_path, models['main'], device)
+            print("✅ Loaded: TTT Model (based on main)")
+            
+            # Create TTT model based on robust main if available
+            if 'main_robust' in models:
+                models['ttt_robust'] = load_ttt_model(ttt_model_path, models['main_robust'], device)
+                print("✅ Loaded: TTT Model (based on robust)")
+        else:
+            print("⚠️  Missing: TTT Model - will skip TTT combinations")
+    
+    # 3. Load BlendedTTT models  
+    if not args.exclude_blended:
+        blended_model_path = f"{model_dir}/bestmodel_blended/best_model.pt"
+        if os.path.exists(blended_model_path):
+            models['blended'] = load_blended_model(blended_model_path, models['main'], device)
+            print("✅ Loaded: BlendedTTT Model (based on main)")
+            
+            # Create BlendedTTT based on robust main if available
+            if 'main_robust' in models:
+                models['blended_robust'] = load_blended_model(blended_model_path, models['main_robust'], device)
+                print("✅ Loaded: BlendedTTT Model (based on robust)")
+        else:
+            print("⚠️  Missing: BlendedTTT Model - will skip BlendedTTT combinations")
+    
+    # 4. Load baseline models - UPDATED
+    baseline_models = {
+        'resnet18_baseline': (SimpleResNet18, args.compare_resnet18_baseline),
+        'resnet18_pretrained': (PretrainedResNet18, args.compare_resnet18_pretrained),
+        'vgg16_baseline': (SimpleVGG16, args.compare_vgg16_baseline),
+        'vgg16_pretrained': (PretrainedVGG16, args.compare_vgg16_pretrained),
+    }
+    
+    for model_name, (model_class, should_compare) in baseline_models.items():
+        if should_compare:
+            model_path = f"{model_dir}/bestmodel_{model_name}/best_model.pt"
+            if os.path.exists(model_path):
+                models[model_name] = load_baseline_model(model_path, model_class, device)
+                print(f"✅ Loaded: {model_name.replace('_', ' ').title()}")
+            else:
+                print(f"⚠️  Missing: {model_name.replace('_', ' ').title()} - use --train_{model_name} to train it")
+    
+    print(f"\n📊 Evaluating {len(models)} model combinations on {len(severities)} severity levels...")
+    
+    # Define evaluation combinations - UPDATED
+    combinations = [
+        # Format: (name, main_model_key, healer_model_key, description)
+        ("Main", "main", None, "Main ViT (not robust)"),
+        ("Main_Robust", "main_robust", None, "Main ViT (robust training)"),
+        ("Healer+Main", "main", "healer", "Healer + Main ViT (not robust)"),
+        ("Healer+Main_Robust", "main_robust", "healer", "Healer + Main ViT (robust)"),
+        ("TTT+Main", "ttt", None, "TTT + Main ViT (not robust)"),
+        ("TTT+Main_Robust", "ttt_robust", None, "TTT + Main ViT (robust)"),
+        ("BlendedTTT+Main", "blended", None, "BlendedTTT + Main ViT (not robust)"),
+        ("BlendedTTT+Main_Robust", "blended_robust", None, "BlendedTTT + Main ViT (robust)"),
+        ("ResNet18_Baseline", "resnet18_baseline", None, "ResNet18 (from scratch)"),
+        ("ResNet18_Pretrained", "resnet18_pretrained", None, "ResNet18 (ImageNet pretrained)"),
+        ("VGG16_Baseline", "vgg16_baseline", None, "VGG16 (from scratch)"),
+        ("VGG16_Pretrained", "vgg16_pretrained", None, "VGG16 (ImageNet pretrained)"),
+    ]
+    
+    # Evaluate each combination
+    for combo_name, main_key, healer_key, description in combinations:
+        if main_key not in models:
+            print(f"⏭️  Skipping {combo_name}: {main_key} model not available")
+            continue
+            
+        if healer_key and healer_key not in models:
+            print(f"⏭️  Skipping {combo_name}: {healer_key} model not available")
+            continue
+            
+        print(f"\n🔍 Evaluating: {description}")
+        
+        main_model = models[main_key]
+        healer_model = models[healer_key] if healer_key else IdentityHealer().to(device)
+        
+        # Evaluate this combination
+        results = evaluate_model_combination(
+            main_model, 
+            healer_model, 
+            dataset_path, 
+            severities, 
+            device, 
+            main_key,
+            batch_size=args.batch_size  # Pass batch size to avoid memory issues
+        )
+        
+        all_model_results[combo_name] = {
+            'results': results,
+            'description': description
+        }
+    
+    return all_model_results
+
+# FIXED: Updated evaluate_model_combination function to include batch_size parameter
+def evaluate_model_combination(main_model, healer_model, dataset_path, severities, device, model_name, batch_size=64):
+    """
+    Evaluate a specific model combination across multiple severities.
+    
+    Args:
+        main_model: The main classification model
+        healer_model: The healer model (or IdentityHealer if None)
+        dataset_path: Path to the dataset
+        severities: List of severity values to evaluate
+        device: Device to run evaluation on
+        model_name: Name of the model (for logging)
+        batch_size: Batch size for evaluation (reduce if running out of memory)
+        
+    Returns:
+        Dictionary of results for each severity
+    """
+    from torch.utils.data import DataLoader
+    from torchvision import transforms
+    import time
+    from tqdm import tqdm
+    
+    # Set models to evaluation mode
+    main_model.eval()
+    healer_model.eval()
+    
+    # Prepare transform for clean evaluation
+    transform_clean = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    
+    # Create clean dataset and dataloader
+    from new_new import TinyImageNetDataset
+    clean_dataset = TinyImageNetDataset(dataset_path, "val", transform_clean)
+    clean_loader = DataLoader(clean_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
+    
+    results = {}
+    
+    # Evaluate on clean data first
+    print(f"Evaluating {model_name} on clean data...")
+    correct = 0
+    total = 0
+    
+    start_time = time.time()
+    
+    with torch.no_grad():
+        for images, labels in tqdm(clean_loader, desc="Evaluating (clean)"):
+            images, labels = images.to(device), labels.to(device)
+            
+            # Forward pass through healer and main model
+            healed_images = healer_model(images)
+            outputs = main_model(healed_images)
+            
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    
+    clean_acc = correct / total
+    eval_time = time.time() - start_time
+    
+    print(f"Clean Accuracy: {clean_acc:.4f} (evaluated in {eval_time:.2f}s)")
+    
+    results["clean"] = {
+        "accuracy": clean_acc,
+        "eval_time": eval_time
+    }
+    
+    # Evaluate on transformed data for each severity
+    for severity in severities:
+        print(f"Evaluating {model_name} with transforms (severity {severity})...")
+        
+        # Prepare transform for transformed evaluation
+        transform_corrupted = transforms.Compose([
+            transforms.ToTensor(),
+            AddPoissonNoise(severity=severity),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+        
+        # Create transformed dataset and dataloader
+        corrupted_dataset = TinyImageNetDataset(dataset_path, "val", transform_corrupted)
+        corrupted_loader = DataLoader(corrupted_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
+        
+        # Initialize counters
+        correct = 0
+        total = 0
+        
+        start_time = time.time()
+        
+        with torch.no_grad():
+            for images, labels in tqdm(corrupted_loader, desc=f"Evaluating (severity {severity})"):
+                images, labels = images.to(device), labels.to(device)
+                
+                # Forward pass through healer and main model
+                healed_images = healer_model(images)
+                outputs = main_model(healed_images)
+                
+                _, predicted = torch.max(outputs, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+                
+                # Check for NaN outputs and break if detected
+                if torch.isnan(outputs).any():
+                    print(f"⚠️ NaN detected in model outputs! Stopping evaluation.")
+                    break
+        
+        corrupted_acc = correct / total if total > 0 else 0
+        eval_time = time.time() - start_time
+        
+        print(f"Accuracy (severity {severity}): {corrupted_acc:.4f} (evaluated in {eval_time:.2f}s)")
+        
+        results[f"severity_{severity}"] = {
+            "accuracy": corrupted_acc,
+            "eval_time": eval_time
+        }
+    
+    return results
+
+# FIX: Add missing IdentityHealer class that might be needed for evaluation
+class IdentityHealer(nn.Module):
+    """Identity transformation - does not modify the input"""
+    def __init__(self):
+        super(IdentityHealer, self).__init__()
+    
+    def forward(self, x):
+        return x
+
+# FIX: Add missing AddPoissonNoise class that might be needed for evaluation
+class AddPoissonNoise(nn.Module):
+    """Add Poisson noise to the input image"""
+    def __init__(self, severity=0.5):
+        super(AddPoissonNoise, self).__init__()
+        self.severity = severity
+    
+    def forward(self, x):
+        # Ensure x is positive (required for Poisson noise)
+        x_pos = torch.clamp(x, min=0.001)
+        
+        # Scale severity (higher severity = more noise)
+        lam = 1.0 / (self.severity + 0.001)
+        
+        # Generate Poisson noise
+        noise = torch.poisson(lam * x_pos) / lam - x_pos
+        
+        # Apply noise
+        x_noisy = x + noise
+        
+        # Clamp to valid range [0, 1]
+        x_noisy = torch.clamp(x_noisy, 0.0, 1.0)
+        
+        return x_noisy
+
+# FIX: Add run_comprehensive_evaluation function which was referenced but not defined
+def run_comprehensive_evaluation(args, device):
+    """Run comprehensive evaluation of all model combinations with all severities"""
+    dataset_path = args.dataset
+    severities = args.severities + [args.severity] if args.severity not in args.severities else args.severities
+    model_dir = args.model_dir
+    
+    # Evaluate all model combinations
+    all_results = evaluate_all_model_combinations(dataset_path, severities, model_dir, args, device)
+    
+    if all_results is None:
+        return None
+    
+    # Print comprehensive results
+    print_comprehensive_results(all_results, severities)
+    
+    # Create and save plots
+    if len(all_results) > 0:
+        create_comprehensive_plots(all_results, severities, save_dir=f"{args.model_dir}/plots")
+    
+    return all_results
+
+# Add helper functions for comprehensive results display
+def print_comprehensive_results(all_results, severities):
+    """Print comprehensive results in a formatted table"""
+    print("\n" + "="*100)
+    print("📊 COMPREHENSIVE RESULTS SUMMARY")
+    print("="*100)
+    
+    # Format header
+    header = f"{'Model':<30} | {'Clean':<10}"
+    for severity in severities:
+        header += f" | {f'Sev {severity}':<10}"
+    print(header)
+    print("-"*100)
+    
+    # Print each model's results
+    for model_name, result_dict in all_results.items():
+        results = result_dict['results']
+        desc = result_dict['description']
+        
+        row = f"{desc:<30} | {results['clean']['accuracy']*100:>8.2f}%"
+        
+        for severity in severities:
+            sev_key = f"severity_{severity}"
+            if sev_key in results:
+                row += f" | {results[sev_key]['accuracy']*100:>8.2f}%"
+            else:
+                row += f" | {'N/A':<10}"
+        
+        print(row)
+    
+    print("="*100)
+
+def create_comprehensive_plots(all_results, severities, save_dir="plots"):
+    """Create and save comprehensive comparison plots"""
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import os
+        
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # Extract data for plotting
+        model_names = []
+        clean_accs = []
+        sev_accs = {severity: [] for severity in severities}
+        
+        for model_name, result_dict in all_results.items():
+            results = result_dict['results']
+            desc = result_dict['description']
+            
+            model_names.append(desc)
+            clean_accs.append(results['clean']['accuracy'] * 100)
+            
+            for severity in severities:
+                sev_key = f"severity_{severity}"
+                if sev_key in results:
+                    sev_accs[severity].append(results[sev_key]['accuracy'] * 100)
+                else:
+                    sev_accs[severity].append(np.nan)
+        
+        # Create bar chart for clean accuracy
+        plt.figure(figsize=(12, 6))
+        bars = plt.bar(range(len(model_names)), clean_accs, color='skyblue')
+        plt.xlabel('Model')
+        plt.ylabel('Clean Accuracy (%)')
+        plt.title('Clean Accuracy Comparison')
+        plt.xticks(range(len(model_names)), model_names, rotation=45, ha='right')
+        plt.tight_layout()
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        
+        # Add value labels on top of bars
+        for bar, acc in zip(bars, clean_accs):
+            plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
+                    f'{acc:.1f}%', ha='center', va='bottom', fontsize=8)
+        
+        plt.savefig(f"{save_dir}/clean_accuracy_comparison.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        # Create line plot for severity comparison
+        plt.figure(figsize=(12, 8))
+        
+        x = np.array([-1] + list(severities))  # -1 represents clean
+        
+        for i, model_name in enumerate(model_names):
+            y = np.array([clean_accs[i]] + [sev_accs[sev][i] for sev in severities])
+            plt.plot(x, y, marker='o', label=model_name)
+        
+        plt.xlabel('Severity (-1 = Clean)')
+        plt.ylabel('Accuracy (%)')
+        plt.title('Accuracy vs. Severity Comparison')
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.grid(True, linestyle='--', alpha=0.7)
+        plt.tight_layout()
+        
+        plt.savefig(f"{save_dir}/severity_comparison.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print(f"✅ Plots saved to {save_dir}/")
+        
+    except Exception as e:
+        print(f"⚠️ Error creating plots: {str(e)}")
+
+# Keep all other existing functions unchanged...
+
+# Usage examples:
+def print_usage_examples():
+    """Print usage examples for the new baseline arguments"""
+    print("""
+    Usage Examples:
+    
+    # Train all baseline models
+    python main_baselines.py --mode train --train_resnet18_baseline --train_resnet18_pretrained --train_vgg16_baseline --train_vgg16_pretrained
+    
+    # Evaluate with specific baselines
+    python main_baselines.py --mode evaluate --compare_resnet18_baseline --compare_resnet18_pretrained
+    
+    # Evaluate with all baselines
+    python main_baselines.py --mode evaluate --compare_resnet18_baseline --compare_resnet18_pretrained --compare_vgg16_baseline --compare_vgg16_pretrained
+    
+    # If evaluation is hanging, use a timeout and smaller batch size
+    python main_baselines.py --mode evaluate --compare_resnet18_baseline --compare_vgg16_baseline --eval_timeout 120 --batch_size 32
+    
+    # Legacy commands (still work)
+    python main_baselines.py --mode train --train_baseline --train_pretrained
+    python main_baselines.py --mode evaluate --compare_baseline --compare_pretrained
+    """)
 
 # Helper functions for loading models
 def load_main_model(model_path, device):
