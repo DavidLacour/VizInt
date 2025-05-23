@@ -1042,7 +1042,7 @@ def main():
     parser.add_argument("--visualize_dir", type=str, default="./visualizations",
                       help="Directory to save visualization plots")
     parser.add_argument("--severities", type=float, nargs="+", 
-                      default=[0.0, 0.5, 1.0, 1.5, 2.0],
+                      default=[0.1,0.2,0.3,0.4,0.6],
                       help="Severity levels to evaluate")
     
     # Mode arguments

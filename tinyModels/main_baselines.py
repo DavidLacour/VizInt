@@ -1576,7 +1576,7 @@ def main():
                       help="Whether to exclude TTT model from the pipeline")
     parser.add_argument("--skip_ttt", action="store_true",
                       help="Skip training TTT model (but still use it for evaluation if available)")
-    parser.add_argument("--severities", type=str, default="0.0,0.3,0.5,0.75,1.0",
+    parser.add_argument("--severities", type=str, default="0.1,0.2,0.3,0.4,0.6",
                       help="Comma-separated list of transformation severities to evaluate")
     
     # BASELINE ARGUMENTS
