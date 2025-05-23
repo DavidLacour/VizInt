@@ -66,8 +66,8 @@ case $ARCH in
         ;;
 esac
 
-# Create output directory
-OUTPUT_DIR="results/${ARCH}_${SLURM_JOB_ID}"
+# Create output directory next to VizInt
+OUTPUT_DIR="/scratch/izar/dlacour/experimental_results/${ARCH}_${SLURM_JOB_ID}"
 mkdir -p $OUTPUT_DIR
 
 # Log configuration

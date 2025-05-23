@@ -9,7 +9,7 @@ from pathlib import Path
 import shutil
 from copy import deepcopy
 from tqdm import tqdm
-from torch.utils.data import DataLoader
+from torch.utils.data import 
 
 from new_new import * 
 # Import BlendedTTT modules
@@ -769,7 +769,7 @@ def main():
     parser = argparse.ArgumentParser(description="Transform Healing with Vision Transformers")
     parser.add_argument("--mode", type=str, default="evaluate", choices=["train", "evaluate", "visualize", "all"],
                       help="Mode of operation: train, evaluate, visualize, or all")
-    parser.add_argument("--dataset", type=str, default="../../tiny-imagenet-200",
+    parser.add_argument("--dataset", type=str, default="../tiny-imagenet-200",
                       help="Path to the dataset")
     parser.add_argument("--model_dir", type=str, default="./",
                       help="Directory to save/load models")
