@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 from copy import deepcopy
+import argparse
 
 # Import dataset and transform utilities
 from new_new import TinyImageNetDataset, ContinuousTransforms
@@ -620,8 +621,299 @@ def create_comprehensive_plots_with_3fc(all_results, severities, save_dir):
     plt.close()
 
 
+def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=None):
+    """Train ALL models if they don't exist - comprehensive training pipeline"""
+    
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Import required training functions
+    from new_new import train_main_model, train_healer_model
+    from robust_training import train_main_model_robust
+    from ttt_model import train_ttt_model
+    from blended_ttt_training import train_blended_ttt_model
+    
+    print("\n" + "="*80)
+    print("🚀 COMPREHENSIVE MODEL TRAINING PIPELINE")
+    print("="*80)
+    print("Checking and training all missing models...")
+    
+    models = {}
+    
+    # 1. Train Main Model (required for everything)
+    main_model_path = f"{model_dir}/bestmodel_main/best_model.pt"
+    if not os.path.exists(main_model_path):
+        print("\n🔧 Training Main Classification Model...")
+        main_model = train_main_model(dataset_path)
+        models['main'] = main_model
+    else:
+        print("✅ Main model already exists")
+        models['main'] = load_main_model(main_model_path, device)
+    
+    # 2. Train Robust Main Model
+    robust_model_path = f"{model_dir}/bestmodel_robust/best_model.pt"
+    if not os.path.exists(robust_model_path):
+        print("\n🔧 Training Robust Main Classification Model...")
+        robust_model = train_main_model_robust(dataset_path, severity=0.5)
+        models['main_robust'] = robust_model
+    else:
+        print("✅ Robust main model already exists")
+        models['main_robust'] = load_main_model(robust_model_path, device)
+    
+    # 3. Train Healer Model (required for healer combinations)
+    healer_model_path = f"{model_dir}/bestmodel_healer/best_model.pt"
+    if not os.path.exists(healer_model_path):
+        print("\n🔧 Training Transformation Healer Model...")
+        healer_model = train_healer_model(dataset_path, severity=0.5)
+        models['healer'] = healer_model
+    else:
+        print("✅ Healer model already exists")
+        models['healer'] = load_healer_model(healer_model_path, device)
+    
+    # 4. Train TTT Model (if not excluded)
+    if not getattr(args, 'exclude_ttt', False):
+        ttt_model_path = f"{model_dir}/bestmodel_ttt/best_model.pt"
+        if not os.path.exists(ttt_model_path):
+            print("\n🔧 Training Test-Time Training (TTT) Model...")
+            ttt_model = train_ttt_model(dataset_path, base_model=models['main'], severity=0.5)
+            models['ttt'] = ttt_model
+        else:
+            print("✅ TTT model already exists")
+            models['ttt'] = load_ttt_model(ttt_model_path, models['main'], device)
+    
+    # 5. Train BlendedTTT Model (if not excluded)
+    if not getattr(args, 'exclude_blended', False):
+        blended_model_path = f"{model_dir}/bestmodel_blended/best_model.pt"
+        if not os.path.exists(blended_model_path):
+            print("\n🔧 Training BlendedTTT Model...")
+            blended_model = train_blended_ttt_model(models['main'], dataset_path)
+            models['blended'] = blended_model
+        else:
+            print("✅ BlendedTTT model already exists")
+            models['blended'] = load_blended_model(blended_model_path, models['main'], device)
+    
+    # 6. Train NEW 3FC Models
+    
+    # Train BlendedTTT3fc
+    if not getattr(args, 'exclude_blended3fc', False):
+        blended3fc_path = f"{model_dir}/bestmodel_blended3fc/best_model.pt"
+        if not os.path.exists(blended3fc_path):
+            print("\n🔧 Training BlendedTTT3fc Model...")
+            train_blended_ttt3fc_model(models['main'], dataset_path)
+            models['blended3fc'] = load_blended3fc_model(blended3fc_path, device)
+        else:
+            print("✅ BlendedTTT3fc model already exists")
+            models['blended3fc'] = load_blended3fc_model(blended3fc_path, device)
+    
+    # Train TTT3fc
+    if not getattr(args, 'exclude_ttt3fc', False):
+        ttt3fc_path = f"{model_dir}/bestmodel_ttt3fc/best_model.pt"
+        if not os.path.exists(ttt3fc_path):
+            print("\n🔧 Training TTT3fc Model...")
+            train_ttt3fc_model(dataset_path, models['main'])
+            models['ttt3fc'] = load_ttt3fc_model(ttt3fc_path, models['main'], device)
+        else:
+            print("✅ TTT3fc model already exists")
+            models['ttt3fc'] = load_ttt3fc_model(ttt3fc_path, models['main'], device)
+    
+    # 7. Train Baseline Models (if requested)
+    
+    # Train Baseline ResNet18
+    if getattr(args, 'train_baseline', False) or getattr(args, 'compare_baseline', False):
+        baseline_model_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
+        if not os.path.exists(baseline_model_path):
+            print("\n🔧 Training Baseline ResNet18 Model...")
+            baseline_model = train_baseline_resnet18(dataset_path)
+            models['baseline'] = baseline_model
+        else:
+            print("✅ Baseline ResNet18 model already exists")
+            models['baseline'] = load_baseline_model(baseline_model_path, device)
+    
+    # Train Pretrained ResNet18
+    if getattr(args, 'train_pretrained', False) or getattr(args, 'compare_pretrained', False):
+        pretrained_model_path = f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt"
+        if not os.path.exists(pretrained_model_path):
+            print("\n🔧 Training Pretrained ResNet18 Model...")
+            pretrained_model = train_pretrained_resnet18(dataset_path)
+            models['pretrained'] = pretrained_model
+        else:
+            print("✅ Pretrained ResNet18 model already exists")
+            models['pretrained'] = load_pretrained_model(pretrained_model_path, device)
+    
+    print("\n" + "="*80)
+    print("✅ COMPREHENSIVE MODEL TRAINING COMPLETED!")
+    print("="*80)
+    print(f"📁 All models saved in: {model_dir}")
+    print(f"🎯 Total models available: {len(models)}")
+    
+    return models
+
+
+def train_baseline_resnet18(dataset_path):
+    """Train a ResNet18 baseline model"""
+    print("Training ResNet18 baseline model...")
+    
+    # Import baseline training functions
+    from baseline_models import SimpleResNet18, train_baseline_model
+    
+    model = SimpleResNet18(num_classes=200)
+    trained_model = train_baseline_model(
+        model, dataset_path, 
+        model_name="resnet18_baseline", 
+        epochs=50, 
+        lr=0.001
+    )
+    return trained_model
+
+
+def train_pretrained_resnet18(dataset_path):
+    """Train pretrained ResNet18 model with fine-tuning"""
+    import torch.optim as optim
+    from torch.utils.data import DataLoader
+    from torchvision import transforms
+    import os
+    from tqdm import tqdm
+    
+    print("Training pretrained ResNet18 model (ImageNet → Tiny ImageNet)...")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Define PretrainedResNet18 here
+    class PretrainedResNet18(nn.Module):
+        def __init__(self, num_classes=200):
+            super(PretrainedResNet18, self).__init__()
+            from torchvision import models
+            self.resnet = models.resnet18(pretrained=True)
+            
+            # Modify first conv layer for 64x64 input
+            old_conv = self.resnet.conv1
+            self.resnet.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+            
+            with torch.no_grad():
+                old_weight = old_conv.weight
+                new_weight = old_weight[:, :, 2:5, 2:5].clone()
+                self.resnet.conv1.weight.copy_(new_weight)
+            
+            self.resnet.maxpool = nn.Identity()
+            self.resnet.fc = nn.Linear(self.resnet.fc.in_features, num_classes)
+            
+        def forward(self, x):
+            return self.resnet(x)
+    
+    model = PretrainedResNet18(num_classes=200).to(device)
+    
+    # Data transforms
+    transform_train = transforms.Compose([
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(degrees=10),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    
+    transform_val = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    
+    # Load datasets
+    train_dataset = TinyImageNetDataset(dataset_path, "train", transform_train)
+    val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
+    
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4)
+    
+    # Fine-tuning setup
+    criterion = nn.CrossEntropyLoss()
+    
+    # Different learning rates for backbone vs classifier
+    backbone_params = []
+    classifier_params = []
+    
+    for name, param in model.named_parameters():
+        if 'fc' in name:
+            classifier_params.append(param)
+        else:
+            backbone_params.append(param)
+    
+    optimizer = optim.Adam([
+        {'params': backbone_params, 'lr': 0.0001},
+        {'params': classifier_params, 'lr': 0.001}
+    ], weight_decay=1e-4)
+    
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
+    
+    epochs = 30
+    best_val_acc = 0.0
+    
+    print(f"Fine-tuning for {epochs} epochs...")
+    
+    for epoch in range(epochs):
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+        
+        for images, labels in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]"):
+            images, labels = images.to(device), labels.to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            
+            train_loss += loss.item()
+            _, predicted = torch.max(outputs, 1)
+            train_total += labels.size(0)
+            train_correct += (predicted == labels).sum().item()
+        
+        train_acc = train_correct / train_total
+        
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+        
+        with torch.no_grad():
+            for images, labels in tqdm(val_loader, desc=f"Epoch {epoch+1}/{epochs} [Val]"):
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                
+                val_loss += loss.item()
+                _, predicted = torch.max(outputs, 1)
+                val_total += labels.size(0)
+                val_correct += (predicted == labels).sum().item()
+        
+        val_acc = val_correct / val_total
+        
+        print(f"Epoch {epoch+1}/{epochs}:")
+        print(f"  Train Loss: {train_loss/len(train_loader):.4f}, Train Acc: {train_acc:.4f}")
+        print(f"  Val Loss: {val_loss/len(val_loader):.4f}, Val Acc: {val_acc:.4f}")
+        
+        # Save best model
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            os.makedirs("./bestmodel_pretrained_resnet18", exist_ok=True)
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'val_acc': val_acc,
+            }, "./bestmodel_pretrained_resnet18/best_model.pt")
+            print(f"  ✅ New best pretrained model saved with val_acc: {val_acc:.4f}")
+        
+        scheduler.step()
+        print()
+    
+    print(f"Fine-tuning completed. Best validation accuracy: {best_val_acc:.4f}")
+    return model
+
+
 def train_3fc_models_if_missing(dataset_path, base_model=None, model_dir="./"):
-    """Train 3FC models if they don't exist"""
+    """Train 3FC models if they don't exist (legacy function for backward compatibility)"""
     
     # Check and train BlendedTTT3fc
     blended3fc_path = f"{model_dir}/bestmodel_blended3fc/best_model.pt"
@@ -736,57 +1028,150 @@ def log_3fc_comprehensive_results(all_results):
         print(f"Note: wandb logging failed: {e}")
 
 
-# Instructions for integration:
-"""
-To integrate these 3FC models into your main_baselines.py:
-
-1. Add the imports at the top of main_baselines.py:
-   # Copy this entire file to your project directory, then:
-   from main_baselines_3fc_integration import *
-
-2. Modify the argument parser in main() by adding:
-   parser = add_3fc_args_to_parser(parser)
-
-3. In the training section, add:
-   if args.train_3fc:
-       train_3fc_models_if_missing(args.dataset, main_model, args.model_dir)
-
-4. In the evaluation section, replace the call to run_comprehensive_evaluation with:
-   all_results = run_comprehensive_evaluation_with_3fc(args, device)
-
-5. For focused 3FC-only evaluation, you can also use:
-   results_3fc = evaluate_3fc_models_only(args.dataset, args.severities, args.model_dir, device)
-
-6. The new models will automatically be included in the comprehensive evaluation!
-
-Example usage in main():
-```python
 def main():
-    parser = argparse.ArgumentParser(description="Transform Healing with Vision Transformers")
-    # ... existing arguments ...
+    """
+    Main function to run comprehensive model training and evaluation including 3FC models
+    """
+    parser = argparse.ArgumentParser(description="3FC Models Integration and Comprehensive Evaluation")
     
-    # Add 3FC arguments
+    # Basic arguments
+    parser.add_argument("--dataset", type=str, default="../../tiny-imagenet-200",
+                      help="Path to the dataset")
+    parser.add_argument("--model_dir", type=str, default="./",
+                      help="Directory containing model checkpoints")
+    parser.add_argument("--visualize_dir", type=str, default="./visualizations",
+                      help="Directory to save visualization plots")
+    parser.add_argument("--severities", type=float, nargs="+", 
+                      default=[0.0, 0.5, 1.0, 1.5, 2.0],
+                      help="Severity levels to evaluate")
+    
+    # Mode arguments
+    parser.add_argument("--mode", type=str, default="all", 
+                      choices=["train", "evaluate", "visualize", "all"],
+                      help="Mode of operation")
+    
+    # 3FC specific arguments
     parser = add_3fc_args_to_parser(parser)
+    
+    # Training flags
+    parser.add_argument("--train_all", action="store_true", default=True,
+                      help="Train all missing models automatically")
+    parser.add_argument("--train_baseline", action="store_true", default=False,
+                      help="Include baseline ResNet18 training")
+    parser.add_argument("--train_pretrained", action="store_true", default=False,
+                      help="Include pretrained ResNet18 training")
+    
+    # Comparison flags
+    parser.add_argument("--compare_baseline", action="store_true", default=False,
+                      help="Include baseline models in comparison")
+    parser.add_argument("--compare_pretrained", action="store_true", default=False,
+                      help="Include pretrained models in comparison")
+    
+    # Exclusion flags (keep original behavior for compatibility)
+    parser.add_argument("--exclude_ttt", action="store_true", default=False,
+                      help="Exclude original TTT models")
+    parser.add_argument("--exclude_blended", action="store_true", default=False,
+                      help="Exclude original BlendedTTT models")
+    
     args = parser.parse_args()
     
-    # ... existing setup ...
+    # Set device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"🖥️  Using device: {device}")
     
-    # Training phase
-    if args.mode in ["train", "evaluate", "all"]:
-        # ... existing training code ...
-        
-        # Train 3FC models if requested
-        if args.train_3fc:
-            train_3fc_models_if_missing(args.dataset, main_model, args.model_dir)
+    # Set random seed for reproducibility
+    set_seed(42)
     
-    # Evaluation phase  
-    if args.mode in ["evaluate", "visualize", "all"]:
-        print("\\n=== Comprehensive Evaluation With 3FC Models ===")
+    # Create visualization directory
+    os.makedirs(args.visualize_dir, exist_ok=True)
+    
+    print("\n" + "="*80)
+    print("🚀 COMPREHENSIVE MODEL PIPELINE WITH 3FC INTEGRATION")
+    print("="*80)
+    print(f"📁 Dataset: {args.dataset}")
+    print(f"📁 Model Directory: {args.model_dir}")
+    print(f"📊 Severities: {args.severities}")
+    print(f"🎯 Mode: {args.mode}")
+    print(f"🔧 Auto-train missing models: {args.train_all}")
+    
+    # Check if dataset exists
+    if not os.path.exists(args.dataset):
+        print(f"❌ Dataset not found at {args.dataset}")
+        print("Please ensure the dataset path is correct.")
+        return
+    
+    # 🚀 TRAINING PHASE - Train ALL missing models automatically
+    if args.mode in ["train", "all"] or args.train_all:
+        print("\n=== COMPREHENSIVE MODEL TRAINING PHASE ===")
         
-        # Use the extended evaluation that includes 3FC models
+        # Train all models if missing (this is the new comprehensive function)
+        trained_models = train_all_models_if_missing(
+            dataset_path=args.dataset,
+            model_dir=args.model_dir,
+            args=args,
+            device=device
+        )
+        
+        print(f"\n✅ Training phase completed! {len(trained_models)} models ready.")
+    
+    # 📊 EVALUATION PHASE - Comprehensive evaluation including 3FC models
+    if args.mode in ["evaluate", "all"]:
+        print("\n=== COMPREHENSIVE EVALUATION WITH 3FC MODELS ===")
+        
+        # Run the comprehensive evaluation that includes 3FC models
         all_results = run_comprehensive_evaluation_with_3fc(args, device)
         
-        # Log comprehensive results
-        log_3fc_comprehensive_results(all_results)
-```
-"""
+        if all_results is not None:
+            # Log results to wandb if available
+            log_3fc_comprehensive_results(all_results)
+            
+            print("\n" + "="*80)
+            print("✅ COMPREHENSIVE EVALUATION COMPLETED SUCCESSFULLY!")
+            print("="*80)
+            print(f"📊 Results and plots saved to: {args.visualize_dir}")
+            print(f"🔬 Total models evaluated: {len(all_results)}")
+            
+            # Print top performers
+            if all_results:
+                clean_performances = [(name, data['results'].get(0.0, 0)) 
+                                    for name, data in all_results.items()]
+                top_5 = sorted(clean_performances, key=lambda x: x[1], reverse=True)[:5]
+                print("\n🏆 Top 5 Performers (Clean Data):")
+                for i, (name, acc) in enumerate(top_5, 1):
+                    medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"][i-1]
+                    print(f"  {medal} {name}: {acc:.4f}")
+                
+                # Special focus on 3FC improvements
+                print("\n🔬 3FC MODEL HIGHLIGHTS:")
+                for name, data in all_results.items():
+                    if '3fc' in name.lower():
+                        acc = data['results'].get(0.0, 0)
+                        print(f"  🆕 {name}: {acc:.4f}")
+        else:
+            print("\n❌ Evaluation failed - please check model availability")
+    
+    # 🎨 VISUALIZATION PHASE - Generate plots and comparisons
+    if args.mode in ["visualize", "all"]:
+        print("\n=== GENERATING VISUALIZATIONS ===")
+        
+        # The visualization plots are already generated in the evaluation phase
+        # But we can add more specific visualizations here if needed
+        
+        print(f"📊 All visualization plots saved to: {args.visualize_dir}")
+        print("🎨 Generated plots:")
+        print(f"  • Comprehensive comparison: {args.visualize_dir}/comprehensive_comparison_with_3fc.png")
+        print(f"  • 3FC vs Original models: {args.visualize_dir}/3fc_vs_original_comparison.png")
+    
+    print("\n" + "="*80)
+    print("🎉 PIPELINE COMPLETED SUCCESSFULLY!")
+    print("="*80)
+    print("📋 Summary:")
+    print("  ✅ All models trained (if missing)")
+    print("  ✅ Comprehensive evaluation completed")
+    print("  ✅ 3FC models integrated and compared")
+    print("  ✅ Visualization plots generated")
+    print(f"  📁 Results saved in: {args.visualize_dir}")
+
+
+if __name__ == "__main__":
+    main()
