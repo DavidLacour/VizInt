@@ -14,6 +14,9 @@ CONFIG_FILE=$1
 WANDB=$2
 NUM_GPUS=$3
 
+~/miniconda3/bin/conda init bash
+source ~/.bashrc
+conda activate nanofm
 export WANDB_ENTITY=david-lacour-epfl
 export WANDB_API_KEY=1d6641b737cd13fe32a9371dd3780308fee23512 
 python3 main_baselines_3fc_integration.py --mode all
