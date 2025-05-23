@@ -68,7 +68,12 @@ export WANDB_API_KEY=1d6641b737cd13fe32a9371dd3780308fee23512
 cd newExperimental
 
 # Create output directory
-OUTPUT_DIR="results/${ARCH}_$(date +%Y%m%d_%H%M%S)"
+# Check if on SCITAS or local
+if [[ -d "/scratch/izar/dlacour" ]]; then
+    OUTPUT_DIR="/scratch/izar/dlacour/experimental_results/${ARCH}_$(date +%Y%m%d_%H%M%S)"
+else
+    OUTPUT_DIR="results/${ARCH}_$(date +%Y%m%d_%H%M%S)"
+fi
 mkdir -p $OUTPUT_DIR
 
 # Run training

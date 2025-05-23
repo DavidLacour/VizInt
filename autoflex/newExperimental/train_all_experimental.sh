@@ -42,8 +42,8 @@ DATASET_PATH="/scratch/izar/dlacour/VizInt/autoflex/tiny-imagenet-200"
 # Define architectures (excluding KAN)
 ARCHITECTURES=("fourier" "elfatt" "mamba" "hybrid" "mixed")
 
-# Create main results directory
-RESULTS_DIR="results/all_architectures_${SLURM_JOB_ID}"
+# Create main results directory next to VizInt
+RESULTS_DIR="/scratch/izar/dlacour/experimental_results/all_architectures_${SLURM_JOB_ID}"
 mkdir -p $RESULTS_DIR
 
 # Summary log
