@@ -28,20 +28,10 @@ echo "Node: $SLURMD_NODENAME"
 echo "Started at: $(date)"
 echo "=========================================="
 
-# Navigate to project directory on SCITAS
-cd /scratch/izar/dlacour/VizInt/autoflex
-
-# Activate conda environment
-source /home/dlacour/anaconda3/etc/profile.d/conda.sh
-conda activate ./autoflexenv
-
 # Set up environment variables
 export WANDB_ENTITY=david-lacour-epfl
 export WANDB_API_KEY=1d6641b737cd13fe32a9371dd3780308fee23512
 export CUDA_VISIBLE_DEVICES=0
-
-# Navigate to experimental directory
-cd newExperimental
 
 # Set dataset path (adjust as needed)
 # Update this path to your actual dataset location on SCITAS
