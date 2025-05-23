@@ -28,11 +28,11 @@ echo "Node: $SLURMD_NODENAME"
 echo "Started at: $(date)"
 echo "=========================================="
 
-# Navigate to project directory
-cd /home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex
+# Navigate to project directory on SCITAS
+cd /scratch/izar/dlacour/VizInt/autoflex
 
 # Activate conda environment
-source ~/anaconda3/etc/profile.d/conda.sh
+source /home/dlacour/anaconda3/etc/profile.d/conda.sh
 conda activate ./autoflexenv
 
 # Set up environment variables
@@ -44,7 +44,8 @@ export CUDA_VISIBLE_DEVICES=0
 cd newExperimental
 
 # Set dataset path (adjust as needed)
-DATASET_PATH="../tiny-imagenet-200"  # Or your preferred dataset
+# Update this path to your actual dataset location on SCITAS
+DATASET_PATH="/scratch/izar/dlacour/VizInt/autoflex/tiny-imagenet-200"
 
 # Architecture-specific configurations
 case $ARCH in

@@ -46,11 +46,18 @@ echo "Epochs: $EPOCHS"
 echo "Started at: $(date)"
 echo "======================================================"
 
-# Navigate to project directory
-cd /home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex
+# Detect if running on SCITAS or locally
+if [[ -d "/scratch/izar/dlacour" ]]; then
+    # Running on SCITAS
+    cd /scratch/izar/dlacour/VizInt/autoflex
+    source /home/dlacour/anaconda3/etc/profile.d/conda.sh
+else
+    # Running locally
+    cd /home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex
+    source ~/anaconda3/etc/profile.d/conda.sh
+fi
 
 # Activate conda environment
-source ~/anaconda3/etc/profile.d/conda.sh
 conda activate ./autoflexenv
 
 # Set up environment variables
