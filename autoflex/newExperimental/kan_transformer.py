@@ -35,11 +35,13 @@ class KANLinear(nn.Module):
 
     def init_parameters(self):
         with torch.no_grad():
-            # Initialize coefficients
-            noise = (torch.rand_like(self.coeff) - 0.5) * self.scale_noise / self.grid_size
-            self.coeff.data.copy_(self.curve2coeff(self.grid.T[None, :, :], noise))
+            # Simplified initialization - avoid complex curve fitting during init
+            nn.init.xavier_uniform_(self.coeff)
+            self.coeff.data *= 0.1
             
             # Initialize scale parameters
+            nn.init.xavier_uniform_(self.scale_base)
+            nn.init.xavier_uniform_(self.scale_spline)
             self.scale_base.data *= 0.1
             self.scale_spline.data *= 1.0
 
@@ -55,17 +57,27 @@ class KANLinear(nn.Module):
             if k == 0:
                 return ((grid[i] <= x) & (x < grid[i + 1])).float()
             else:
-                coeff1 = (x - grid[i]) / (grid[i + k] - grid[i] + 1e-8)
-                coeff2 = (grid[i + k + 1] - x) / (grid[i + k + 1] - grid[i + 1] + 1e-8)
+                # Ensure proper broadcasting
+                grid_i = grid[..., i:i+1]
+                grid_i_k = grid[..., i+k:i+k+1]
+                grid_i_k_1 = grid[..., i+k+1:i+k+2]
+                grid_i_1 = grid[..., i+1:i+2]
+                
+                coeff1 = (x - grid_i) / (grid_i_k - grid_i + 1e-8)
+                coeff2 = (grid_i_k_1 - x) / (grid_i_k_1 - grid_i_1 + 1e-8)
                 return coeff1 * cox_de_boor(x, grid, k - 1, i) + coeff2 * cox_de_boor(x, grid, k - 1, i + 1)
 
         batch_size, in_features, num_samples = x.shape
+        
+        # Create grid for each input feature
         grid = self.grid.unsqueeze(0).expand(batch_size, -1, -1)
         
         # Extend grid for spline order
         extended_grid = torch.cat([
-            grid[:, :, [0]] - 1, grid, grid[:, :, [-1]] + 1
-        ], dim=2)
+            grid[..., [0]] - 1, 
+            grid, 
+            grid[..., [-1]] + 1
+        ], dim=-1)
         
         bases = []
         for i in range(self.grid_size + self.spline_order):
@@ -75,7 +87,10 @@ class KANLinear(nn.Module):
         return torch.stack(bases, dim=-1)
 
     def forward(self, x):
-        batch_size = x.shape[0]
+        # Get input shape
+        input_shape = x.shape
+        batch_elements = input_shape[:-1]
+        
         # Reshape input for processing
         x_reshaped = x.view(-1, self.in_features)
         
@@ -85,33 +100,45 @@ class KANLinear(nn.Module):
         # Compute base activation (SiLU)
         base = F.silu(x_clamped)
         
-        # Compute spline activation
-        # Extend x for spline computation
-        x_spline = x_clamped.unsqueeze(-1).expand(-1, -1, self.grid_size + self.spline_order)
+        # Compute spline activation using simple polynomial basis
+        # Initialize spline output
+        spline = torch.zeros(x_reshaped.shape[0], self.out_features, device=x.device)
         
-        # Simple polynomial approximation for efficiency
-        spline = torch.zeros_like(x_clamped)
-        for i in range(self.grid_size + self.spline_order):
-            # Use Chebyshev polynomials as basis functions
+        # Compute polynomial basis functions
+        basis_prev = torch.ones_like(x_clamped)
+        basis_curr = x_clamped
+        
+        for i in range(min(self.grid_size + self.spline_order, 5)):  # Limit to avoid numerical issues
             if i == 0:
-                basis = torch.ones_like(x_clamped)
+                basis = basis_prev
             elif i == 1:
-                basis = x_clamped
+                basis = basis_curr
             else:
-                # Recurrence relation for Chebyshev polynomials
-                basis = 2 * x_clamped * basis - torch.ones_like(x_clamped)
+                # Chebyshev recurrence: T_n(x) = 2x*T_{n-1}(x) - T_{n-2}(x)
+                basis_new = 2 * x_clamped * basis_curr - basis_prev
+                basis_prev = basis_curr
+                basis_curr = basis_new
+                basis = basis_curr
             
-            spline += self.coeff[:, :, i].unsqueeze(0) * basis.unsqueeze(0)
+            # Apply coefficients
+            # x_reshaped: (batch*seq, in_features)
+            # basis: (batch*seq, in_features)
+            # coeff: (out_features, in_features, grid_size+spline_order)
+            weighted_basis = basis.unsqueeze(1) * self.coeff[:, :, i].T.unsqueeze(0)  # (batch*seq, out_features, in_features)
+            spline += weighted_basis.sum(dim=-1)  # (batch*seq, out_features)
+        
+        # Compute base output
+        base_out = torch.matmul(base, self.scale_base.T)  # (batch*seq, out_features)
         
         # Combine base and spline
-        y = self.scale_base.unsqueeze(0) * base + self.scale_spline.unsqueeze(0) * spline
-        y = y + self.base_bias.unsqueeze(0)
+        y = base_out + self.scale_spline.T.unsqueeze(0) * spline
         
-        # Output transformation
-        output = torch.sum(y, dim=1)  # Sum over input features
+        # Add bias
+        y = y + self.base_bias.sum(dim=1).unsqueeze(0)
         
-        # Reshape back to original batch shape
-        return output.view(batch_size, -1, self.out_features).squeeze(-2)
+        # Reshape back to original shape
+        output_shape = list(batch_elements) + [self.out_features]
+        return y.view(*output_shape)
 
 
 class KANAttention(nn.Module):

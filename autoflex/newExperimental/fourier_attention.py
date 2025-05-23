@@ -76,15 +76,18 @@ class FourierAttention(nn.Module):
         q_fft = self.fourier_transform_2d(q_transformed)
         k_fft = self.fourier_transform_2d(k_transformed)
         
-        # Compute attention weights using Fourier correlation
-        # Use real part for numerical stability
-        attn = torch.real(q_fft * torch.conj(k_fft))
+        # Compute attention matrix using Fourier-based similarity
+        # q_fft, k_fft shape: (B, H, L, D)
+        # We need pairwise similarity between all positions
+        q_fft_norm = q_fft / (torch.norm(q_fft, dim=-1, keepdim=True) + 1e-8)
+        k_fft_norm = k_fft / (torch.norm(k_fft, dim=-1, keepdim=True) + 1e-8)
+        
+        # Compute attention scores as dot product in Fourier space
+        attn = torch.matmul(q_fft_norm, k_fft_norm.transpose(-2, -1))  # (B, H, L, L)
+        attn = torch.real(attn)  # Take real part for numerical stability
         
         # Apply scaling
-        attn = attn * self.fourier_scale
-        
-        # Sum over feature dimension to get attention scores
-        attn = attn.sum(dim=-1)  # (B, H, L)
+        attn = attn * self.scale * self.fourier_scale
         
         # Softmax normalization
         attn = F.softmax(attn, dim=-1)
@@ -97,11 +100,13 @@ class FourierAttention(nn.Module):
         q, k, v = qkv[0], qkv[1], qkv[2]  # (B, H, N, D)
 
         # Compute Fourier attention weights
-        attn = self.fourier_kernel(q, k)  # (B, H, N)
+        attn = self.fourier_kernel(q, k)  # (B, H, N, N)
         attn = self.attn_drop(attn)
 
         # Apply attention to values
-        x = torch.matmul(attn.unsqueeze(-1), v).squeeze(-2)  # (B, H, N, D)
+        # attn shape: (B, H, N, N), v shape: (B, H, N, D)
+        # Standard attention: weighted sum over sequence dimension
+        x = torch.matmul(attn, v)  # (B, H, N, D)
         x = x.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
