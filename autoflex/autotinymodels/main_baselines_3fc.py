@@ -379,7 +379,7 @@ def main():
                       help="Mode to run: train only, evaluate only, visualize only, or all")
     parser.add_argument("--dataset", type=str, default="../../tiny-imagenet-200",
                       help="Path to Tiny ImageNet dataset")
-    parser.add_argument("--model_dir", type=str, default="../../../currentmodels",
+    parser.add_argument("--model_dir", type=str, default="../../../newModels",
                       help="Directory to save/load models")
     parser.add_argument("--severity", type=float, default=0.5,
                       help="Severity of transformations for training/visualization")
