@@ -771,25 +771,60 @@ def main():
     
     # Training phase
     if args.train_all or args.train_main:
-        print("\n=== TRAINING MAIN VIT MODEL ===")
-        train_vit_model(train_loader, val_loader, model_name="main", robust=False)
+        main_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_main", "best_model.pt")
+        if os.path.exists(main_model_path):
+            print(f"\n✓ Main ViT model already exists at {main_model_path}")
+        else:
+            print("\n=== TRAINING MAIN VIT MODEL ===")
+            train_vit_model(train_loader, val_loader, model_name="main", robust=False)
     
     if args.train_all or args.train_robust:
-        print("\n=== TRAINING ROBUST VIT MODEL ===")
-        train_vit_model(train_loader, val_loader, model_name="robust", robust=True)
+        robust_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_robust", "best_model.pt")
+        if os.path.exists(robust_model_path):
+            print(f"\n✓ Robust ViT model already exists at {robust_model_path}")
+        else:
+            print("\n=== TRAINING ROBUST VIT MODEL ===")
+            train_vit_model(train_loader, val_loader, model_name="robust", robust=True)
     
     if args.train_all or args.train_baselines:
-        print("\n=== TRAINING BASELINE MODELS ===")
-        train_resnet_baseline(train_loader, val_loader, pretrained=False)
-        train_resnet_baseline(train_loader, val_loader, pretrained=True)
+        resnet_path = os.path.join(CHECKPOINT_PATH, "bestmodel_resnet", "best_model.pt")
+        resnet_pretrained_path = os.path.join(CHECKPOINT_PATH, "bestmodel_resnet_pretrained", "best_model.pt")
+        
+        if os.path.exists(resnet_path):
+            print(f"\n✓ ResNet baseline already exists at {resnet_path}")
+        else:
+            print("\n=== TRAINING RESNET BASELINE (from scratch) ===")
+            train_resnet_baseline(train_loader, val_loader, pretrained=False)
+            
+        if os.path.exists(resnet_pretrained_path):
+            print(f"\n✓ Pretrained ResNet baseline already exists at {resnet_pretrained_path}")
+        else:
+            print("\n=== TRAINING RESNET BASELINE (pretrained) ===")
+            train_resnet_baseline(train_loader, val_loader, pretrained=True)
     
     if args.train_all or args.train_ttt:
-        print("\n=== TRAINING TTT MODELS ===")
-        train_ttt_models(train_loader, val_loader)
+        ttt_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt", "best_model.pt")
+        ttt3fc_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt3fc", "best_model.pt")
+        
+        if os.path.exists(ttt_model_path) and os.path.exists(ttt3fc_model_path):
+            print(f"\n✓ TTT models already exist:")
+            print(f"  - TTT: {ttt_model_path}")
+            print(f"  - TTT3fc: {ttt3fc_model_path}")
+        else:
+            print("\n=== TRAINING TTT MODELS ===")
+            train_ttt_models(train_loader, val_loader)
     
     if args.train_all or args.train_blended:
-        print("\n=== TRAINING BLENDED MODELS ===")
-        train_blended_models(train_loader, val_loader)
+        blended_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_blended", "best_model.pt")
+        blended3fc_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_blended3fc", "best_model.pt")
+        
+        if os.path.exists(blended_model_path) and os.path.exists(blended3fc_model_path):
+            print(f"\n✓ Blended models already exist:")
+            print(f"  - Blended: {blended_model_path}")
+            print(f"  - Blended3fc: {blended3fc_model_path}")
+        else:
+            print("\n=== TRAINING BLENDED MODELS ===")
+            train_blended_models(train_loader, val_loader)
     
     # Evaluation phase
     if args.evaluate or args.train_all:

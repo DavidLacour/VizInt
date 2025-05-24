@@ -702,20 +702,21 @@ def find_optimal_batch_size(model, img_size, starting_batch_size=2000, device=No
     return safe_batch_size
 
 
-def train_main_model(dataset_path="tiny-imagenet-200"):
+def train_main_model(dataset_path="tiny-imagenet-200", model_dir="../../newModels"):
     """
     Train the main classification model on the Tiny ImageNet dataset
     """
     # Set seed for reproducibility
     set_seed(42)
     
-    # Create checkpoint directories
-    checkpoints_dir = Path("checkpoints_main")
-    best_model_dir = Path("bestmodel_main")
+    # Create checkpoint directories under model_dir
+    model_dir_path = Path(model_dir)
+    checkpoints_dir = model_dir_path / "checkpoints_main"
+    best_model_dir = model_dir_path / "bestmodel_main"
     
     # Create directories if they don't exist
-    checkpoints_dir.mkdir(exist_ok=True)
-    best_model_dir.mkdir(exist_ok=True)
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+    best_model_dir.mkdir(parents=True, exist_ok=True)
     
     # Device setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

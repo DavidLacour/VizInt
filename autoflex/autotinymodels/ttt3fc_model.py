@@ -307,7 +307,7 @@ class TestTimeTrainer3fc(nn.Module):
         }
 
 
-def train_ttt3fc_model(dataset_path, base_model=None, severity=0.5, epochs=10):
+def train_ttt3fc_model(dataset_path, base_model=None, severity=0.5, epochs=10, model_dir="../../newModels"):
     """
     Train the TTT3fc model on the given dataset.
     
@@ -316,6 +316,7 @@ def train_ttt3fc_model(dataset_path, base_model=None, severity=0.5, epochs=10):
         base_model: Pre-trained base model (if None, a new one will be loaded)
         severity: Severity of transformations for training
         epochs: Number of training epochs
+        model_dir: Directory to save model checkpoints
         
     Returns:
         ttt3fc_model: Trained TTT3fc model
@@ -323,13 +324,14 @@ def train_ttt3fc_model(dataset_path, base_model=None, severity=0.5, epochs=10):
     # Set seed for reproducibility
     # set_seed(42) # trying not to set seeds coz gpu errors 
     
-    # Create checkpoint directories
-    checkpoints_dir = Path("checkpoints_ttt3fc")
-    best_model_dir = Path("bestmodel_ttt3fc")
+    # Create checkpoint directories under model_dir
+    model_dir_path = Path(model_dir)
+    checkpoints_dir = model_dir_path / "checkpoints_ttt3fc"
+    best_model_dir = model_dir_path / "bestmodel_ttt3fc"
     
     # Create directories if they don't exist
-    checkpoints_dir.mkdir(exist_ok=True)
-    best_model_dir.mkdir(exist_ok=True)
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+    best_model_dir.mkdir(parents=True, exist_ok=True)
     
     # Device setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -432,12 +432,14 @@ def main():
     
     # Training mode
     if args.mode in ["train", "evaluate", "all"]:
+        # Ensure model directory exists
+        os.makedirs(args.model_dir, exist_ok=True)
         print(f"\n=== Checking for existing models (mode: {args.mode}) ===")
         
         # Check if main model exists
         if not os.path.exists(main_model_path):
             print("\n=== Training Main Classification Model ===")
-            main_model = train_main_model(args.dataset)
+            main_model = train_main_model(args.dataset, model_dir=args.model_dir)
         else:
             print(f"✓ Main model found at {main_model_path}")
             main_model = load_main_model(main_model_path, device)
@@ -456,7 +458,7 @@ def main():
                 print("\n=== Training Test-Time Training 3FC Model ===")
                 if main_model is None:
                     main_model = load_main_model(main_model_path, device)
-                ttt3fc_model = train_ttt3fc_model(args.dataset, base_model=main_model, severity=args.severity)
+                ttt3fc_model = train_ttt3fc_model(args.dataset, base_model=main_model, severity=args.severity, model_dir=args.model_dir)
             elif ttt3fc_model_path:
                 print(f"✓ TTT3fc model found at {ttt3fc_model_path}")
                 if main_model is None:
@@ -469,7 +471,7 @@ def main():
                 print("\n=== Training BlendedTTT 3FC Model ===")
                 if main_model is None:
                     main_model = load_main_model(main_model_path, device)
-                blended3fc_model = train_blended_ttt3fc_model(main_model, args.dataset)
+                blended3fc_model = train_blended_ttt3fc_model(main_model, args.dataset, model_dir=args.model_dir)
             elif blended3fc_model_path:
                 print(f"✓ BlendedTTT3fc model found at {blended3fc_model_path}")
                 if main_model is None:
