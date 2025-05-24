@@ -732,6 +732,133 @@ def create_performance_plots(results):
     plt.close()
 
 
+def retrain_vit_model(train_loader, val_loader, model_path, model_name="vit", robust=False):
+    """Retrain an existing ViT model with validation-based early stopping"""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Load existing model
+    print(f"📂 Loading existing model from {model_path}")
+    model = create_vit_model(
+        img_size=IMG_SIZE,
+        patch_size=4,
+        in_chans=3,
+        num_classes=NUM_CLASSES,
+        embed_dim=384,
+        depth=8,
+        head_dim=64,
+        mlp_ratio=4.0,
+        use_resnet_stem=True
+    ).to(device)
+    
+    checkpoint = torch.load(model_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    
+    # Evaluate current performance
+    print("📊 Evaluating current model performance...")
+    model.eval()
+    val_loss = 0.0
+    val_correct = 0
+    val_total = 0
+    
+    criterion = nn.CrossEntropyLoss()
+    with torch.no_grad():
+        for images, labels in tqdm(val_loader, desc="Initial Validation"):
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            val_loss += loss.item()
+            
+            _, predicted = torch.max(outputs.data, 1)
+            val_total += labels.size(0)
+            val_correct += (predicted == labels).sum().item()
+    
+    initial_val_acc = 100 * val_correct / val_total
+    print(f"📈 Initial validation accuracy: {initial_val_acc:.2f}%")
+    
+    # Retrain with early stopping
+    optimizer = optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.05)  # Lower LR for fine-tuning
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50)
+    
+    best_val_acc = initial_val_acc
+    patience = 10
+    patience_counter = 0
+    epochs = 50
+    
+    print(f"\n🔄 Retraining {model_name} model with early stopping...")
+    
+    for epoch in range(epochs):
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+        
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]")
+        for images, labels in pbar:
+            images, labels = images.to(device), labels.to(device)
+            
+            # Apply augmentation if robust training
+            if robust and np.random.rand() > 0.5:
+                noise = torch.randn_like(images) * 0.1
+                images = images + noise
+            
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            
+            train_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            train_total += labels.size(0)
+            train_correct += (predicted == labels).sum().item()
+            
+            pbar.set_postfix({'loss': train_loss/len(train_loader), 'acc': 100*train_correct/train_total})
+        
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+        
+        with torch.no_grad():
+            for images, labels in tqdm(val_loader, desc=f"Epoch {epoch+1}/{epochs} [Val]"):
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+                
+                _, predicted = torch.max(outputs.data, 1)
+                val_total += labels.size(0)
+                val_correct += (predicted == labels).sum().item()
+        
+        val_acc = 100 * val_correct / val_total
+        print(f"Epoch {epoch+1}: Train Acc: {100*train_correct/train_total:.2f}%, Val Acc: {val_acc:.2f}%")
+        
+        # Early stopping
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            patience_counter = 0
+            # Save best model
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'val_acc': val_acc,
+                'epoch': epoch
+            }, model_path)
+            print(f"✅ New best model saved! Val Acc: {val_acc:.2f}%")
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                print(f"⚠️ Early stopping triggered after {epoch+1} epochs")
+                break
+        
+        scheduler.step()
+    
+    print(f"🏁 Retraining completed. Best Val Acc: {best_val_acc:.2f}% (improvement: {best_val_acc - initial_val_acc:.2f}%)")
+    return model
+
+
 def main():
     """Main training and evaluation pipeline for CIFAR-10"""
     parser = argparse.ArgumentParser(description="Train and evaluate all models on CIFAR-10")
@@ -751,6 +878,7 @@ def main():
     # Mode options
     parser.add_argument("--skip_training", action="store_true", help="Skip training phase")
     parser.add_argument("--skip_evaluation", action="store_true", help="Skip evaluation phase")
+    parser.add_argument("--retrain", action="store_true", help="Reload existing models and retrain with validation early stopping")
     
     # Other options
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -789,9 +917,39 @@ def main():
         print("\n⚠️  Training phase SKIPPED (--skip_training flag set)")
     if args.skip_evaluation:
         print("⚠️  Evaluation phase SKIPPED (--skip_evaluation flag set)")
+    if args.retrain:
+        print("\n🔄 RETRAIN MODE: Will reload and retrain existing models")
     
-    # Training phase (skip if --skip_training is set)
-    if not args.skip_training and (args.train_all or args.train_main):
+    # Retrain mode
+    if args.retrain:
+        print("\n=== RETRAIN MODE ===")
+        
+        # Check and retrain main model
+        main_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_main", "best_model.pt")
+        if os.path.exists(main_model_path):
+            print(f"\n🔄 Retraining main ViT model...")
+            retrain_vit_model(train_loader, val_loader, main_model_path, model_name="main", robust=False)
+        else:
+            print(f"❌ Main model not found at {main_model_path}")
+        
+        # Check and retrain robust model
+        robust_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_robust", "best_model.pt")
+        if os.path.exists(robust_model_path):
+            print(f"\n🔄 Retraining robust ViT model...")
+            retrain_vit_model(train_loader, val_loader, robust_model_path, model_name="robust", robust=True)
+        else:
+            print(f"❌ Robust model not found at {robust_model_path}")
+        
+        # Note: For ResNet, TTT, and Blended models, we would need separate retrain functions
+        # which would be similar but adapted to their specific architectures
+        print("\n⚠️  Note: Retraining for ResNet, TTT, and Blended models not yet implemented")
+        
+        # After retraining, proceed to evaluation if not skipped
+        if not args.skip_evaluation:
+            args.evaluate = True
+    
+    # Training phase (skip if --skip_training is set or if in retrain mode)
+    elif not args.skip_training and (args.train_all or args.train_main):
         main_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_main", "best_model.pt")
         if os.path.exists(main_model_path):
             print(f"\n✓ Main ViT model already exists at {main_model_path}")
@@ -799,7 +957,7 @@ def main():
             print("\n=== TRAINING MAIN VIT MODEL ===")
             train_vit_model(train_loader, val_loader, model_name="main", robust=False)
     
-    if not args.skip_training and (args.train_all or args.train_robust):
+    if not args.retrain and not args.skip_training and (args.train_all or args.train_robust):
         robust_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_robust", "best_model.pt")
         if os.path.exists(robust_model_path):
             print(f"\n✓ Robust ViT model already exists at {robust_model_path}")
@@ -807,7 +965,7 @@ def main():
             print("\n=== TRAINING ROBUST VIT MODEL ===")
             train_vit_model(train_loader, val_loader, model_name="robust", robust=True)
     
-    if not args.skip_training and (args.train_all or args.train_baselines):
+    if not args.retrain and not args.skip_training and (args.train_all or args.train_baselines):
         resnet_path = os.path.join(CHECKPOINT_PATH, "bestmodel_resnet", "best_model.pt")
         resnet_pretrained_path = os.path.join(CHECKPOINT_PATH, "bestmodel_resnet_pretrained", "best_model.pt")
         
@@ -823,7 +981,7 @@ def main():
             print("\n=== TRAINING RESNET BASELINE (pretrained) ===")
             train_resnet_baseline(train_loader, val_loader, pretrained=True)
     
-    if not args.skip_training and (args.train_all or args.train_ttt):
+    if not args.retrain and not args.skip_training and (args.train_all or args.train_ttt):
         ttt_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt", "best_model.pt")
         ttt3fc_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt3fc", "best_model.pt")
         
@@ -835,7 +993,7 @@ def main():
             print("\n=== TRAINING TTT MODELS ===")
             train_ttt_models(train_loader, val_loader)
     
-    if not args.skip_training and (args.train_all or args.train_blended):
+    if not args.retrain and not args.skip_training and (args.train_all or args.train_blended):
         blended_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_blended", "best_model.pt")
         blended3fc_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_blended3fc", "best_model.pt")
         

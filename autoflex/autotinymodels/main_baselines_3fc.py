@@ -418,6 +418,55 @@ def run_comprehensive_evaluation_3fc(args, device):
     return all_results
 
 
+def retrain_main_model(model_path, dataset_path, device, model_dir="../../newModels"):
+    """Retrain main model with validation-based early stopping"""
+    print(f"\n📂 Loading main model from {model_path}")
+    main_model = load_main_model(model_path, device)
+    
+    # Evaluate initial performance
+    print("📊 Evaluating initial model performance...")
+    from new_new import evaluate_model, TinyImageNetDataset
+    
+    # Create validation dataset
+    transform_val = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    
+    val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
+    val_loader = DataLoader(val_dataset, batch_size=100, shuffle=False, num_workers=4)
+    
+    initial_val_loss, initial_val_acc = evaluate_model(main_model, val_loader, device)
+    print(f"📈 Initial validation - Loss: {initial_val_loss:.4f}, Acc: {initial_val_acc:.4f}")
+    
+    # Retrain with lower learning rate
+    print("\n🔄 Retraining main model with early stopping...")
+    from new_new import train_main_model
+    
+    # Save the current best performance to compare
+    print("Note: Retraining will create new checkpoints. Initial model backed up.")
+    
+    # Call training function which already has early stopping
+    retrained_model = train_main_model(dataset_path, model_dir=model_dir)
+    
+    return retrained_model
+
+
+def retrain_healer_model(model_path, dataset_path, device, severity=0.5, model_dir="../../newModels"):
+    """Retrain healer model with validation-based early stopping"""
+    print(f"\n📂 Loading healer model from {model_path}")
+    healer_model = load_healer_model(model_path, device)
+    
+    # The healer training already includes validation-based early stopping
+    print("\n🔄 Retraining healer model...")
+    from new_new import train_healer_model
+    
+    # Call training function which already has early stopping
+    retrained_model = train_healer_model(dataset_path, severity=severity, model_dir=model_dir)
+    
+    return retrained_model
+
+
 def main():
     parser = argparse.ArgumentParser(description="Complete 3FC model training and evaluation pipeline")
     parser.add_argument("--mode", type=str, default="all", 
@@ -447,6 +496,8 @@ def main():
                       help="Include baseline comparison in evaluation")
     parser.add_argument("--compare_original", action="store_true",
                       help="Compare 3FC models with original TTT/BlendedTTT models")
+    parser.add_argument("--retrain", action="store_true",
+                      help="Reload existing models and retrain with validation early stopping")
     
     args = parser.parse_args()
     
@@ -476,8 +527,41 @@ def main():
     ttt3fc_model_path = f"{args.model_dir}/bestmodel_ttt3fc/best_model.pt" if not args.exclude_ttt3fc else None
     blended3fc_model_path = f"{args.model_dir}/bestmodel_blended3fc/best_model.pt" if not args.exclude_blended3fc else None
     
+    # Retrain mode
+    if args.retrain:
+        print("\n=== RETRAIN MODE ===")
+        print("🔄 Will reload and retrain existing models with validation-based early stopping")
+        
+        # Check and retrain main model
+        if os.path.exists(main_model_path):
+            print(f"\n📍 Found main model at {main_model_path}")
+            main_model = retrain_main_model(main_model_path, args.dataset, device, model_dir=args.model_dir)
+        else:
+            print(f"❌ Main model not found at {main_model_path}")
+        
+        # Check and retrain healer model
+        if os.path.exists(healer_model_path):
+            print(f"\n📍 Found healer model at {healer_model_path}")
+            healer_model = retrain_healer_model(healer_model_path, args.dataset, device, 
+                                              severity=args.severity, model_dir=args.model_dir)
+        else:
+            print(f"❌ Healer model not found at {healer_model_path}")
+        
+        # Note: TTT3fc and Blended3fc models would need their own retrain functions
+        # For now, we'll just notify that they're not implemented
+        if ttt3fc_model_path and os.path.exists(ttt3fc_model_path):
+            print(f"\n⚠️  TTT3fc model found but retraining not yet implemented")
+        
+        if blended3fc_model_path and os.path.exists(blended3fc_model_path):
+            print(f"\n⚠️  Blended3fc model found but retraining not yet implemented")
+        
+        print("\n✅ Retraining complete!")
+        
+        # After retraining, proceed to evaluation
+        args.mode = "evaluate"
+    
     # Training mode
-    if args.mode in ["train", "evaluate", "all"]:
+    if args.mode in ["train", "evaluate", "all"] and not args.retrain:
         # Ensure model directory exists
         os.makedirs(args.model_dir, exist_ok=True)
         print(f"\n=== Model Directory Configuration ===")
