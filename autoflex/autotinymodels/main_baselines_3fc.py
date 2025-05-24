@@ -42,6 +42,52 @@ except ImportError:
     # Fallback to original if enhanced version not available
     from baseline_models import SimpleResNet18, SimpleVGG16, train_baseline_model
 
+# Import ViT model creation
+from vit_implementation import create_vit_model
+
+
+def load_main_model(model_path, device):
+    """Load the main classification model from a checkpoint"""
+    print(f"Loading main model from {model_path}")
+    main_model = create_vit_model(
+        img_size=64, patch_size=8, in_chans=3, num_classes=200,
+        embed_dim=384, depth=8, head_dim=64, mlp_ratio=4.0, use_resnet_stem=True
+    )
+    checkpoint = torch.load(model_path, map_location=device)
+    
+    # Create a new state dict with the correct keys
+    new_state_dict = {}
+    for key, value in checkpoint['model_state_dict'].items():
+        if key.startswith("vit_model."):
+            new_key = key[len("vit_model."):]
+            new_state_dict[new_key] = value
+        else:
+            new_state_dict[key] = value
+    
+    main_model.load_state_dict(new_state_dict)
+    main_model = main_model.to(device)
+    main_model.eval()
+    return main_model
+
+
+def load_healer_model(model_path, device):
+    """Load the healer model from a checkpoint"""
+    print(f"Loading healer model from {model_path}")
+    # TransformationHealer is imported from new_new via 'from new_new import *'
+    healer_model = TransformationHealer(
+        img_size=64,
+        patch_size=8,
+        in_chans=3,
+        embed_dim=384,
+        depth=6,
+        head_dim=64
+    )
+    checkpoint = torch.load(model_path, map_location=device)
+    healer_model.load_state_dict(checkpoint['model_state_dict'])
+    healer_model = healer_model.to(device)
+    healer_model.eval()
+    return healer_model
+
 
 def evaluate_full_pipeline_3fc(main_model, healer_model, dataset_path, severities=[0.1,0.2,0.3,0.4,0.6], model_dir="./", include_blended3fc=True, include_ttt3fc=True):
     """

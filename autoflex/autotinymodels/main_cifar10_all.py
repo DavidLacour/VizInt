@@ -748,10 +748,25 @@ def main():
     parser.add_argument("--evaluate", action="store_true", help="Evaluate all trained models")
     parser.add_argument("--visualize", action="store_true", help="Create visualization plots")
     
+    # Mode options
+    parser.add_argument("--skip_training", action="store_true", help="Skip training phase")
+    parser.add_argument("--skip_evaluation", action="store_true", help="Skip evaluation phase")
+    
     # Other options
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     
     args = parser.parse_args()
+    
+    # Default behavior: if no specific arguments are provided, train missing models and evaluate all
+    if not any([args.train_main, args.train_robust, args.train_baselines, args.train_ttt, 
+                args.train_blended, args.train_all, args.evaluate, args.visualize,
+                args.skip_training, args.skip_evaluation]):
+        print("No specific arguments provided. Using default behavior:")
+        print("- Training missing models")
+        print("- Evaluating all existing models")
+        args.train_all = True  # This will check and train only missing models
+        args.evaluate = True
+        args.visualize = True
     
     # Set random seed
     set_seed(args.seed)
@@ -769,8 +784,14 @@ def main():
     print(f"📁 Checkpoints: {CHECKPOINT_PATH}")
     print(f"🎯 Device: {'cuda' if torch.cuda.is_available() else 'cpu'}")
     
-    # Training phase
-    if args.train_all or args.train_main:
+    # Show current mode
+    if args.skip_training:
+        print("\n⚠️  Training phase SKIPPED (--skip_training flag set)")
+    if args.skip_evaluation:
+        print("⚠️  Evaluation phase SKIPPED (--skip_evaluation flag set)")
+    
+    # Training phase (skip if --skip_training is set)
+    if not args.skip_training and (args.train_all or args.train_main):
         main_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_main", "best_model.pt")
         if os.path.exists(main_model_path):
             print(f"\n✓ Main ViT model already exists at {main_model_path}")
@@ -778,7 +799,7 @@ def main():
             print("\n=== TRAINING MAIN VIT MODEL ===")
             train_vit_model(train_loader, val_loader, model_name="main", robust=False)
     
-    if args.train_all or args.train_robust:
+    if not args.skip_training and (args.train_all or args.train_robust):
         robust_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_robust", "best_model.pt")
         if os.path.exists(robust_model_path):
             print(f"\n✓ Robust ViT model already exists at {robust_model_path}")
@@ -786,7 +807,7 @@ def main():
             print("\n=== TRAINING ROBUST VIT MODEL ===")
             train_vit_model(train_loader, val_loader, model_name="robust", robust=True)
     
-    if args.train_all or args.train_baselines:
+    if not args.skip_training and (args.train_all or args.train_baselines):
         resnet_path = os.path.join(CHECKPOINT_PATH, "bestmodel_resnet", "best_model.pt")
         resnet_pretrained_path = os.path.join(CHECKPOINT_PATH, "bestmodel_resnet_pretrained", "best_model.pt")
         
@@ -802,7 +823,7 @@ def main():
             print("\n=== TRAINING RESNET BASELINE (pretrained) ===")
             train_resnet_baseline(train_loader, val_loader, pretrained=True)
     
-    if args.train_all or args.train_ttt:
+    if not args.skip_training and (args.train_all or args.train_ttt):
         ttt_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt", "best_model.pt")
         ttt3fc_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt3fc", "best_model.pt")
         
@@ -814,7 +835,7 @@ def main():
             print("\n=== TRAINING TTT MODELS ===")
             train_ttt_models(train_loader, val_loader)
     
-    if args.train_all or args.train_blended:
+    if not args.skip_training and (args.train_all or args.train_blended):
         blended_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_blended", "best_model.pt")
         blended3fc_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_blended3fc", "best_model.pt")
         
@@ -826,8 +847,8 @@ def main():
             print("\n=== TRAINING BLENDED MODELS ===")
             train_blended_models(train_loader, val_loader)
     
-    # Evaluation phase
-    if args.evaluate or args.train_all:
+    # Evaluation phase (skip if --skip_evaluation is set)
+    if not args.skip_evaluation and (args.evaluate or args.train_all):
         print("\n=== EVALUATION PHASE ===")
         results = evaluate_all_models(val_loader)
         

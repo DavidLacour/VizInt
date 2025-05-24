@@ -880,9 +880,16 @@ def train_main_model(dataset_path="tiny-imagenet-200", model_dir="../../newModel
                 'val_acc': val_acc,
             }, best_model_path)
             
-            # Log to wandb
-            wandb.save(str(checkpoint_path))
-            wandb.save(str(best_model_path))
+            # Log to wandb only if paths are within wandb's base directory
+            try:
+                # Check if paths are relative to current directory
+                checkpoint_path.relative_to(Path.cwd())
+                best_model_path.relative_to(Path.cwd())
+                wandb.save(str(checkpoint_path))
+                wandb.save(str(best_model_path))
+            except ValueError:
+                # Paths are outside wandb's base directory, log as artifacts instead
+                print(f"Models saved outside wandb directory, logging paths only")
             
             print(f"Saved best model with validation accuracy: {val_acc:.4f}")
             
@@ -1258,9 +1265,16 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0, model_dir
                 'val_loss': val_loss,
             }, best_model_path)
             
-            # Log to wandb
-            wandb.save(str(checkpoint_path))
-            wandb.save(str(best_model_path))
+            # Log to wandb only if paths are within wandb's base directory
+            try:
+                # Check if paths are relative to current directory
+                checkpoint_path.relative_to(Path.cwd())
+                best_model_path.relative_to(Path.cwd())
+                wandb.save(str(checkpoint_path))
+                wandb.save(str(best_model_path))
+            except ValueError:
+                # Paths are outside wandb's base directory, log as artifacts instead
+                print(f"Models saved outside wandb directory, logging paths only")
             
             print(f"Saved best model with validation loss: {val_loss:.4f}")
             
