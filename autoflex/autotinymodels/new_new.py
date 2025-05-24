@@ -938,20 +938,21 @@ def validate_main_model(model, loader, device):
     return val_loss, val_acc
 
 
-def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
+def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0, model_dir="../../newModels"):
     """
     Train the transformation healer model
     """
     # Set seed for reproducibility
     set_seed(42)
     
-    # Create checkpoint directories
-    checkpoints_dir = Path("checkpoints_healer")
-    best_model_dir = Path("bestmodel_healer")
+    # Create checkpoint directories under model_dir
+    model_dir_path = Path(model_dir)
+    checkpoints_dir = model_dir_path / "checkpoints_healer"
+    best_model_dir = model_dir_path / "bestmodel_healer"
     
     # Create directories if they don't exist
-    checkpoints_dir.mkdir(exist_ok=True)
-    best_model_dir.mkdir(exist_ok=True)
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+    best_model_dir.mkdir(parents=True, exist_ok=True)
     
     # Device setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -1281,7 +1282,13 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0):
     print(f"Healer model training completed. Best model saved at: {best_model_dir / 'best_model.pt'}")
     
     # Load and return the best model
-    checkpoint = torch.load(best_model_dir / "best_model.pt")
+    best_model_path = best_model_dir / "best_model.pt"
+    if not best_model_path.exists():
+        print(f"Warning: Best model not found at {best_model_path}")
+        print("Returning the last trained model state.")
+        return healer_model
+    
+    checkpoint = torch.load(best_model_path)
     healer_model.load_state_dict(checkpoint['model_state_dict'])
     
     return healer_model

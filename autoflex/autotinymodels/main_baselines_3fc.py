@@ -445,7 +445,7 @@ def main():
         # Check if healer model exists
         if not os.path.exists(healer_model_path):
             print("\n=== Training Transformation Healer Model ===")
-            healer_model = train_healer_model(args.dataset, severity=args.severity)
+            healer_model = train_healer_model(args.dataset, severity=args.severity, model_dir=args.model_dir)
         else:
             print(f"✓ Healer model found at {healer_model_path}")
             healer_model = load_healer_model(healer_model_path, device)
