@@ -379,7 +379,7 @@ def main():
                       help="Mode to run: train only, evaluate only, visualize only, or all")
     parser.add_argument("--dataset", type=str, default="../../../tiny-imagenet-200",
                       help="Path to Tiny ImageNet dataset")
-    parser.add_argument("--model_dir", type=str, default="../../../newModels",
+    parser.add_argument("--model_dir", type=str, default="../../newModels",
                       help="Directory to save/load models")
     parser.add_argument("--severity", type=float, default=0.5,
                       help="Severity of transformations for training/visualization")
@@ -409,6 +409,10 @@ def main():
     
     # Set seed for reproducibility
     set_seed(args.seed)
+    
+    # Create model directory if it doesn't exist
+    os.makedirs(args.model_dir, exist_ok=True)
+    print(f"✓ Model directory: {args.model_dir}")
     
     # Device setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
