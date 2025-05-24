@@ -20,7 +20,7 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
-from new_new import ContinuousTransforms, TinyImageNetDataset
+from new_new import ContinuousTransforms, TinyImageNetDataset, get_batch_size
 
 from blended_ttt3fc_model import BlendedTTT3fc
 
@@ -124,8 +124,8 @@ def train_blended_ttt3fc_model(base_model, dataset_path="tiny-imagenet-200", mod
     warmup_steps = 1000 if not DEBUG else 10
     patience = 5  # Early stopping patience
     
-    # Find optimal batch size (smaller for deeper model)
-    batch_size = 64 if not DEBUG else 8  # Reduced from 128 due to deeper MLPs
+    # Determine batch size based on environment
+    batch_size = get_batch_size() if not DEBUG else 8
     
     # Custom collate function for the blended model
     def blended_collate(batch):

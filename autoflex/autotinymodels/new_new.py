@@ -4,6 +4,7 @@ import wandb
 import numpy as np
 import shutil
 from pathlib import Path
+import os
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from sklearn.metrics import accuracy_score
@@ -23,6 +24,26 @@ MAX_ROTATION = 360.0
 MAX_STD_GAUSSIAN_NOISE = 0.5
 MAX_TRANSLATION_AFFINE = 0.1
 MAX_SHEAR_ANGLE = 15.0
+
+
+def get_batch_size():
+    """
+    Determine batch size based on presence of LOCALHERE.TXT file.
+    Returns 100 if LOCALHERE.TXT exists three directories up, otherwise 250.
+    """
+    # Get the path three directories up from current file
+    current_dir = Path(__file__).resolve().parent
+    check_path = current_dir.parent.parent.parent / "LOCALHERE.TXT"
+    
+    if check_path.exists():
+        print(f"📍 Local environment detected (found {check_path})")
+        print("📉 Using reduced batch size: 100")
+        return 100
+    else:
+        print("☁️  Cloud/cluster environment detected")
+        print("📈 Using standard batch size: 250")
+        return 250
+
 
 # Initialize wandb
 wandb.init(project="vit-tiny-imagenet-ood", name="transform-healing-gpu-optimized")
@@ -1016,8 +1037,8 @@ def train_healer_model(dataset_path="tiny-imagenet-200", severity=1.0, model_dir
         # Keep params as a list of dictionaries
         return orig_tensor, trans_tensor, labels_tensor, params
     
-    # Determine batch size and data loading parameters
-    batch_size = 50 #find_optimal_batch_size(healer_model, img_size=64, starting_batch_size=128, device=device)
+    # Determine batch size based on environment
+    batch_size = get_batch_size()
     
     # OPTIMIZED: Use more workers for GPU systems, but pin_memory=False during transformation phase
     # to avoid extra memory usage in CPU-GPU transfer

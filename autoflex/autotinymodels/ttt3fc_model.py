@@ -388,7 +388,7 @@ def train_ttt3fc_model(dataset_path, base_model=None, severity=0.5, epochs=10, m
     ])
     
     # Create continuous transforms for OOD
-    from new_new import ContinuousTransforms, TinyImageNetDataset, find_optimal_batch_size
+    from new_new import ContinuousTransforms, TinyImageNetDataset, find_optimal_batch_size, get_batch_size
     ood_transform = ContinuousTransforms(severity=severity)
     
     # Dataset and DataLoader with OOD transforms
@@ -438,8 +438,8 @@ def train_ttt3fc_model(dataset_path, base_model=None, severity=0.5, epochs=10, m
         # Keep params as a list of dictionaries
         return orig_tensor, trans_tensor, labels_tensor, transform_types_tensor
     
-    # Determine batch size and data loading parameters
-    batch_size = 50  # Conservative batch size for the deeper model
+    # Determine batch size based on environment
+    batch_size = get_batch_size()
     
     # DataLoaders
     train_loader = DataLoader(
