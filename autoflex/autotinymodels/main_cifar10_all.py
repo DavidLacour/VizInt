@@ -353,7 +353,7 @@ def train_ttt_models(train_loader, val_loader, base_model=None):
     
     # Train TTT model
     optimizer = optim.AdamW(ttt_model.parameters(), lr=0.0001)
-    criterion = nn.MSELoss()  # For reconstruction
+    criterion = nn.CrossEntropyLoss()  # For transformation prediction
     
     best_val_loss = float('inf')
     epochs = 50
@@ -364,13 +364,24 @@ def train_ttt_models(train_loader, val_loader, base_model=None):
         
         for images, _ in tqdm(train_loader, desc=f"TTT Epoch {epoch+1}/{epochs}"):
             images = images.to(device)
+            batch_size = images.size(0)
             
-            # Add noise for TTT training
-            noisy_images = images + torch.randn_like(images) * 0.1
+            # Create transformed images and labels
+            transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
+            transformed_images = images.clone()
+            
+            for i in range(batch_size):
+                if transform_labels[i] == 1:  # Gaussian noise
+                    transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
+                elif transform_labels[i] == 2:  # Rotation
+                    transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
+                elif transform_labels[i] == 3:  # Affine transformation
+                    transformed_images[i] = torch.flip(images[i], [2])
+                # transform_labels[i] == 0 means no transformation
             
             optimizer.zero_grad()
-            _, reconstructed = ttt_model(noisy_images)
-            loss = criterion(reconstructed, images)
+            _, transform_logits = ttt_model(transformed_images)
+            loss = criterion(transform_logits, transform_labels)
             loss.backward()
             optimizer.step()
             
@@ -382,9 +393,22 @@ def train_ttt_models(train_loader, val_loader, base_model=None):
         with torch.no_grad():
             for images, _ in val_loader:
                 images = images.to(device)
-                noisy_images = images + torch.randn_like(images) * 0.1
-                _, reconstructed = ttt_model(noisy_images)
-                loss = criterion(reconstructed, images)
+                batch_size = images.size(0)
+                
+                # Create transformed images and labels for validation
+                transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
+                transformed_images = images.clone()
+                
+                for i in range(batch_size):
+                    if transform_labels[i] == 1:  # Gaussian noise
+                        transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
+                    elif transform_labels[i] == 2:  # Rotation
+                        transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
+                    elif transform_labels[i] == 3:  # Affine transformation
+                        transformed_images[i] = torch.flip(images[i], [2])
+                
+                _, transform_logits = ttt_model(transformed_images)
+                loss = criterion(transform_logits, transform_labels)
                 val_loss += loss.item()
         
         val_loss /= len(val_loader)
