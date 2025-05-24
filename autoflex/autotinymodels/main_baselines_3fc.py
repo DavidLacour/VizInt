@@ -434,12 +434,26 @@ def main():
     if args.mode in ["train", "evaluate", "all"]:
         # Ensure model directory exists
         os.makedirs(args.model_dir, exist_ok=True)
+        print(f"\n=== Model Directory Configuration ===")
+        print(f"📁 Model directory: {args.model_dir}")
+        print(f"📁 Directory exists: {'✓' if os.path.exists(args.model_dir) else '❌'}")
+        
+        print(f"\n=== Expected Model Paths ===")
+        print(f"📍 Main model: {main_model_path}")
+        print(f"📍 Healer model: {healer_model_path}")
+        if ttt3fc_model_path:
+            print(f"📍 TTT3fc model: {ttt3fc_model_path}")
+        if blended3fc_model_path:
+            print(f"📍 Blended3fc model: {blended3fc_model_path}")
+        
         print(f"\n=== Checking for existing models (mode: {args.mode}) ===")
         
         # Check if main model exists
         if not os.path.exists(main_model_path):
             print("\n=== Training Main Classification Model ===")
             main_model = train_main_model(args.dataset, model_dir=args.model_dir)
+            print(f"✅ Main model saved to: {main_model_path}")
+            print(f"✅ Model file exists: {'✓' if os.path.exists(main_model_path) else '❌'}")
         else:
             print(f"✓ Main model found at {main_model_path}")
             main_model = load_main_model(main_model_path, device)
@@ -448,6 +462,8 @@ def main():
         if not os.path.exists(healer_model_path):
             print("\n=== Training Transformation Healer Model ===")
             healer_model = train_healer_model(args.dataset, severity=args.severity, model_dir=args.model_dir)
+            print(f"✅ Healer model saved to: {healer_model_path}")
+            print(f"✅ Model file exists: {'✓' if os.path.exists(healer_model_path) else '❌'}")
         else:
             print(f"✓ Healer model found at {healer_model_path}")
             healer_model = load_healer_model(healer_model_path, device)
@@ -459,6 +475,8 @@ def main():
                 if main_model is None:
                     main_model = load_main_model(main_model_path, device)
                 ttt3fc_model = train_ttt3fc_model(args.dataset, base_model=main_model, severity=args.severity, model_dir=args.model_dir)
+                print(f"✅ TTT3fc model saved to: {ttt3fc_model_path}")
+                print(f"✅ Model file exists: {'✓' if os.path.exists(ttt3fc_model_path) else '❌'}")
             elif ttt3fc_model_path:
                 print(f"✓ TTT3fc model found at {ttt3fc_model_path}")
                 if main_model is None:
@@ -472,11 +490,25 @@ def main():
                 if main_model is None:
                     main_model = load_main_model(main_model_path, device)
                 blended3fc_model = train_blended_ttt3fc_model(main_model, args.dataset, model_dir=args.model_dir)
+                print(f"✅ BlendedTTT3fc model saved to: {blended3fc_model_path}")
+                print(f"✅ Model file exists: {'✓' if os.path.exists(blended3fc_model_path) else '❌'}")
             elif blended3fc_model_path:
                 print(f"✓ BlendedTTT3fc model found at {blended3fc_model_path}")
                 if main_model is None:
                     main_model = load_main_model(main_model_path, device)
                 blended3fc_model = load_blended3fc_model(blended3fc_model_path, main_model, device)
+        
+        # Print summary of model locations after training
+        if args.mode in ["train", "all"]:
+            print("\n=== Model Training Summary ===")
+            print(f"📁 All models saved to: {args.model_dir}")
+            print("\n📍 Model locations:")
+            print(f"  - Main model: {main_model_path} {'✓' if os.path.exists(main_model_path) else '❌'}")
+            print(f"  - Healer model: {healer_model_path} {'✓' if os.path.exists(healer_model_path) else '❌'}")
+            if ttt3fc_model_path:
+                print(f"  - TTT3fc model: {ttt3fc_model_path} {'✓' if os.path.exists(ttt3fc_model_path) else '❌'}")
+            if blended3fc_model_path:
+                print(f"  - Blended3fc model: {blended3fc_model_path} {'✓' if os.path.exists(blended3fc_model_path) else '❌'}")
     
     # Evaluation mode
     if args.mode in ["evaluate", "visualize", "all"]:
