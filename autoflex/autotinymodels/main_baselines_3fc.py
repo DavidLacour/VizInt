@@ -144,7 +144,7 @@ def evaluate_full_pipeline_3fc(main_model, healer_model, dataset_path, severitie
     if include_blended3fc:
         blended3fc_model_path = f"{model_dir}/bestmodel_blended3fc/best_model.pt"
         if os.path.exists(blended3fc_model_path):
-            blended3fc_model = load_blended3fc_model(blended3fc_model_path, main_model, device)
+            blended3fc_model = load_blended3fc_model(blended3fc_model_path, device)
             
     if include_ttt3fc:
         ttt3fc_model_path = f"{model_dir}/bestmodel_ttt3fc/best_model.pt"
@@ -626,7 +626,7 @@ def main():
                 print(f"✓ BlendedTTT3fc model found at {blended3fc_model_path}")
                 if main_model is None:
                     main_model = load_main_model(main_model_path, device)
-                blended3fc_model = load_blended3fc_model(blended3fc_model_path, main_model, device)
+                blended3fc_model = load_blended3fc_model(blended3fc_model_path, device)
         
         # Print summary of model locations after training
         if args.mode in ["train", "all"]:
@@ -655,7 +655,7 @@ def main():
             ttt3fc_model = load_ttt3fc_model(ttt3fc_model_path, main_model, device)
         
         if not args.exclude_blended3fc and blended3fc_model is None and blended3fc_model_path and os.path.exists(blended3fc_model_path):
-            blended3fc_model = load_blended3fc_model(blended3fc_model_path, main_model, device)
+            blended3fc_model = load_blended3fc_model(blended3fc_model_path, device)
         
         # Check if we have the minimum required models
         if main_model is None or healer_model is None:
@@ -722,7 +722,7 @@ def main():
             ttt3fc_model = load_ttt3fc_model(ttt3fc_model_path, main_model, device)
         
         if not args.exclude_blended3fc and blended3fc_model is None and os.path.exists(blended3fc_model_path):
-            blended3fc_model = load_blended3fc_model(blended3fc_model_path, main_model, device)
+            blended3fc_model = load_blended3fc_model(blended3fc_model_path, device)
         
         # Generate sample visualizations
         visualize_samples_3fc(
