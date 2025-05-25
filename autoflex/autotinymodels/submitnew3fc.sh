@@ -20,4 +20,4 @@ conda activate nanofm
 
 export WANDB_ENTITY=david-lacour-epfl
 export WANDB_API_KEY=1d6641b737cd13fe32a9371dd3780308fee23512 
-python main_baselines_3fc_integration.py --train_all  --dataset ../../../tinyimagenet200 --model_dir ../../newnotint3fc
+python main_baselines_3fc.py --train_all  --dataset ../../../tinyimagenet200 --model_dir ../../newnotint3fc
