@@ -7,8 +7,8 @@
 #SBATCH --mem=64G
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5               # Adjust CPU allocation if needed
-#SBATCH --output=interactive_job_cifar10_all.out    # Output log file
-#SBATCH --error=interactive_job_cifar10_all.err     # Error log file
+#SBATCH --output=interactive_job_cifar10.out    # Output log file
+#SBATCH --error=interactive_job_cifar10.err     # Error log file
 
 CONFIG_FILE=$1
 WANDB=$2
@@ -20,5 +20,5 @@ conda activate nanofm
 
 export WANDB_ENTITY=david-lacour-epfl
 export WANDB_API_KEY=1d6641b737cd13fe32a9371dd3780308fee23512 
-python main_cifar10_all.py  --checkpoint_dir /../../newcifar10 --train_all --evaluate
+python main_cifar10_all.py  --train_all --evaluate
 
