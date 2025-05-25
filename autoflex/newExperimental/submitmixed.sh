@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mixed         # Change as needed
-#SBATCH --time=6:00:00
+#SBATCH --time=24:00:00
 #SBATCH --account=cs-503
 #SBATCH --qos=cs-503
 #SBATCH --gres=gpu:1                    # Request 2 GPUs
