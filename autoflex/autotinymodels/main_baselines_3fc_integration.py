@@ -305,14 +305,14 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
         ("Main_Robust", "main_robust", None, "Main ViT (robust training)"),
         ("Healer+Main", "main", "healer", "Healer + Main ViT (not robust)"),
         ("Healer+Main_Robust", "main_robust", "healer", "Healer + Main ViT (robust)"),
-        ("TTT+Main", "ttt", None, "TTT + Main ViT (not robust)"),
-        ("TTT+Main_Robust", "ttt_robust", None, "TTT + Main ViT (robust)"),
+        ("TTT", "ttt", None, "TTT (Test-Time Training)"),
+        ("TTT_Robust", "ttt_robust", None, "TTT (robust compatible)"),
         ("BlendedTTT", "blended", None, "BlendedTTT (standalone)"),
         ("BlendedTTT_Robust", "blended_robust", None, "BlendedTTT (robust compatible)"),
         
         # NEW 3FC combinations
-        ("TTT3fc+Main", "ttt3fc", None, "TTT3fc + Main ViT (not robust)"),
-        ("TTT3fc+Main_Robust", "ttt3fc_robust", None, "TTT3fc + Main ViT (robust)"),
+        ("TTT3fc", "ttt3fc", None, "TTT3fc (Test-Time Training with 3FC)"),
+        ("TTT3fc_Robust", "ttt3fc_robust", None, "TTT3fc (robust compatible)"),
         ("BlendedTTT3fc", "blended3fc", None, "BlendedTTT3fc (standalone)"),
         ("BlendedTTT3fc_Robust", "blended3fc_robust", None, "BlendedTTT3fc (robust compatible)"),
         
