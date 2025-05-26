@@ -710,7 +710,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
         ttt3fc_path = f"{model_dir}/bestmodel_ttt3fc/best_model.pt"
         if not os.path.exists(ttt3fc_path):
             print("\n🔧 Training TTT3fc Model...")
-            train_ttt3fc_model(dataset_path, models['main'])
+            train_ttt3fc_model(dataset_path, models['main'], model_dir=model_dir)
             models['ttt3fc'] = load_ttt3fc_model(ttt3fc_path, models['main'], device)
         else:
             print("✅ TTT3fc model already exists")
@@ -927,7 +927,7 @@ def train_3fc_models_if_missing(dataset_path, base_model=None, model_dir="./"):
     ttt3fc_path = f"{model_dir}/bestmodel_ttt3fc/best_model.pt"
     if not os.path.exists(ttt3fc_path):
         print("\n🔧 Training TTT3fc model...")
-        train_ttt3fc_model(dataset_path, base_model)
+        train_ttt3fc_model(dataset_path, base_model, model_dir=model_dir)
     else:
         print("✅ TTT3fc model already exists")
 

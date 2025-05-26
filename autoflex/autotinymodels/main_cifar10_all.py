@@ -23,10 +23,10 @@ from datetime import datetime
 from vit_implementation import create_vit_model
 from baseline_models import SimpleResNet18
 from ttt_model import TestTimeTrainer, train_ttt_model
-from blended_ttt_model import BlendedTTT
+from blended_ttt_cifar10 import BlendedTTTCIFAR10
+from blended_ttt3fc_cifar10 import BlendedTTT3fcCIFAR10
 from blended_ttt_training import train_blended_ttt_model
 from ttt3fc_model import TestTimeTrainer3fc, train_ttt3fc_model
-from blended_ttt3fc_model import BlendedTTT3fc
 from blended_ttt3fc_training import train_blended_ttt3fc_model
 from transformer_utils import set_seed
 
@@ -318,9 +318,28 @@ def train_resnet_baseline(train_loader, val_loader, pretrained=False):
     return model, best_val_acc
 
 
-def train_ttt_models(train_loader, val_loader, base_model=None):
+def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, train_ttt3fc=True):
     """Train TTT and TTT3fc models on CIFAR-10"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Check which models already exist
+    ttt_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt", "best_model.pt")
+    ttt3fc_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt3fc", "best_model.pt")
+    
+    ttt_exists = os.path.exists(ttt_model_path)
+    ttt3fc_exists = os.path.exists(ttt3fc_model_path)
+    
+    # Override training flags based on existing models
+    if ttt_exists and train_ttt:
+        print(f"✓ TTT model already exists at {ttt_model_path}, skipping training")
+        train_ttt = False
+    if ttt3fc_exists and train_ttt3fc:
+        print(f"✓ TTT3fc model already exists at {ttt3fc_model_path}, skipping training")
+        train_ttt3fc = False
+    
+    # If both models exist, return early
+    if not train_ttt and not train_ttt3fc:
+        return None, None
     
     # Load base model if not provided
     if base_model is None:
@@ -338,64 +357,125 @@ def train_ttt_models(train_loader, val_loader, base_model=None):
             print("❌ Base model not found. Please train the main model first.")
             return None, None
     
-    # Train original TTT model
-    print("\n🚀 Training TTT model on CIFAR-10...")
-    ttt_model = TestTimeTrainer(
-        base_model=base_model,
-        img_size=IMG_SIZE,
-        patch_size=4,
-        embed_dim=384
-    ).to(device)
+    ttt_model = None
+    ttt3fc_model = None
     
-    # TTT training (simplified for CIFAR-10)
-    save_dir_ttt = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt")
-    os.makedirs(save_dir_ttt, exist_ok=True)
-    
-    # Train TTT model
-    optimizer = optim.AdamW(ttt_model.parameters(), lr=0.0001)
-    criterion = nn.CrossEntropyLoss()  # For transformation prediction
-    
-    best_val_loss = float('inf')
-    epochs = 50
-    
-    for epoch in range(epochs):
-        ttt_model.train()
-        train_loss = 0.0
+    # Train original TTT model if needed
+    if train_ttt:
+        print("\n🚀 Training TTT model on CIFAR-10...")
+        ttt_model = TestTimeTrainer(
+            base_model=base_model,
+            img_size=IMG_SIZE,
+            patch_size=4,
+            embed_dim=384
+        ).to(device)
         
-        for images, _ in tqdm(train_loader, desc=f"TTT Epoch {epoch+1}/{epochs}"):
-            images = images.to(device)
-            batch_size = images.size(0)
-            
-            # Create transformed images and labels
-            transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
-            transformed_images = images.clone()
-            
-            for i in range(batch_size):
-                if transform_labels[i] == 1:  # Gaussian noise
-                    transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
-                elif transform_labels[i] == 2:  # Rotation
-                    transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
-                elif transform_labels[i] == 3:  # Affine transformation
-                    transformed_images[i] = torch.flip(images[i], [2])
-                # transform_labels[i] == 0 means no transformation
-            
-            optimizer.zero_grad()
-            _, transform_logits = ttt_model(transformed_images)
-            loss = criterion(transform_logits, transform_labels)
-            loss.backward()
-            optimizer.step()
-            
-            train_loss += loss.item()
+        # TTT training (simplified for CIFAR-10)
+        save_dir_ttt = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt")
+        os.makedirs(save_dir_ttt, exist_ok=True)
         
-        # Validation
-        ttt_model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for images, _ in val_loader:
+        # Train TTT model
+        optimizer = optim.AdamW(ttt_model.parameters(), lr=0.0001)
+        criterion = nn.CrossEntropyLoss()  # For transformation prediction
+        
+        best_val_loss = float('inf')
+        epochs = 50
+        
+        for epoch in range(epochs):
+            ttt_model.train()
+            train_loss = 0.0
+            
+            for images, _ in tqdm(train_loader, desc=f"TTT Epoch {epoch+1}/{epochs}"):
                 images = images.to(device)
                 batch_size = images.size(0)
                 
-                # Create transformed images and labels for validation
+                # Create transformed images and labels
+                transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
+                transformed_images = images.clone()
+                
+                for i in range(batch_size):
+                    if transform_labels[i] == 1:  # Gaussian noise
+                        transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
+                    elif transform_labels[i] == 2:  # Rotation
+                        transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
+                    elif transform_labels[i] == 3:  # Affine transformation
+                        transformed_images[i] = torch.flip(images[i], [2])
+                    # transform_labels[i] == 0 means no transformation
+                
+                optimizer.zero_grad()
+                _, transform_logits = ttt_model(transformed_images)
+                loss = criterion(transform_logits, transform_labels)
+                loss.backward()
+                optimizer.step()
+                
+                train_loss += loss.item()
+            
+            # Validation
+            ttt_model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for images, _ in val_loader:
+                    images = images.to(device)
+                    batch_size = images.size(0)
+                    
+                    # Create transformed images and labels for validation
+                    transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
+                    transformed_images = images.clone()
+                    
+                    for i in range(batch_size):
+                        if transform_labels[i] == 1:  # Gaussian noise
+                            transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
+                        elif transform_labels[i] == 2:  # Rotation
+                            transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
+                        elif transform_labels[i] == 3:  # Affine transformation
+                            transformed_images[i] = torch.flip(images[i], [2])
+                    
+                    _, transform_logits = ttt_model(transformed_images)
+                    loss = criterion(transform_logits, transform_labels)
+                    val_loss += loss.item()
+            
+            val_loss /= len(val_loader)
+            print(f"TTT Epoch {epoch+1}: Train Loss: {train_loss/len(train_loader):.4f}, "
+                  f"Val Loss: {val_loss:.4f}")
+            
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                torch.save({
+                    'model_state_dict': ttt_model.state_dict(),
+                    'val_loss': val_loss,
+                }, os.path.join(save_dir_ttt, "best_model.pt"))
+    
+    # Train TTT3fc model if needed
+    if train_ttt3fc:
+        print("\n🚀 Training TTT3fc model on CIFAR-10...")
+        save_dir_ttt3fc = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt3fc")
+        os.makedirs(save_dir_ttt3fc, exist_ok=True)
+        
+        # Create TTT3fc model
+        ttt3fc_model = TestTimeTrainer3fc(
+            base_model=base_model,
+            img_size=IMG_SIZE,
+            patch_size=4,
+            embed_dim=384
+        ).to(device)
+        
+        # Training setup
+        optimizer = optim.AdamW(ttt3fc_model.parameters(), lr=0.0001)
+        criterion = nn.CrossEntropyLoss()
+        
+        best_val_loss = float('inf')
+        epochs = 50
+        
+        # Training loop similar to TTT but with 3fc architecture
+        for epoch in range(epochs):
+            ttt3fc_model.train()
+            train_loss = 0.0
+            
+            for images, _ in tqdm(train_loader, desc=f"TTT3fc Epoch {epoch+1}/{epochs}"):
+                images = images.to(device)
+                batch_size = images.size(0)
+                
+                # Create transformed images and labels
                 transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
                 transformed_images = images.clone()
                 
@@ -407,41 +487,74 @@ def train_ttt_models(train_loader, val_loader, base_model=None):
                     elif transform_labels[i] == 3:  # Affine transformation
                         transformed_images[i] = torch.flip(images[i], [2])
                 
-                _, transform_logits = ttt_model(transformed_images)
+                optimizer.zero_grad()
+                _, transform_logits = ttt3fc_model(transformed_images)
                 loss = criterion(transform_logits, transform_labels)
-                val_loss += loss.item()
-        
-        val_loss /= len(val_loader)
-        print(f"TTT Epoch {epoch+1}: Train Loss: {train_loss/len(train_loader):.4f}, "
-              f"Val Loss: {val_loss:.4f}")
-        
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            torch.save({
-                'model_state_dict': ttt_model.state_dict(),
-                'val_loss': val_loss,
-            }, os.path.join(save_dir_ttt, "best_model.pt"))
+                loss.backward()
+                optimizer.step()
+                
+                train_loss += loss.item()
+            
+            # Validation
+            ttt3fc_model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for images, _ in val_loader:
+                    images = images.to(device)
+                    batch_size = images.size(0)
+                    
+                    # Create transformed images and labels for validation
+                    transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
+                    transformed_images = images.clone()
+                    
+                    for i in range(batch_size):
+                        if transform_labels[i] == 1:  # Gaussian noise
+                            transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
+                        elif transform_labels[i] == 2:  # Rotation
+                            transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
+                        elif transform_labels[i] == 3:  # Affine transformation
+                            transformed_images[i] = torch.flip(images[i], [2])
+                    
+                    _, transform_logits = ttt3fc_model(transformed_images)
+                    loss = criterion(transform_logits, transform_labels)
+                    val_loss += loss.item()
+            
+            val_loss /= len(val_loader)
+            print(f"TTT3fc Epoch {epoch+1}: Train Loss: {train_loss/len(train_loader):.4f}, "
+                  f"Val Loss: {val_loss:.4f}")
+            
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                torch.save({
+                    'model_state_dict': ttt3fc_model.state_dict(),
+                    'val_loss': val_loss,
+                }, os.path.join(save_dir_ttt3fc, "best_model.pt"))
     
-    # Train TTT3fc model
-    print("\n🚀 Training TTT3fc model on CIFAR-10...")
-    save_dir_ttt3fc = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt3fc")
-    os.makedirs(save_dir_ttt3fc, exist_ok=True)
-    
-    # Use the training function from ttt3fc_model
-    train_ttt3fc_model(
-        dataset_path=DATASET_PATH,
-        base_model=base_model,
-        model_save_dir=save_dir_ttt3fc,
-        epochs=50,
-        batch_size=128
-    )
-    
-    return ttt_model, None  # Return trained models
+    return ttt_model, ttt3fc_model  # Return trained models
 
 
-def train_blended_models(train_loader, val_loader, base_model=None):
+def train_blended_models(train_loader, val_loader, base_model=None, train_blended=True, train_blended3fc=True):
     """Train BlendedTTT and BlendedTTT3fc models on CIFAR-10"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Check which models already exist
+    blended_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_blended", "best_model.pt")
+    blended3fc_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_blended3fc", "best_model.pt")
+    
+    blended_exists = os.path.exists(blended_model_path)
+    blended3fc_exists = os.path.exists(blended3fc_model_path)
+    
+    # Override training flags based on existing models
+    if blended_exists and train_blended:
+        print(f"✓ Blended model already exists at {blended_model_path}, skipping training")
+        train_blended = False
+    if blended3fc_exists and train_blended3fc:
+        print(f"✓ Blended3fc model already exists at {blended3fc_model_path}, skipping training")
+        train_blended3fc = False
+    
+    # If both models exist, return early
+    if not train_blended and not train_blended3fc:
+        return None, None
     
     # Load base model if not provided
     if base_model is None:
@@ -459,96 +572,225 @@ def train_blended_models(train_loader, val_loader, base_model=None):
             print("❌ Base model not found. Please train the main model first.")
             return None, None
     
-    # Train BlendedTTT model
-    print("\n🚀 Training BlendedTTT model on CIFAR-10...")
-    blended_model = BlendedTTT(
-        img_size=IMG_SIZE,
-        patch_size=4,
-        embed_dim=384,
-        depth=8,
-        num_classes=NUM_CLASSES
-    ).to(device)
+    blended_model = None
+    blended3fc_model = None
     
-    save_dir_blended = os.path.join(CHECKPOINT_PATH, "bestmodel_blended")
-    os.makedirs(save_dir_blended, exist_ok=True)
+    # Train BlendedTTT model if needed
+    if train_blended:
+        print("\n🚀 Training BlendedTTT model on CIFAR-10...")
+        blended_model = BlendedTTTCIFAR10(
+            img_size=IMG_SIZE,
+            patch_size=4,
+            embed_dim=384,
+            depth=8,
+            num_classes=NUM_CLASSES
+        ).to(device)
     
-    # Train using the imported function (adapted for CIFAR-10)
-    # Note: We'll need to create a simple training loop since the original expects TinyImageNet
-    optimizer = optim.AdamW(blended_model.parameters(), lr=0.0005)
-    criterion = nn.CrossEntropyLoss()
-    reconstruction_criterion = nn.MSELoss()
-    
-    best_val_acc = 0.0
-    epochs = 50
-    
-    for epoch in range(epochs):
-        blended_model.train()
-        train_loss = 0.0
-        train_correct = 0
-        train_total = 0
+        save_dir_blended = os.path.join(CHECKPOINT_PATH, "bestmodel_blended")
+        os.makedirs(save_dir_blended, exist_ok=True)
         
-        for images, labels in tqdm(train_loader, desc=f"Blended Epoch {epoch+1}/{epochs}"):
-            images, labels = images.to(device), labels.to(device)
-            
-            # Add noise for robustness
-            noisy_images = images + torch.randn_like(images) * 0.1
-            
-            optimizer.zero_grad()
-            outputs, reconstructed = blended_model(noisy_images)
-            
-            cls_loss = criterion(outputs, labels)
-            rec_loss = reconstruction_criterion(reconstructed, images)
-            loss = cls_loss + 0.1 * rec_loss
-            
-            loss.backward()
-            optimizer.step()
-            
-            train_loss += loss.item()
-            _, predicted = torch.max(outputs, 1)
-            train_total += labels.size(0)
-            train_correct += (predicted == labels).sum().item()
+        # Training setup for BlendedTTT CIFAR-10
+        optimizer = optim.AdamW(blended_model.parameters(), lr=0.0005)
+        criterion = nn.CrossEntropyLoss()
+        aux_criterion = nn.CrossEntropyLoss()  # For transform type prediction
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=5, factor=0.5)
         
-        # Validation
-        blended_model.eval()
-        val_correct = 0
-        val_total = 0
+        best_val_acc = 0.0
+        epochs = 50
+        patience = 10
+        epochs_no_improve = 0
         
-        with torch.no_grad():
-            for images, labels in val_loader:
+        for epoch in range(epochs):
+            blended_model.train()
+            train_loss = 0.0
+            train_correct = 0
+            train_total = 0
+            
+            for images, labels in tqdm(train_loader, desc=f"Blended Epoch {epoch+1}/{epochs}"):
                 images, labels = images.to(device), labels.to(device)
-                outputs, _ = blended_model(images)
-                _, predicted = torch.max(outputs, 1)
-                val_total += labels.size(0)
-                val_correct += (predicted == labels).sum().item()
-        
-        val_acc = val_correct / val_total
-        train_acc = train_correct / train_total
-        
-        print(f"Blended Epoch {epoch+1}: Train Loss: {train_loss/len(train_loader):.4f}, "
-              f"Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}")
-        
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            torch.save({
-                'model_state_dict': blended_model.state_dict(),
-                'val_acc': val_acc,
-            }, os.path.join(save_dir_blended, "best_model.pt"))
+                batch_size = images.size(0)
+                
+                # Create transformed images for auxiliary task
+                transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
+                transformed_images = images.clone()
+                
+                for i in range(batch_size):
+                    if transform_labels[i] == 1:  # Gaussian noise
+                        transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
+                    elif transform_labels[i] == 2:  # Rotation
+                        transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
+                    elif transform_labels[i] == 3:  # Affine transformation
+                        transformed_images[i] = torch.flip(images[i], [2])
+                
+                optimizer.zero_grad()
+                
+                # Forward pass
+                class_logits, aux_outputs = blended_model(transformed_images)
+                
+                # Classification loss
+                cls_loss = criterion(class_logits, labels)
+                
+                # Auxiliary loss (transform prediction)
+                aux_loss = aux_criterion(aux_outputs['transform_type_logits'], transform_labels)
+                
+                # Combined loss
+                loss = cls_loss + 0.5 * aux_loss
+                
+                loss.backward()
+                optimizer.step()
+                
+                train_loss += loss.item()
+                _, predicted = torch.max(class_logits, 1)
+                train_total += labels.size(0)
+                train_correct += (predicted == labels).sum().item()
+            
+            # Validation
+            blended_model.eval()
+            val_correct = 0
+            val_total = 0
+            
+            with torch.no_grad():
+                for images, labels in val_loader:
+                    images, labels = images.to(device), labels.to(device)
+                    class_logits, _ = blended_model(images)
+                    _, predicted = torch.max(class_logits, 1)
+                    val_total += labels.size(0)
+                    val_correct += (predicted == labels).sum().item()
+            
+            val_acc = val_correct / val_total
+            train_acc = train_correct / train_total
+            
+            print(f"Blended Epoch {epoch+1}: Train Loss: {train_loss/len(train_loader):.4f}, "
+                  f"Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}")
+            
+            # Update learning rate scheduler
+            scheduler.step(val_acc)
+            
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                epochs_no_improve = 0
+                torch.save({
+                    'model_state_dict': blended_model.state_dict(),
+                    'val_acc': val_acc,
+                }, os.path.join(save_dir_blended, "best_model.pt"))
+                print(f"  ✅ New best model saved with val_acc: {val_acc:.4f}")
+            else:
+                epochs_no_improve += 1
+                print(f"  No improvement for {epochs_no_improve} epochs")
+                
+            # Early stopping
+            if epochs_no_improve >= patience:
+                print(f"  🛑 Early stopping triggered after {epoch+1} epochs")
+                print(f"  Best validation accuracy: {best_val_acc:.4f}")
+                break
     
-    # Train BlendedTTT3fc model
-    print("\n🚀 Training BlendedTTT3fc model on CIFAR-10...")
-    save_dir_blended3fc = os.path.join(CHECKPOINT_PATH, "bestmodel_blended3fc")
-    os.makedirs(save_dir_blended3fc, exist_ok=True)
+    # Train BlendedTTT3fc model if needed
+    if train_blended3fc:
+        print("\n🚀 Training BlendedTTT3fc model on CIFAR-10...")
+        save_dir_blended3fc = os.path.join(CHECKPOINT_PATH, "bestmodel_blended3fc")
+        os.makedirs(save_dir_blended3fc, exist_ok=True)
+        
+        # Create BlendedTTT3fc model for CIFAR-10
+        blended3fc_model = BlendedTTT3fcCIFAR10(
+            img_size=IMG_SIZE,
+            patch_size=4,
+            embed_dim=384,
+            depth=8,
+            num_classes=NUM_CLASSES
+        ).to(device)
+        
+        # Training setup
+        optimizer = optim.AdamW(blended3fc_model.parameters(), lr=0.0005)
+        criterion = nn.CrossEntropyLoss()
+        aux_criterion = nn.CrossEntropyLoss()
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=5, factor=0.5)
+        
+        best_val_acc = 0.0
+        epochs = 50
+        patience = 10
+        epochs_no_improve = 0
+        
+        for epoch in range(epochs):
+            blended3fc_model.train()
+            train_loss = 0.0
+            train_correct = 0
+            train_total = 0
+            
+            for images, labels in tqdm(train_loader, desc=f"Blended3fc Epoch {epoch+1}/{epochs}"):
+                images, labels = images.to(device), labels.to(device)
+                batch_size = images.size(0)
+                
+                # Create transformed images
+                transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
+                transformed_images = images.clone()
+                
+                for i in range(batch_size):
+                    if transform_labels[i] == 1:  # Gaussian noise
+                        transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
+                    elif transform_labels[i] == 2:  # Rotation
+                        transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
+                    elif transform_labels[i] == 3:  # Affine transformation
+                        transformed_images[i] = torch.flip(images[i], [2])
+                
+                optimizer.zero_grad()
+                
+                # Forward pass
+                class_logits, aux_outputs = blended3fc_model(transformed_images)
+                
+                # Losses
+                cls_loss = criterion(class_logits, labels)
+                aux_loss = aux_criterion(aux_outputs['transform_type_logits'], transform_labels)
+                loss = cls_loss + 0.5 * aux_loss
+                
+                loss.backward()
+                optimizer.step()
+                
+                train_loss += loss.item()
+                _, predicted = torch.max(class_logits, 1)
+                train_total += labels.size(0)
+                train_correct += (predicted == labels).sum().item()
+            
+            # Validation
+            blended3fc_model.eval()
+            val_correct = 0
+            val_total = 0
+            
+            with torch.no_grad():
+                for images, labels in val_loader:
+                    images, labels = images.to(device), labels.to(device)
+                    class_logits, _ = blended3fc_model(images)
+                    _, predicted = torch.max(class_logits, 1)
+                    val_total += labels.size(0)
+                    val_correct += (predicted == labels).sum().item()
+            
+            val_acc = val_correct / val_total
+            train_acc = train_correct / train_total
+            
+            print(f"Blended3fc Epoch {epoch+1}: Train Loss: {train_loss/len(train_loader):.4f}, "
+                  f"Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}")
+            
+            # Update learning rate scheduler
+            scheduler.step(val_acc)
+            
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                epochs_no_improve = 0
+                torch.save({
+                    'model_state_dict': blended3fc_model.state_dict(),
+                    'val_acc': val_acc,
+                }, os.path.join(save_dir_blended3fc, "best_model.pt"))
+                print(f"  ✅ New best model saved with val_acc: {val_acc:.4f}")
+            else:
+                epochs_no_improve += 1
+                print(f"  No improvement for {epochs_no_improve} epochs")
+                
+            # Early stopping
+            if epochs_no_improve >= patience:
+                print(f"  🛑 Early stopping triggered after {epoch+1} epochs")
+                print(f"  Best validation accuracy: {best_val_acc:.4f}")
+                break
     
-    # Use the training function from blended_ttt3fc_training
-    train_blended_ttt3fc_model(
-        base_model=base_model,
-        dataset_path=DATASET_PATH,
-        model_save_dir=save_dir_blended3fc,
-        epochs=50,
-        batch_size=128
-    )
-    
-    return blended_model, None
+    return blended_model, blended3fc_model
 
 
 def evaluate_all_models(val_loader):
@@ -966,8 +1208,8 @@ def main():
             train_vit_model(train_loader, val_loader, model_name="robust", robust=True)
     
     if not args.retrain and not args.skip_training and (args.train_all or args.train_baselines):
-        resnet_path = os.path.join(CHECKPOINT_PATH, "bestmodel_resnet", "best_model.pt")
-        resnet_pretrained_path = os.path.join(CHECKPOINT_PATH, "bestmodel_resnet_pretrained", "best_model.pt")
+        resnet_path = os.path.join(CHECKPOINT_PATH, "bestmodel_resnet18_baseline", "best_model.pt")
+        resnet_pretrained_path = os.path.join(CHECKPOINT_PATH, "bestmodel_resnet18_pretrained", "best_model.pt")
         
         if os.path.exists(resnet_path):
             print(f"\n✓ ResNet baseline already exists at {resnet_path}")
@@ -985,11 +1227,15 @@ def main():
         ttt_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt", "best_model.pt")
         ttt3fc_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_ttt3fc", "best_model.pt")
         
-        if os.path.exists(ttt_model_path) and os.path.exists(ttt3fc_model_path):
-            print(f"\n✓ TTT models already exist:")
-            print(f"  - TTT: {ttt_model_path}")
-            print(f"  - TTT3fc: {ttt3fc_model_path}")
-        else:
+        ttt_exists = os.path.exists(ttt_model_path)
+        ttt3fc_exists = os.path.exists(ttt3fc_model_path)
+        
+        if ttt_exists:
+            print(f"\n✓ TTT model already exists at {ttt_model_path}")
+        if ttt3fc_exists:
+            print(f"✓ TTT3fc model already exists at {ttt3fc_model_path}")
+            
+        if not ttt_exists or not ttt3fc_exists:
             print("\n=== TRAINING TTT MODELS ===")
             train_ttt_models(train_loader, val_loader)
     
