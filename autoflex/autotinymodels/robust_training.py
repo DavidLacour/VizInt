@@ -235,9 +235,9 @@ def train_main_model_robust(dataset_path="tiny-imagenet-200", severity=0.3, mode
                 'val_acc': val_acc,
             }, best_model_path)
             
-            # Log to wandb
-            wandb.save(str(checkpoint_path))
-            wandb.save(str(best_model_path))
+            # Don't save to wandb when using external directories
+            # wandb.save(str(checkpoint_path))
+            # wandb.save(str(best_model_path))
             
             print(f"Saved best model with validation accuracy: {val_acc:.4f}")
             

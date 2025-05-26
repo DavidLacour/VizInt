@@ -450,8 +450,9 @@ def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200", model_
             
             if not DEBUG:
                 # Log to wandb
-                wandb.save(str(checkpoint_path))
-                wandb.save(str(best_model_path))
+                # Don't save to wandb when using external directories
+                # wandb.save(str(checkpoint_path))
+                # wandb.save(str(best_model_path))
                 print(f"Saved best model with validation accuracy: {val_acc:.4f}")
             else:
                 print(f"DEBUG MODE: Saved model checkpoint")
