@@ -23,7 +23,7 @@ from new_new import *
 MAX_ROTATION = 360.0 
 
 
-def train_main_model_robust(dataset_path="tiny-imagenet-200", severity=0.3):
+def train_main_model_robust(dataset_path="tiny-imagenet-200", severity=0.3, model_dir="./"):
     """
     Train the main classification model with data augmentation using continuous transforms
     for improved robustness against distributional shifts.
@@ -39,12 +39,13 @@ def train_main_model_robust(dataset_path="tiny-imagenet-200", severity=0.3):
     set_seed(42)
     
     # Create checkpoint directories
-    checkpoints_dir = Path("checkpoints_robust")
-    best_model_dir = Path("bestmodel_robust")
+    model_dir_path = Path(model_dir)
+    checkpoints_dir = model_dir_path / "checkpoints_robust"
+    best_model_dir = model_dir_path / "bestmodel_robust"
     
     # Create directories if they don't exist
-    checkpoints_dir.mkdir(exist_ok=True)
-    best_model_dir.mkdir(exist_ok=True)
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+    best_model_dir.mkdir(parents=True, exist_ok=True)
     
     # Device setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

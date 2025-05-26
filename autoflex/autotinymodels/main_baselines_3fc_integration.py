@@ -659,7 +659,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     robust_model_path = f"{model_dir}/bestmodel_robust/best_model.pt"
     if not os.path.exists(robust_model_path):
         print("\n🔧 Training Robust Main Classification Model...")
-        robust_model = train_main_model_robust(dataset_path, severity=0.5)
+        robust_model = train_main_model_robust(dataset_path, severity=0.5, model_dir=model_dir)
         models['main_robust'] = robust_model
     else:
         print("✅ Robust main model already exists")
@@ -680,7 +680,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
         ttt_model_path = f"{model_dir}/bestmodel_ttt/best_model.pt"
         if not os.path.exists(ttt_model_path):
             print("\n🔧 Training Test-Time Training (TTT) Model...")
-            ttt_model = train_ttt_model(dataset_path, base_model=models['main'], severity=0.5)
+            ttt_model = train_ttt_model(dataset_path, base_model=models['main'], severity=0.5, model_dir=model_dir)
             models['ttt'] = ttt_model
         else:
             print("✅ TTT model already exists")
@@ -691,7 +691,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
         blended_model_path = f"{model_dir}/bestmodel_blended/best_model.pt"
         if not os.path.exists(blended_model_path):
             print("\n🔧 Training BlendedTTT Model...")
-            blended_model = train_blended_ttt_model(models['main'], dataset_path)
+            blended_model = train_blended_ttt_model(models['main'], dataset_path, model_dir=model_dir)
             models['blended'] = blended_model
         else:
             print("✅ BlendedTTT model already exists")
@@ -745,7 +745,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
         pretrained_model_path = f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt"
         if not os.path.exists(pretrained_model_path):
             print("\n🔧 Training Pretrained ResNet18 Model...")
-            pretrained_model = train_pretrained_resnet18(dataset_path)
+            pretrained_model = train_pretrained_resnet18(dataset_path, model_dir=model_dir)
             models['pretrained'] = pretrained_model
         else:
             print("✅ Pretrained ResNet18 model already exists")
@@ -777,7 +777,7 @@ def train_baseline_resnet18(dataset_path):
     return trained_model
 
 
-def train_pretrained_resnet18(dataset_path):
+def train_pretrained_resnet18(dataset_path, model_dir="./"):
     """Train pretrained ResNet18 model with fine-tuning"""
     import torch.optim as optim
     from torch.utils.data import DataLoader
@@ -907,13 +907,13 @@ def train_pretrained_resnet18(dataset_path):
         # Save best model
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            os.makedirs("./bestmodel_pretrained_resnet18", exist_ok=True)
+            os.makedirs(f"{model_dir}/bestmodel_pretrained_resnet18", exist_ok=True)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_acc': val_acc,
-            }, "./bestmodel_pretrained_resnet18/best_model.pt")
+            }, f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt")
             print(f"  ✅ New best pretrained model saved with val_acc: {val_acc:.4f}")
         
         scheduler.step()

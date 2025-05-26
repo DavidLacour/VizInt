@@ -254,7 +254,7 @@ class TestTimeTrainer(nn.Module):
         }
 
 
-def train_ttt_model(dataset_path, base_model=None, severity=0.5, epochs=10):
+def train_ttt_model(dataset_path, base_model=None, severity=0.5, epochs=10, model_dir="./"):
     """
     Train the TTT model on the given dataset.
     
@@ -271,12 +271,13 @@ def train_ttt_model(dataset_path, base_model=None, severity=0.5, epochs=10):
      #set_seed(42) trying not to set seeds coz gpu errors 
     
     # Create checkpoint directories
-    checkpoints_dir = Path("checkpoints_ttt")
-    best_model_dir = Path("bestmodel_ttt")
+    model_dir_path = Path(model_dir)
+    checkpoints_dir = model_dir_path / "checkpoints_ttt"
+    best_model_dir = model_dir_path / "bestmodel_ttt"
     
     # Create directories if they don't exist
-    checkpoints_dir.mkdir(exist_ok=True)
-    best_model_dir.mkdir(exist_ok=True)
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+    best_model_dir.mkdir(parents=True, exist_ok=True)
     
     # Device setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -285,7 +286,7 @@ def train_ttt_model(dataset_path, base_model=None, severity=0.5, epochs=10):
     # Load or create base model
     if base_model is None:
         # Try to load the main model
-        base_model_path = "bestmodel_main/best_model.pt"
+        base_model_path = model_dir_path / "bestmodel_main/best_model.pt"
         if os.path.exists(base_model_path):
             from vit_implementation import create_vit_model
             base_model = create_vit_model(
