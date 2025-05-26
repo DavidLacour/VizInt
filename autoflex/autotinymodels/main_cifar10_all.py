@@ -1338,7 +1338,7 @@ def evaluate_all_models(val_loader):
             checkpoint = torch.load(model_path, map_location=device)
             model.load_state_dict(checkpoint['model_state_dict'])
         elif model_type == "blended":
-            model = BlendedTTT(img_size=IMG_SIZE, patch_size=4, embed_dim=384, depth=8, num_classes=NUM_CLASSES)
+            model = BlendedTTTCIFAR10(img_size=IMG_SIZE, patch_size=4, embed_dim=384, depth=8, num_classes=NUM_CLASSES)
             checkpoint = torch.load(model_path, map_location=device)
             model.load_state_dict(checkpoint['model_state_dict'])
         elif model_type == "ttt3fc":
