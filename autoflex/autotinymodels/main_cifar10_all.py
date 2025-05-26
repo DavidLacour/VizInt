@@ -1578,6 +1578,144 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
     return all_results
 
 
+def apply_inverse_transform(transformed_img, transform_params, device):
+    """Apply inverse transformation based on predicted parameters"""
+    img = transformed_img.clone()
+    
+    if transform_params['transform_type'] == 'gaussian_noise':
+        # For noise, we can't perfectly remove it, but we can try denoising
+        # Simple approach: slight gaussian blur to reduce noise
+        # Note: In practice, you'd use a proper denoising method
+        return img  # Return as-is for now
+        
+    elif transform_params['transform_type'] == 'rotation':
+        # Apply counter-rotation
+        angle = -transform_params['rotation_angle']
+        # Convert to PIL, rotate, and back to tensor
+        img_pil = transforms.ToPILImage()(img.cpu())
+        img_pil = transforms.functional.rotate(img_pil, angle)
+        img = transforms.ToTensor()(img_pil).to(device)
+        
+    elif transform_params['transform_type'] == 'affine':
+        # Apply inverse affine transformation
+        # Calculate inverse affine matrix
+        translate_x = -transform_params['translate_x']
+        translate_y = -transform_params['translate_y']
+        shear_x = -transform_params['shear_x']
+        shear_y = -transform_params['shear_y']
+        
+        # Convert to PIL and apply inverse affine
+        img_pil = transforms.ToPILImage()(img.cpu())
+        img_pil = transforms.functional.affine(
+            img_pil,
+            angle=0,
+            translate=(translate_x * img_pil.width, translate_y * img_pil.height),
+            scale=1.0,
+            shear=(shear_x, shear_y)
+        )
+        img = transforms.ToTensor()(img_pil).to(device)
+    
+    return img
+
+
+def evaluate_vit_with_healer_guidance(val_loader_no_norm, healer_model, vit_model, model_name="ViT"):
+    """Evaluate ViT model using healer-guided inverse transforms"""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    healer_model.eval()
+    vit_model.eval()
+    
+    continuous_transform = ContinuousTransforms(severity=1.0)
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    
+    severities = [0.3, 0.5, 0.7, 1.0]
+    results = {}
+    
+    print(f"\n🔍 Evaluating {model_name} with Healer Guidance...")
+    
+    for severity in severities:
+        correct = 0
+        correct_with_healer = 0
+        total = 0
+        
+        with torch.no_grad():
+            pbar = tqdm(val_loader_no_norm, desc=f"Severity {severity}")
+            for images, labels in pbar:
+                images, labels = images.to(device), labels.to(device)
+                batch_size = images.size(0)
+                
+                for i in range(batch_size):
+                    # Apply random transformation
+                    transform_type = np.random.choice(continuous_transform.transform_types[1:])
+                    transformed_img, true_params = continuous_transform.apply_transforms(
+                        images[i],
+                        transform_type=transform_type,
+                        severity=severity,
+                        return_params=True
+                    )
+                    
+                    # Get healer predictions on transformed image
+                    healer_input = normalize(transformed_img).unsqueeze(0)
+                    healer_output = healer_model(healer_input)
+                    
+                    # Get predicted transform type
+                    _, predicted_type_idx = torch.max(healer_output['transform_type_logits'], 1)
+                    transform_types = ['no_transform', 'gaussian_noise', 'rotation', 'affine']
+                    predicted_type = transform_types[predicted_type_idx.item()]
+                    
+                    # Create predicted parameters dictionary
+                    # Extract affine parameters from the affine_params tensor
+                    affine_params = healer_output['affine_params'][0]  # Shape: [4]
+                    
+                    predicted_params = {
+                        'transform_type': predicted_type,
+                        'rotation_angle': healer_output['rotation_angle'][0].item(),
+                        'translate_x': affine_params[0].item() * 0.1,  # Scale back to original range
+                        'translate_y': affine_params[1].item() * 0.1,
+                        'shear_x': affine_params[2].item() * 15.0,
+                        'shear_y': affine_params[3].item() * 15.0
+                    }
+                    
+                    # Apply inverse transform using healer predictions
+                    healed_img = apply_inverse_transform(transformed_img, predicted_params, device)
+                    
+                    # Evaluate on original transformed image
+                    transformed_input = normalize(transformed_img).unsqueeze(0)
+                    output = vit_model(transformed_input)
+                    _, predicted = torch.max(output, 1)
+                    if predicted.item() == labels[i].item():
+                        correct += 1
+                    
+                    # Evaluate on healer-corrected image
+                    healed_input = normalize(healed_img).unsqueeze(0)
+                    output_healed = vit_model(healed_input)
+                    _, predicted_healed = torch.max(output_healed, 1)
+                    if predicted_healed.item() == labels[i].item():
+                        correct_with_healer += 1
+                    
+                    total += 1
+                
+                # Update progress bar
+                if total > 0:
+                    pbar.set_postfix({
+                        'acc': f'{correct/total:.3f}',
+                        'healed_acc': f'{correct_with_healer/total:.3f}'
+                    })
+        
+        accuracy = correct / total
+        healed_accuracy = correct_with_healer / total
+        improvement = healed_accuracy - accuracy
+        
+        results[severity] = {
+            'original': accuracy,
+            'healed': healed_accuracy,
+            'improvement': improvement
+        }
+        
+        print(f"  Severity {severity}: Original: {accuracy:.4f}, Healed: {healed_accuracy:.4f}, Improvement: {improvement:+.4f}")
+    
+    return results
+
+
 def create_performance_plots(results):
     """Create performance comparison plots"""
     save_dir = os.path.join(CHECKPOINT_PATH, "visualizations")
@@ -2021,6 +2159,62 @@ def main():
             val_loader_no_norm, 
             severities=[0.0, 0.3, 0.5, 0.7, 1.0]
         )
+        
+        # Evaluate ViT models with healer guidance
+        print("\n📋 Part 3: Healer-Guided Inverse Transform Evaluation")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # Load healer model
+        healer_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_healer", "best_model.pt")
+        if os.path.exists(healer_model_path):
+            healer_model = TransformationHealerCIFAR10(IMG_SIZE, 4, 3, 384, 6, 64).to(device)
+            checkpoint = torch.load(healer_model_path, map_location=device)
+            healer_model.load_state_dict(checkpoint['model_state_dict'])
+            print("✅ Loaded Healer model")
+            
+            # Evaluate Main ViT with healer
+            main_vit_path = os.path.join(CHECKPOINT_PATH, "bestmodel_main", "best_model.pt")
+            if os.path.exists(main_vit_path):
+                main_vit = create_vit_model(
+                    img_size=IMG_SIZE, patch_size=4, in_chans=3, num_classes=NUM_CLASSES,
+                    embed_dim=384, depth=8, head_dim=64, mlp_ratio=4.0, use_resnet_stem=True
+                ).to(device)
+                checkpoint = torch.load(main_vit_path, map_location=device)
+                main_vit.load_state_dict(checkpoint['model_state_dict'])
+                
+                main_vit_healer_results = evaluate_vit_with_healer_guidance(
+                    val_loader_no_norm, healer_model, main_vit, "Main ViT"
+                )
+            
+            # Evaluate Robust ViT with healer
+            robust_vit_path = os.path.join(CHECKPOINT_PATH, "bestmodel_robust", "best_model.pt")
+            if os.path.exists(robust_vit_path):
+                robust_vit = create_vit_model(
+                    img_size=IMG_SIZE, patch_size=4, in_chans=3, num_classes=NUM_CLASSES,
+                    embed_dim=384, depth=8, head_dim=64, mlp_ratio=4.0, use_resnet_stem=True
+                ).to(device)
+                checkpoint = torch.load(robust_vit_path, map_location=device)
+                robust_vit.load_state_dict(checkpoint['model_state_dict'])
+                
+                robust_vit_healer_results = evaluate_vit_with_healer_guidance(
+                    val_loader_no_norm, healer_model, robust_vit, "Robust ViT"
+                )
+                
+            # Print summary of healer improvements
+            print("\n" + "="*80)
+            print("📊 HEALER-GUIDED IMPROVEMENT SUMMARY")
+            print("="*80)
+            if 'main_vit_healer_results' in locals():
+                print("\nMain ViT Improvements:")
+                for sev, res in main_vit_healer_results.items():
+                    print(f"  Severity {sev}: {res['improvement']:+.2%}")
+                    
+            if 'robust_vit_healer_results' in locals():
+                print("\nRobust ViT Improvements:")
+                for sev, res in robust_vit_healer_results.items():
+                    print(f"  Severity {sev}: {res['improvement']:+.2%}")
+        else:
+            print("⚠️ Healer model not found. Skipping healer-guided evaluation.")
         
         if args.visualize or args.train_all:
             print("\n=== CREATING VISUALIZATIONS ===")
