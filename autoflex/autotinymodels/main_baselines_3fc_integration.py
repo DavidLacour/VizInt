@@ -697,9 +697,12 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     # Train BlendedTTT3fc
     if not getattr(args, 'exclude_blended3fc', False):
         blended3fc_path = f"{model_dir}/bestmodel_blended3fc/best_model.pt"
+        # Ensure directory exists
+        os.makedirs(f"{model_dir}/bestmodel_blended3fc", exist_ok=True)
+        
         if not os.path.exists(blended3fc_path):
             print("\n🔧 Training BlendedTTT3fc Model...")
-            train_blended_ttt3fc_model(models['main'], dataset_path)
+            train_blended_ttt3fc_model(models['main'], dataset_path, model_dir=model_dir)
             models['blended3fc'] = load_blended3fc_model(blended3fc_path, device)
         else:
             print("✅ BlendedTTT3fc model already exists")
@@ -708,6 +711,9 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     # Train TTT3fc
     if not getattr(args, 'exclude_ttt3fc', False):
         ttt3fc_path = f"{model_dir}/bestmodel_ttt3fc/best_model.pt"
+        # Ensure directory exists
+        os.makedirs(f"{model_dir}/bestmodel_ttt3fc", exist_ok=True)
+        
         if not os.path.exists(ttt3fc_path):
             print("\n🔧 Training TTT3fc Model...")
             train_ttt3fc_model(dataset_path, models['main'], model_dir=model_dir)
