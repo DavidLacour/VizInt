@@ -719,7 +719,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     # 7. Train Baseline Models (if requested)
     
     # Train Baseline ResNet18
-    if getattr(args, 'train_baseline', False) or getattr(args, 'compare_baseline', False):
+    if True:
         baseline_model_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
         if not os.path.exists(baseline_model_path):
             print("\n🔧 Training Baseline ResNet18 Model...")
@@ -730,7 +730,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
             models['baseline'] = load_baseline_model(baseline_model_path, device)
     
     # Train Pretrained ResNet18
-    if getattr(args, 'train_pretrained', False) or getattr(args, 'compare_pretrained', False):
+    if True:
         pretrained_model_path = f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt"
         if not os.path.exists(pretrained_model_path):
             print("\n🔧 Training Pretrained ResNet18 Model...")
@@ -1115,7 +1115,7 @@ def main():
         print(f"\n✅ Training phase completed! {len(trained_models)} models ready.")
     
     # 📊 EVALUATION PHASE - Comprehensive evaluation including 3FC models
-    if args.mode in ["evaluate", "all"]:
+    if True:
         print("\n=== COMPREHENSIVE EVALUATION WITH 3FC MODELS ===")
         
         # Run the comprehensive evaluation that includes 3FC models
