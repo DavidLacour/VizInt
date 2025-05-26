@@ -30,6 +30,9 @@ from ttt3fc_model import TestTimeTrainer3fc, train_ttt3fc_model
 from blended_ttt3fc_training import train_blended_ttt3fc_model
 from transformer_utils import set_seed
 
+# Import ContinuousTransforms for OOD training
+from new_new import ContinuousTransforms
+
 # Dataset configuration
 DATASET_PATH = "../../cifar10"
 CHECKPOINT_PATH = "../../cifar10checkpoints"
@@ -402,6 +405,9 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
         optimizer = optim.AdamW(ttt_model.parameters(), lr=0.0001)
         criterion = nn.CrossEntropyLoss()  # For transformation prediction
         
+        # Create ContinuousTransforms for TTT training
+        continuous_transform = ContinuousTransforms(severity=0.5)
+        
         best_val_loss = float('inf')
         epochs = 50
         patience = 5
@@ -415,18 +421,28 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                 images = images.to(device)
                 batch_size = images.size(0)
                 
-                # Create transformed images and labels
-                transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
-                transformed_images = images.clone()
+                # Apply continuous transformations
+                transformed_images = []
+                transform_labels = []
                 
                 for i in range(batch_size):
-                    if transform_labels[i] == 1:  # Gaussian noise
-                        transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
-                    elif transform_labels[i] == 2:  # Rotation
-                        transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
-                    elif transform_labels[i] == 3:  # Affine transformation
-                        transformed_images[i] = torch.flip(images[i], [2])
-                    # transform_labels[i] == 0 means no transformation
+                    # Randomly choose transformation type
+                    transform_type = np.random.choice(continuous_transform.transform_types)
+                    transform_type_idx = continuous_transform.transform_types.index(transform_type)
+                    
+                    # Apply transformation
+                    transformed_img, _ = continuous_transform.apply_transforms(
+                        images[i], 
+                        transform_type=transform_type,
+                        severity=np.random.uniform(0.0, 1.0),  # Random severity
+                        return_params=True
+                    )
+                    
+                    transformed_images.append(transformed_img)
+                    transform_labels.append(transform_type_idx)
+                
+                transformed_images = torch.stack(transformed_images)
+                transform_labels = torch.tensor(transform_labels, device=device)
                 
                 optimizer.zero_grad()
                 _, transform_logits = ttt_model(transformed_images)
@@ -444,17 +460,28 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                     images = images.to(device)
                     batch_size = images.size(0)
                     
-                    # Create transformed images and labels for validation
-                    transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
-                    transformed_images = images.clone()
+                    # Apply continuous transformations for validation
+                    transformed_images = []
+                    transform_labels = []
                     
                     for i in range(batch_size):
-                        if transform_labels[i] == 1:  # Gaussian noise
-                            transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
-                        elif transform_labels[i] == 2:  # Rotation
-                            transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
-                        elif transform_labels[i] == 3:  # Affine transformation
-                            transformed_images[i] = torch.flip(images[i], [2])
+                        # Randomly choose transformation type
+                        transform_type = np.random.choice(continuous_transform.transform_types)
+                        transform_type_idx = continuous_transform.transform_types.index(transform_type)
+                        
+                        # Apply transformation with fixed severity for validation
+                        transformed_img, _ = continuous_transform.apply_transforms(
+                            images[i], 
+                            transform_type=transform_type,
+                            severity=0.5,  # Fixed severity for validation
+                            return_params=True
+                        )
+                        
+                        transformed_images.append(transformed_img)
+                        transform_labels.append(transform_type_idx)
+                    
+                    transformed_images = torch.stack(transformed_images)
+                    transform_labels = torch.tensor(transform_labels, device=device)
                     
                     _, transform_logits = ttt_model(transformed_images)
                     loss = criterion(transform_logits, transform_labels)
@@ -500,6 +527,9 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
         optimizer = optim.AdamW(ttt3fc_model.parameters(), lr=0.0001)
         criterion = nn.CrossEntropyLoss()
         
+        # Create ContinuousTransforms for TTT3fc training
+        continuous_transform = ContinuousTransforms(severity=0.5)
+        
         best_val_loss = float('inf')
         epochs = 50
         patience = 5
@@ -514,17 +544,28 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                 images = images.to(device)
                 batch_size = images.size(0)
                 
-                # Create transformed images and labels
-                transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
-                transformed_images = images.clone()
+                # Apply continuous transformations
+                transformed_images = []
+                transform_labels = []
                 
                 for i in range(batch_size):
-                    if transform_labels[i] == 1:  # Gaussian noise
-                        transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
-                    elif transform_labels[i] == 2:  # Rotation
-                        transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
-                    elif transform_labels[i] == 3:  # Affine transformation
-                        transformed_images[i] = torch.flip(images[i], [2])
+                    # Randomly choose transformation type
+                    transform_type = np.random.choice(continuous_transform.transform_types)
+                    transform_type_idx = continuous_transform.transform_types.index(transform_type)
+                    
+                    # Apply transformation
+                    transformed_img, _ = continuous_transform.apply_transforms(
+                        images[i], 
+                        transform_type=transform_type,
+                        severity=np.random.uniform(0.0, 1.0),  # Random severity
+                        return_params=True
+                    )
+                    
+                    transformed_images.append(transformed_img)
+                    transform_labels.append(transform_type_idx)
+                
+                transformed_images = torch.stack(transformed_images)
+                transform_labels = torch.tensor(transform_labels, device=device)
                 
                 optimizer.zero_grad()
                 _, transform_logits = ttt3fc_model(transformed_images)
@@ -542,17 +583,28 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                     images = images.to(device)
                     batch_size = images.size(0)
                     
-                    # Create transformed images and labels for validation
-                    transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
-                    transformed_images = images.clone()
+                    # Apply continuous transformations for validation
+                    transformed_images = []
+                    transform_labels = []
                     
                     for i in range(batch_size):
-                        if transform_labels[i] == 1:  # Gaussian noise
-                            transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
-                        elif transform_labels[i] == 2:  # Rotation
-                            transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
-                        elif transform_labels[i] == 3:  # Affine transformation
-                            transformed_images[i] = torch.flip(images[i], [2])
+                        # Randomly choose transformation type
+                        transform_type = np.random.choice(continuous_transform.transform_types)
+                        transform_type_idx = continuous_transform.transform_types.index(transform_type)
+                        
+                        # Apply transformation with fixed severity for validation
+                        transformed_img, _ = continuous_transform.apply_transforms(
+                            images[i], 
+                            transform_type=transform_type,
+                            severity=0.5,  # Fixed severity for validation
+                            return_params=True
+                        )
+                        
+                        transformed_images.append(transformed_img)
+                        transform_labels.append(transform_type_idx)
+                    
+                    transformed_images = torch.stack(transformed_images)
+                    transform_labels = torch.tensor(transform_labels, device=device)
                     
                     _, transform_logits = ttt3fc_model(transformed_images)
                     loss = criterion(transform_logits, transform_labels)
@@ -645,6 +697,9 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
         aux_criterion = nn.CrossEntropyLoss()  # For transform type prediction
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=5, factor=0.5)
         
+        # Create ContinuousTransforms for BlendedTTT training
+        continuous_transform = ContinuousTransforms(severity=0.5)
+        
         best_val_acc = 0.0
         epochs = 50
         patience = 5
@@ -660,17 +715,28 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
                 images, labels = images.to(device), labels.to(device)
                 batch_size = images.size(0)
                 
-                # Create transformed images for auxiliary task
-                transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
-                transformed_images = images.clone()
+                # Apply continuous transformations
+                transformed_images = []
+                transform_labels_list = []
                 
                 for i in range(batch_size):
-                    if transform_labels[i] == 1:  # Gaussian noise
-                        transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
-                    elif transform_labels[i] == 2:  # Rotation
-                        transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
-                    elif transform_labels[i] == 3:  # Affine transformation
-                        transformed_images[i] = torch.flip(images[i], [2])
+                    # Randomly choose transformation type
+                    transform_type = np.random.choice(continuous_transform.transform_types)
+                    transform_type_idx = continuous_transform.transform_types.index(transform_type)
+                    
+                    # Apply transformation with random severity
+                    transformed_img, _ = continuous_transform.apply_transforms(
+                        images[i], 
+                        transform_type=transform_type,
+                        severity=np.random.uniform(0.0, 1.0),
+                        return_params=True
+                    )
+                    
+                    transformed_images.append(transformed_img)
+                    transform_labels_list.append(transform_type_idx)
+                
+                transformed_images = torch.stack(transformed_images)
+                transform_labels = torch.tensor(transform_labels_list, device=device)
                 
                 optimizer.zero_grad()
                 
@@ -755,6 +821,9 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
         aux_criterion = nn.CrossEntropyLoss()
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=5, factor=0.5)
         
+        # Create ContinuousTransforms for BlendedTTT3fc training
+        continuous_transform = ContinuousTransforms(severity=0.5)
+        
         best_val_acc = 0.0
         epochs = 50
         patience = 5
@@ -770,17 +839,28 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
                 images, labels = images.to(device), labels.to(device)
                 batch_size = images.size(0)
                 
-                # Create transformed images
-                transform_labels = torch.randint(0, 4, (batch_size,)).to(device)
-                transformed_images = images.clone()
+                # Apply continuous transformations
+                transformed_images = []
+                transform_labels_list = []
                 
                 for i in range(batch_size):
-                    if transform_labels[i] == 1:  # Gaussian noise
-                        transformed_images[i] = images[i] + torch.randn_like(images[i]) * 0.1
-                    elif transform_labels[i] == 2:  # Rotation
-                        transformed_images[i] = torch.rot90(images[i], 1, [1, 2])
-                    elif transform_labels[i] == 3:  # Affine transformation
-                        transformed_images[i] = torch.flip(images[i], [2])
+                    # Randomly choose transformation type
+                    transform_type = np.random.choice(continuous_transform.transform_types)
+                    transform_type_idx = continuous_transform.transform_types.index(transform_type)
+                    
+                    # Apply transformation with random severity
+                    transformed_img, _ = continuous_transform.apply_transforms(
+                        images[i], 
+                        transform_type=transform_type,
+                        severity=np.random.uniform(0.0, 1.0),
+                        return_params=True
+                    )
+                    
+                    transformed_images.append(transformed_img)
+                    transform_labels_list.append(transform_type_idx)
+                
+                transformed_images = torch.stack(transformed_images)
+                transform_labels = torch.tensor(transform_labels_list, device=device)
                 
                 optimizer.zero_grad()
                 
@@ -956,6 +1036,157 @@ def evaluate_all_models(val_loader):
         print(f"{medal} {name:<22} {acc:>10.4f}")
     
     return results
+
+
+def load_base_model_for_ttt(device):
+    """Load the base model for TTT/TTT3fc models"""
+    base_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_main/best_model.pt")
+    base_model = create_vit_model(
+        img_size=IMG_SIZE, patch_size=4, in_chans=3, num_classes=NUM_CLASSES,
+        embed_dim=384, depth=8, head_dim=64, mlp_ratio=4.0, use_resnet_stem=True
+    )
+    if os.path.exists(base_model_path):
+        checkpoint = torch.load(base_model_path, map_location=device)
+        base_model.load_state_dict(checkpoint['model_state_dict'])
+    return base_model.to(device)
+
+
+def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 1.0]):
+    """Evaluate all models with continuous transformations at different severities"""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    continuous_transform = ContinuousTransforms(severity=0.5)
+    
+    print("\n" + "="*80)
+    print("📊 EVALUATING MODELS WITH CONTINUOUS TRANSFORMATIONS")
+    print("="*80)
+    print(f"Severities to test: {severities}")
+    
+    # Model configurations
+    model_configs = [
+        ("Main ViT", "bestmodel_main", "vit"),
+        ("Robust ViT", "bestmodel_robust", "vit"),
+        ("ResNet18 Baseline", "bestmodel_resnet18_baseline", "resnet"),
+        ("ResNet18 Pretrained", "bestmodel_resnet18_pretrained", "resnet"),
+        ("TTT", "bestmodel_ttt", "ttt"),
+        ("BlendedTTT", "bestmodel_blended", "blended"),
+        ("TTT3fc", "bestmodel_ttt3fc", "ttt3fc"),
+        ("BlendedTTT3fc", "bestmodel_blended3fc", "blended3fc"),
+    ]
+    
+    all_results = {}
+    
+    for model_name, model_dir, model_type in model_configs:
+        model_path = os.path.join(CHECKPOINT_PATH, model_dir, "best_model.pt")
+        
+        if not os.path.exists(model_path):
+            print(f"⏭️  Skipping {model_name}: Model not found")
+            continue
+            
+        print(f"\n🔍 Evaluating {model_name}...")
+        
+        # Load model
+        if model_type == "vit":
+            model = create_vit_model(
+                img_size=IMG_SIZE, patch_size=4, in_chans=3, num_classes=NUM_CLASSES,
+                embed_dim=384, depth=8, head_dim=64, mlp_ratio=4.0, use_resnet_stem=True
+            )
+        elif model_type == "resnet":
+            if "pretrained" in model_dir:
+                import torchvision.models as models
+                model = models.resnet18(pretrained=False)
+                model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+                model.maxpool = nn.Identity()
+                model.fc = nn.Linear(model.fc.in_features, NUM_CLASSES)
+            else:
+                model = SimpleResNet18(num_classes=NUM_CLASSES)
+        elif model_type == "ttt":
+            base_model = load_base_model_for_ttt(device)
+            model = TestTimeTrainer(base_model, IMG_SIZE, 4, 384)
+        elif model_type == "ttt3fc":
+            base_model = load_base_model_for_ttt(device)
+            model = TestTimeTrainer3fc(base_model, IMG_SIZE, 4, 384)
+        elif model_type == "blended":
+            model = BlendedTTTCIFAR10(IMG_SIZE, 4, 384, 8, NUM_CLASSES)
+        elif model_type == "blended3fc":
+            model = BlendedTTT3fcCIFAR10(IMG_SIZE, 4, 384, 8, num_classes=NUM_CLASSES)
+        
+        checkpoint = torch.load(model_path, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model = model.to(device)
+        model.eval()
+        
+        model_results = {}
+        
+        # Evaluate at each severity
+        for severity in severities:
+            correct = 0
+            total = 0
+            
+            with torch.no_grad():
+                for images, labels in tqdm(val_loader, desc=f"Severity {severity}"):
+                    images, labels = images.to(device), labels.to(device)
+                    batch_size = images.size(0)
+                    
+                    if severity == 0.0:
+                        # Clean images
+                        transformed_images = images
+                    else:
+                        # Apply transformations
+                        transformed_images = []
+                        for i in range(batch_size):
+                            # Randomly choose transformation
+                            transform_type = np.random.choice(continuous_transform.transform_types[1:])  # Skip 'no_transform'
+                            transformed_img, _ = continuous_transform.apply_transforms(
+                                images[i],
+                                transform_type=transform_type,
+                                severity=severity,
+                                return_params=True
+                            )
+                            transformed_images.append(transformed_img)
+                        transformed_images = torch.stack(transformed_images)
+                    
+                    # Get predictions
+                    if model_type in ["ttt", "blended", "ttt3fc", "blended3fc"]:
+                        outputs, _ = model(transformed_images)
+                    else:
+                        outputs = model(transformed_images)
+                    
+                    _, predicted = torch.max(outputs, 1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+            
+            accuracy = correct / total
+            model_results[severity] = accuracy
+            print(f"  Severity {severity}: {accuracy:.4f}")
+        
+        all_results[model_name] = model_results
+    
+    # Print summary table
+    print("\n" + "="*100)
+    print("📊 TRANSFORMATION ROBUSTNESS SUMMARY")
+    print("="*100)
+    print(f"{'Model':<25}", end="")
+    for sev in severities:
+        print(f"{'Sev ' + str(sev):>10}", end="")
+    print(f"{'Avg Drop':>12}")
+    print("-" * 100)
+    
+    for model_name, results in all_results.items():
+        print(f"{model_name:<25}", end="")
+        for sev in severities:
+            if sev in results:
+                print(f"{results[sev]:>10.4f}", end="")
+            else:
+                print(f"{'--':>10}", end="")
+        # Calculate average drop from clean
+        if 0.0 in results and len(results) > 1:
+            clean_acc = results[0.0]
+            avg_drop = np.mean([clean_acc - acc for sev, acc in results.items() if sev > 0])
+            print(f"{avg_drop:>12.4f}")
+        else:
+            print(f"{'--':>12}")
+    
+    return all_results
 
 
 def create_performance_plots(results):
@@ -1151,6 +1382,80 @@ def retrain_vit_model(train_loader, val_loader, model_path, model_name="vit", ro
     return model
 
 
+def create_transformation_robustness_plots(transform_results):
+    """Create plots showing model robustness to transformations"""
+    save_dir = os.path.join(CHECKPOINT_PATH, "visualizations")
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # Extract severities from first model's results
+    if not transform_results:
+        return
+    
+    first_model_results = next(iter(transform_results.values()))
+    severities = sorted(list(first_model_results.keys()))
+    
+    plt.figure(figsize=(14, 8))
+    
+    # Plot lines for each model
+    for model_name, results in transform_results.items():
+        accuracies = [results.get(sev, 0) for sev in severities]
+        plt.plot(severities, accuracies, 'o-', linewidth=2, markersize=8, label=model_name)
+    
+    plt.xlabel('Transformation Severity', fontsize=14)
+    plt.ylabel('Accuracy', fontsize=14)
+    plt.title('Model Robustness to Continuous Transformations', fontsize=16)
+    plt.grid(True, alpha=0.3)
+    plt.legend(loc='best', fontsize=10)
+    plt.xlim(-0.05, max(severities) + 0.05)
+    plt.ylim(0, 1.05)
+    
+    # Add percentage labels
+    ax = plt.gca()
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{y*100:.0f}%'))
+    
+    plt.tight_layout()
+    plot_path = os.path.join(save_dir, 'transformation_robustness.png')
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    print(f"📊 Transformation robustness plot saved to: {plot_path}")
+    plt.close()
+    
+    # Create a heatmap of model performance across severities
+    plt.figure(figsize=(12, 8))
+    
+    model_names = list(transform_results.keys())
+    performance_matrix = []
+    
+    for model_name in model_names:
+        results = transform_results[model_name]
+        row = [results.get(sev, 0) for sev in severities]
+        performance_matrix.append(row)
+    
+    performance_matrix = np.array(performance_matrix)
+    
+    plt.imshow(performance_matrix, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
+    plt.colorbar(label='Accuracy')
+    
+    # Set ticks and labels
+    plt.xticks(range(len(severities)), [f'{s:.1f}' for s in severities])
+    plt.yticks(range(len(model_names)), model_names)
+    
+    plt.xlabel('Transformation Severity', fontsize=14)
+    plt.ylabel('Model', fontsize=14)
+    plt.title('Model Performance Heatmap Across Transformation Severities', fontsize=16)
+    
+    # Add text annotations
+    for i in range(len(model_names)):
+        for j in range(len(severities)):
+            text = plt.text(j, i, f'{performance_matrix[i, j]:.2f}',
+                           ha="center", va="center", color="black", fontsize=10)
+    
+    plt.tight_layout()
+    heatmap_path = os.path.join(save_dir, 'transformation_heatmap.png')
+    plt.savefig(heatmap_path, dpi=300, bbox_inches='tight')
+    print(f"📊 Transformation heatmap saved to: {heatmap_path}")
+    plt.close()
+
+
 def main():
     """Main training and evaluation pipeline for CIFAR-10"""
     parser = argparse.ArgumentParser(description="Train and evaluate all models on CIFAR-10")
@@ -1304,11 +1609,23 @@ def main():
     # Evaluation phase (skip if --skip_evaluation is set)
     if not args.skip_evaluation and (args.evaluate or args.train_all):
         print("\n=== EVALUATION PHASE ===")
+        
+        # First evaluate on clean data
+        print("\n📋 Part 1: Clean Data Evaluation")
         results = evaluate_all_models(val_loader)
+        
+        # Then evaluate with transformations
+        print("\n📋 Part 2: Transformation Robustness Evaluation")
+        transform_results = evaluate_models_with_transforms(
+            val_loader, 
+            severities=[0.0, 0.3, 0.5, 0.7, 1.0]
+        )
         
         if args.visualize or args.train_all:
             print("\n=== CREATING VISUALIZATIONS ===")
             create_performance_plots(results)
+            # Create transformation robustness plots
+            create_transformation_robustness_plots(transform_results)
     
     print("\n" + "="*80)
     print("✅ PIPELINE COMPLETED SUCCESSFULLY!")
