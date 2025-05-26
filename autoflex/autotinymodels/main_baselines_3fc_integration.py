@@ -734,7 +734,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
         baseline_model_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
         if not os.path.exists(baseline_model_path):
             print("\n🔧 Training Baseline ResNet18 Model...")
-            baseline_model = train_baseline_resnet18(dataset_path)
+            baseline_model = train_baseline_resnet18(dataset_path, model_dir=model_dir)
             models['baseline'] = baseline_model
         else:
             print("✅ Baseline ResNet18 model already exists")
@@ -760,7 +760,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     return models
 
 
-def train_baseline_resnet18(dataset_path):
+def train_baseline_resnet18(dataset_path, model_dir="./"):
     """Train a ResNet18 baseline model"""
     print("Training ResNet18 baseline model...")
     
@@ -774,6 +774,15 @@ def train_baseline_resnet18(dataset_path):
         epochs=50, 
         lr=0.001
     )
+    
+    # Save the trained model
+    save_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
+    os.makedirs(f"{model_dir}/bestmodel_resnet18_baseline", exist_ok=True)
+    torch.save({
+        'model_state_dict': trained_model.state_dict(),
+    }, save_path)
+    print(f"Saved baseline ResNet18 model to {save_path}")
+    
     return trained_model
 
 
