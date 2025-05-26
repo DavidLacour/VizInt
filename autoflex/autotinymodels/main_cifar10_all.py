@@ -611,7 +611,8 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
             base_model=base_model,
             img_size=IMG_SIZE,
             patch_size=4,
-            embed_dim=384
+            embed_dim=384,
+            num_classes=NUM_CLASSES
         ).to(device)
         
         # Training setup
@@ -1346,7 +1347,7 @@ def evaluate_all_models(val_loader):
                 img_size=IMG_SIZE, patch_size=4, in_chans=3, num_classes=NUM_CLASSES,
                 embed_dim=384, depth=8, head_dim=64, mlp_ratio=4.0, use_resnet_stem=True
             )
-            model = TestTimeTrainer3fc(base_model=base_model, img_size=IMG_SIZE, patch_size=4, embed_dim=384)
+            model = TestTimeTrainer3fc(base_model=base_model, img_size=IMG_SIZE, patch_size=4, embed_dim=384, num_classes=NUM_CLASSES)
             checkpoint = torch.load(model_path, map_location=device)
             model.load_state_dict(checkpoint['model_state_dict'])
         elif model_type == "blended3fc":
@@ -1475,7 +1476,7 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
             model = TestTimeTrainer(base_model, IMG_SIZE, 4, 384)
         elif model_type == "ttt3fc":
             base_model = load_base_model_for_ttt(device)
-            model = TestTimeTrainer3fc(base_model, IMG_SIZE, 4, 384)
+            model = TestTimeTrainer3fc(base_model, IMG_SIZE, 4, 384, num_classes=NUM_CLASSES)
         elif model_type == "blended":
             model = BlendedTTTCIFAR10(IMG_SIZE, 4, 384, 8, NUM_CLASSES)
         elif model_type == "blended3fc":
@@ -1506,16 +1507,11 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
                     batch_size = images.size(0)
                     
                     if severity == 0.0:
-                        # Clean images - normalize based on model type
-                        if model_type in ["ttt", "blended", "ttt3fc", "blended3fc"]:
-                            # TTT and Blended models expect normalized images
-                            transformed_images = []
-                            for i in range(batch_size):
-                                transformed_images.append(normalize(images[i]))
-                            transformed_images = torch.stack(transformed_images)
-                        else:
-                            # Other models already have normalized images
-                            transformed_images = images
+                        # Clean images - all models need normalization since we're using val_loader_no_norm
+                        transformed_images = []
+                        for i in range(batch_size):
+                            transformed_images.append(normalize(images[i]))
+                        transformed_images = torch.stack(transformed_images)
                     else:
                         # Apply transformations
                         transformed_images = []
@@ -1528,9 +1524,8 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
                                 severity=severity,
                                 return_params=True
                             )
-                            # Normalize after transformation for TTT and Blended models
-                            if model_type in ["ttt", "blended", "ttt3fc", "blended3fc"]:
-                                transformed_img = normalize(transformed_img)
+                            # Normalize after transformation for all models since we're using val_loader_no_norm
+                            transformed_img = normalize(transformed_img)
                             transformed_images.append(transformed_img)
                         transformed_images = torch.stack(transformed_images)
                     

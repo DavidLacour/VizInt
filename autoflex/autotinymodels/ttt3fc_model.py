@@ -64,7 +64,8 @@ class TestTimeTrainer3fc(nn.Module):
         hidden_dim=512,
         dropout_rate=0.1,
         adaptation_steps=10, 
-        adaptation_lr=1e-4
+        adaptation_lr=1e-4,
+        num_classes=200  # Default to 200 for Tiny ImageNet, but configurable
     ):
         super().__init__()
         self.base_model = base_model
@@ -107,7 +108,7 @@ class TestTimeTrainer3fc(nn.Module):
         self.norm = LayerNorm(embed_dim, bias=False)
         
         # 3-layer MLP for classification head (instead of using base model)
-        self.classification_head = MLP3Layer(embed_dim, hidden_dim, 200, dropout_rate)  # 200 classes for Tiny ImageNet
+        self.classification_head = MLP3Layer(embed_dim, hidden_dim, num_classes, dropout_rate)
         
         # 3-layer MLP for self-supervised task head
         # Predict the transformation type (no_transform, gaussian_noise, rotation, affine)
