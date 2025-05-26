@@ -340,7 +340,9 @@ class TransformationHealer(nn.Module):
                     pil_img = to_pil(img_cpu.squeeze(0))
                     
                     # Adjust blur size based on noise level
-                    blur_radius = min(2.0, noise_std * 4.0)
+                    blur_radius = max(1, int(min(2.0, noise_std * 4.0)))
+                    if blur_radius % 2 == 0:  # Ensure odd number for kernel size
+                        blur_radius += 1
                     denoised_img = transforms.functional.gaussian_blur(pil_img, blur_radius)
                     corrected_img = to_tensor(denoised_img).unsqueeze(0).to(device)
                     corrected_images[i] = corrected_img.squeeze(0)
