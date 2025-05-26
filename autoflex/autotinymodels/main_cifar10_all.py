@@ -1350,7 +1350,7 @@ def evaluate_all_models(val_loader):
             checkpoint = torch.load(model_path, map_location=device)
             model.load_state_dict(checkpoint['model_state_dict'])
         elif model_type == "blended3fc":
-            model = BlendedTTT3fc(img_size=IMG_SIZE, patch_size=4, embed_dim=384, depth=8, num_classes=NUM_CLASSES)
+            model = BlendedTTT3fcCIFAR10(img_size=IMG_SIZE, patch_size=4, embed_dim=384, depth=8, num_classes=NUM_CLASSES)
             checkpoint = torch.load(model_path, map_location=device)
             model.load_state_dict(checkpoint['model_state_dict'])
         elif model_type == "healer":
