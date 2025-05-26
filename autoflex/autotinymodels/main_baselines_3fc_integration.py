@@ -1171,7 +1171,7 @@ def main():
     # Basic arguments
     parser.add_argument("--dataset", type=str, default="../../../tiny-imagenet-200",
                       help="Path to the dataset")
-    parser.add_argument("--model_dir", type=str, default="../../newmodels",
+    parser.add_argument("--model_dir", type=str, default="../../newmodelsintc3999",
                       help="Directory containing model checkpoints")
     parser.add_argument("--visualize_dir", type=str, default="./visualizations",
                       help="Directory to save visualization plots")

@@ -36,7 +36,7 @@ from new_new import ContinuousTransforms
 
 # Dataset configuration
 DATASET_PATH = "../../cifar10"
-CHECKPOINT_PATH = "../../cifar10checkpoints"
+CHECKPOINT_PATH = "../../cifar10checkpoints999"
 NUM_CLASSES = 10  # CIFAR-10 has 10 classes
 IMG_SIZE = 32  # CIFAR-10 images are 32x32
 
