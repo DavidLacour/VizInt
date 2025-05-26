@@ -1486,7 +1486,6 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
         
         # Skip healer for classification evaluation
         if model_type == "healer":
-            print(f"   Skipping healer model (doesn't do classification)")
             continue
         
         model_results = {}
