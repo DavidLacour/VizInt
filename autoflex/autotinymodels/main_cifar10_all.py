@@ -1427,10 +1427,6 @@ def load_base_model_for_ttt(device):
 def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 1.0]):
     """Evaluate all models with continuous transformations at different severities"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    continuous_transform = ContinuousTransforms(severity=0.5)
-    
-    # Get normalization transform
-    normalize = get_cifar10_normalize()
     
     print("\n" + "="*80)
     print("📊 EVALUATING MODELS WITH CONTINUOUS TRANSFORMATIONS")
@@ -1505,39 +1501,63 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
             correct = 0
             total = 0
             
-            with torch.no_grad():
-                for images, labels in tqdm(val_loader, desc=f"Severity {severity}"):
-                    images, labels = images.to(device), labels.to(device)
-                    batch_size = images.size(0)
+            if severity == 0.0:
+                # Clean data - use regular val_dataset with normalization
+                transform_val = get_cifar10_transforms()[1]
+                val_dataset = datasets.CIFAR10(
+                    root=DATASET_PATH,
+                    train=False,
+                    transform=transform_val
+                )
+                severity_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4)
+            else:
+                # Transformed data - use dataset with ContinuousTransforms
+                transform_val = get_cifar10_transforms()[1]
+                continuous_transform = ContinuousTransforms(severity=severity)
+                
+                # Create a custom CIFAR10 dataset that works like TinyImageNetDataset
+                class CIFAR10WithOOD(datasets.CIFAR10):
+                    def __init__(self, root, train=False, transform=None, ood_transform=None):
+                        super().__init__(root, train=train, transform=None, download=False)
+                        self.transform_pipeline = transform
+                        self.ood_transform = ood_transform
                     
-                    if severity == 0.0:
-                        # Clean images - just normalize since we're using val_loader_no_norm
-                        transformed_images = []
-                        for i in range(batch_size):
-                            transformed_images.append(normalize(images[i]))
-                        transformed_images = torch.stack(transformed_images)
-                    else:
-                        # Apply transformations
-                        transformed_images = []
-                        for i in range(batch_size):
-                            # Randomly choose transformation
-                            transform_type = np.random.choice(continuous_transform.transform_types[1:])  # Skip 'no_transform'
-                            transformed_img, _ = continuous_transform.apply_transforms(
-                                images[i],
-                                transform_type=transform_type,
-                                severity=severity,
-                                return_params=True
-                            )
-                            # Normalize after transformation
-                            transformed_img = normalize(transformed_img)
-                            transformed_images.append(transformed_img)
-                        transformed_images = torch.stack(transformed_images)
+                    def __getitem__(self, idx):
+                        img, label = super().__getitem__(idx)
+                        
+                        # Convert PIL to tensor
+                        to_tensor = transforms.ToTensor()
+                        img_tensor = to_tensor(img)
+                        
+                        # Apply OOD transform
+                        transformed_tensor, _ = self.ood_transform.apply_transforms(
+                            img_tensor, return_params=True
+                        )
+                        
+                        # Apply normalization
+                        normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], 
+                                                       std=[0.2023, 0.1994, 0.2010])
+                        transformed_tensor = normalize(transformed_tensor)
+                        
+                        return transformed_tensor, label
+                
+                val_dataset = CIFAR10WithOOD(
+                    root=DATASET_PATH,
+                    train=False,
+                    transform=transform_val,
+                    ood_transform=continuous_transform
+                )
+                severity_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4)
+            
+            with torch.no_grad():
+                for images, labels in tqdm(severity_loader, desc=f"Severity {severity}"):
+                    images, labels = images.to(device), labels.to(device)
                     
                     # Get predictions
                     if model_type in ["ttt", "blended", "ttt3fc", "blended3fc"]:
-                        outputs, _ = model(transformed_images)
+                        outputs, _ = model(images)
                     else:
-                        outputs = model(transformed_images)
+                        outputs = model(images)
                     
                     _, predicted = torch.max(outputs, 1)
                     total += labels.size(0)
