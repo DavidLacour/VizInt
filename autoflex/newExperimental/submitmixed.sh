@@ -20,4 +20,4 @@ source ~/.bashrc
 conda activate nanofm
 export WANDB_ENTITY=david-lacour-epfl
 export WANDB_API_KEY=1d6641b737cd13fe32a9371dd3780308fee23512 
-python train_experimental.py --architecture mixed --data-root ../../../tiny-imagenet-200 --epochs 100 --batch-size 96
+python train_experimental.py --architecture mixed --data-root ../../../tiny-imagenet-200 --epochs 100 --batch-size 32

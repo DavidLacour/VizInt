@@ -19,6 +19,6 @@ python train_experimental_enhanced.py \
     --architecture mamba \
     --data-root ../tiny-imagenet-200 \
     --epochs 100 \
-    --batch-size 64 \
+    --batch-size 32 \
     --learning-rate 0.0005 \
     --save-dir ../../../experimentalmodels
