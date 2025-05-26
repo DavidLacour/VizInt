@@ -1035,7 +1035,7 @@ def main():
     parser = argparse.ArgumentParser(description="3FC Models Integration and Comprehensive Evaluation")
     
     # Basic arguments
-    parser.add_argument("--dataset", type=str, default="../../tiny-imagenet-200",
+    parser.add_argument("--dataset", type=str, default="../../../tiny-imagenet-200",
                       help="Path to the dataset")
     parser.add_argument("--model_dir", type=str, default="./",
                       help="Directory containing model checkpoints")
