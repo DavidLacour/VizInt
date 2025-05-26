@@ -307,8 +307,8 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
         ("Healer+Main_Robust", "main_robust", "healer", "Healer + Main ViT (robust)"),
         ("TTT+Main", "ttt", None, "TTT + Main ViT (not robust)"),
         ("TTT+Main_Robust", "ttt_robust", None, "TTT + Main ViT (robust)"),
-        ("BlendedTTT+Main", "blended", None, "BlendedTTT + Main ViT (not robust)"),
-        ("BlendedTTT+Main_Robust", "blended_robust", None, "BlendedTTT + Main ViT (robust)"),
+        ("BlendedTTT", "blended", None, "BlendedTTT (standalone)"),
+        ("BlendedTTT_Robust", "blended_robust", None, "BlendedTTT (robust compatible)"),
         
         # NEW 3FC combinations
         ("TTT3fc+Main", "ttt3fc", None, "TTT3fc + Main ViT (not robust)"),
