@@ -649,7 +649,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     main_model_path = f"{model_dir}/bestmodel_main/best_model.pt"
     if not os.path.exists(main_model_path):
         print("\n🔧 Training Main Classification Model...")
-        main_model = train_main_model(dataset_path)
+        main_model = train_main_model(dataset_path, model_dir=model_dir)
         models['main'] = main_model
     else:
         print("✅ Main model already exists")
@@ -669,7 +669,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     healer_model_path = f"{model_dir}/bestmodel_healer/best_model.pt"
     if not os.path.exists(healer_model_path):
         print("\n🔧 Training Transformation Healer Model...")
-        healer_model = train_healer_model(dataset_path, severity=0.5)
+        healer_model = train_healer_model(dataset_path, severity=0.5, model_dir=model_dir)
         models['healer'] = healer_model
     else:
         print("✅ Healer model already exists")
@@ -1048,7 +1048,7 @@ def main():
     # Basic arguments
     parser.add_argument("--dataset", type=str, default="../../../tiny-imagenet-200",
                       help="Path to the dataset")
-    parser.add_argument("--model_dir", type=str, default="./",
+    parser.add_argument("--model_dir", type=str, default="../../newmodels",
                       help="Directory containing model checkpoints")
     parser.add_argument("--visualize_dir", type=str, default="./visualizations",
                       help="Directory to save visualization plots")
