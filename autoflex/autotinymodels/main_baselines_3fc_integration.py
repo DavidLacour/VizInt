@@ -761,29 +761,122 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
 
 
 def train_baseline_resnet18(dataset_path, model_dir="./"):
-    """Train a ResNet18 baseline model"""
-    print("Training ResNet18 baseline model...")
+    """Train a ResNet18 baseline model with early stopping"""
+    print("Training ResNet18 baseline model with early stopping...")
     
-    # Import baseline training functions
-    from baseline_models import SimpleResNet18, train_baseline_model
+    # Import required modules
+    from baseline_models import SimpleResNet18
+    from torch.utils.data import DataLoader
+    from torchvision import transforms
+    from new_new import TinyImageNetDataset
+    import torch.optim as optim
+    from tqdm import tqdm
     
-    model = SimpleResNet18(num_classes=200)
-    trained_model = train_baseline_model(
-        model, dataset_path, 
-        model_name="resnet18_baseline", 
-        epochs=50, 
-        lr=0.001
-    )
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = SimpleResNet18(num_classes=200).to(device)
     
-    # Save the trained model
-    save_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
-    os.makedirs(f"{model_dir}/bestmodel_resnet18_baseline", exist_ok=True)
-    torch.save({
-        'model_state_dict': trained_model.state_dict(),
-    }, save_path)
-    print(f"Saved baseline ResNet18 model to {save_path}")
+    # Data transforms
+    transform_train = transforms.Compose([
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(degrees=10),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
     
-    return trained_model
+    transform_val = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    
+    # Datasets and loaders
+    train_dataset = TinyImageNetDataset(dataset_path, "train", transform_train)
+    val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
+    
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+    
+    # Training setup
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
+    
+    best_val_acc = 0.0
+    patience = 5
+    early_stop_counter = 0
+    epochs = 50
+    
+    for epoch in range(epochs):
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+        
+        for images, labels in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]"):
+            images, labels = images.to(device), labels.to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            
+            train_loss += loss.item()
+            _, predicted = torch.max(outputs, 1)
+            train_total += labels.size(0)
+            train_correct += (predicted == labels).sum().item()
+        
+        train_acc = train_correct / train_total
+        
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+        
+        with torch.no_grad():
+            for images, labels in tqdm(val_loader, desc=f"Epoch {epoch+1}/{epochs} [Val]"):
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                
+                val_loss += loss.item()
+                _, predicted = torch.max(outputs, 1)
+                val_total += labels.size(0)
+                val_correct += (predicted == labels).sum().item()
+        
+        val_acc = val_correct / val_total
+        
+        print(f"Epoch {epoch+1}/{epochs}:")
+        print(f"  Train Loss: {train_loss/len(train_loader):.4f}, Train Acc: {train_acc:.4f}")
+        print(f"  Val Loss: {val_loss/len(val_loader):.4f}, Val Acc: {val_acc:.4f}")
+        
+        # Save best model
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            early_stop_counter = 0
+            save_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
+            os.makedirs(f"{model_dir}/bestmodel_resnet18_baseline", exist_ok=True)
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'val_acc': val_acc,
+            }, save_path)
+            print(f"  ✅ New best baseline model saved with val_acc: {val_acc:.4f}")
+        else:
+            early_stop_counter += 1
+            
+            if early_stop_counter >= patience:
+                print(f"Early stopping triggered after {epoch+1} epochs")
+                break
+        
+        scheduler.step()
+        print()
+    
+    print(f"Baseline ResNet18 training completed. Best validation accuracy: {best_val_acc:.4f}")
+    return model
 
 
 def train_pretrained_resnet18(dataset_path, model_dir="./"):
@@ -864,8 +957,10 @@ def train_pretrained_resnet18(dataset_path, model_dir="./"):
     
     epochs = 30
     best_val_acc = 0.0
+    patience = 5
+    early_stop_counter = 0
     
-    print(f"Fine-tuning for {epochs} epochs...")
+    print(f"Fine-tuning for {epochs} epochs with early stopping (patience={patience})...")
     
     for epoch in range(epochs):
         # Training phase
@@ -924,6 +1019,13 @@ def train_pretrained_resnet18(dataset_path, model_dir="./"):
                 'val_acc': val_acc,
             }, f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt")
             print(f"  ✅ New best pretrained model saved with val_acc: {val_acc:.4f}")
+            early_stop_counter = 0
+        else:
+            early_stop_counter += 1
+            
+            if early_stop_counter >= patience:
+                print(f"Early stopping triggered after {epoch+1} epochs")
+                break
         
         scheduler.step()
         print()
