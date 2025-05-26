@@ -25,6 +25,7 @@ from baseline_models import SimpleResNet18
 from ttt_model import TestTimeTrainer, train_ttt_model
 from blended_ttt_cifar10 import BlendedTTTCIFAR10
 from blended_ttt3fc_cifar10 import BlendedTTT3fcCIFAR10
+from cifar10_healer_additions import TransformationHealerCIFAR10, HealerLossCIFAR10
 from blended_ttt_training import train_blended_ttt_model
 from ttt3fc_model import TestTimeTrainer3fc, train_ttt3fc_model
 from blended_ttt3fc_training import train_blended_ttt3fc_model
@@ -64,6 +65,27 @@ def get_cifar10_transforms():
     ])
     
     return transform_train, transform_val
+
+
+def get_cifar10_transforms_no_norm():
+    """Get CIFAR-10 transforms without normalization (for OOD training)"""
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+    ])
+    
+    transform_val = transforms.Compose([
+        transforms.ToTensor(),
+    ])
+    
+    return transform_train, transform_val
+
+
+def get_cifar10_normalize():
+    """Get CIFAR-10 normalization transform"""
+    return transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], 
+                              std=[0.2023, 0.1994, 0.2010])
 
 
 def load_cifar10_data():
@@ -108,6 +130,48 @@ def load_cifar10_data():
     return train_loader, val_loader
 
 
+def load_cifar10_data_no_norm():
+    """Load CIFAR-10 dataset without normalization (for OOD training)"""
+    transform_train, transform_val = get_cifar10_transforms_no_norm()
+    
+    # Download CIFAR-10 if not present
+    train_dataset = datasets.CIFAR10(
+        root=DATASET_PATH, 
+        train=True, 
+        download=True, 
+        transform=transform_train
+    )
+    
+    val_dataset = datasets.CIFAR10(
+        root=DATASET_PATH, 
+        train=False, 
+        download=True, 
+        transform=transform_val
+    )
+    
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=128, 
+        shuffle=True, 
+        num_workers=4,
+        pin_memory=True
+    )
+    
+    val_loader = DataLoader(
+        val_dataset, 
+        batch_size=128, 
+        shuffle=False, 
+        num_workers=4,
+        pin_memory=True
+    )
+    
+    print(f"✅ Loaded CIFAR-10 dataset (without normalization)")
+    print(f"   Training samples: {len(train_dataset)}")
+    print(f"   Validation samples: {len(val_dataset)}")
+    
+    return train_loader, val_loader
+
+
 def train_vit_model(train_loader, val_loader, model_name="vit", robust=False):
     """Train Vision Transformer model on CIFAR-10"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -129,6 +193,10 @@ def train_vit_model(train_loader, val_loader, model_name="vit", robust=False):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.05)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
+    
+    # Create ContinuousTransforms for robust training
+    if robust:
+        continuous_transform = ContinuousTransforms(severity=0.3)
     
     # Model save path
     save_dir = os.path.join(CHECKPOINT_PATH, f"bestmodel_{model_name}")
@@ -152,11 +220,27 @@ def train_vit_model(train_loader, val_loader, model_name="vit", robust=False):
         for images, labels in pbar:
             images, labels = images.to(device), labels.to(device)
             
-            # Apply augmentation if robust training
-            if robust and np.random.rand() > 0.5:
-                # Simple augmentation for robustness
-                noise = torch.randn_like(images) * 0.1
-                images = images + noise
+            # Apply continuous transformations if robust training
+            if robust:
+                batch_size = images.size(0)
+                transformed_images = []
+                
+                for i in range(batch_size):
+                    if np.random.rand() > 0.5:  # Apply transformations 50% of the time
+                        # Randomly choose transformation type
+                        transform_type = np.random.choice(continuous_transform.transform_types[1:])  # Skip 'no_transform'
+                        # Apply transformation with random severity
+                        transformed_img, _ = continuous_transform.apply_transforms(
+                            images[i], 
+                            transform_type=transform_type,
+                            severity=np.random.uniform(0.0, 0.5),  # Random severity up to 0.5
+                            return_params=True
+                        )
+                        transformed_images.append(transformed_img)
+                    else:
+                        transformed_images.append(images[i])
+                
+                images = torch.stack(transformed_images)
             
             optimizer.zero_grad()
             outputs = model(images)
@@ -407,6 +491,7 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
         
         # Create ContinuousTransforms for TTT training
         continuous_transform = ContinuousTransforms(severity=0.5)
+        normalize = get_cifar10_normalize()
         
         best_val_loss = float('inf')
         epochs = 50
@@ -421,7 +506,7 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                 images = images.to(device)
                 batch_size = images.size(0)
                 
-                # Apply continuous transformations
+                # Apply continuous transformations to unnormalized images
                 transformed_images = []
                 transform_labels = []
                 
@@ -430,13 +515,16 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                     transform_type = np.random.choice(continuous_transform.transform_types)
                     transform_type_idx = continuous_transform.transform_types.index(transform_type)
                     
-                    # Apply transformation
+                    # Apply transformation to unnormalized image
                     transformed_img, _ = continuous_transform.apply_transforms(
                         images[i], 
                         transform_type=transform_type,
                         severity=np.random.uniform(0.0, 1.0),  # Random severity
                         return_params=True
                     )
+                    
+                    # Normalize after transformation
+                    transformed_img = normalize(transformed_img)
                     
                     transformed_images.append(transformed_img)
                     transform_labels.append(transform_type_idx)
@@ -476,6 +564,9 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                             severity=0.5,  # Fixed severity for validation
                             return_params=True
                         )
+                        
+                        # Normalize after transformation
+                        transformed_img = normalize(transformed_img)
                         
                         transformed_images.append(transformed_img)
                         transform_labels.append(transform_type_idx)
@@ -529,6 +620,7 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
         
         # Create ContinuousTransforms for TTT3fc training
         continuous_transform = ContinuousTransforms(severity=0.5)
+        normalize = get_cifar10_normalize()
         
         best_val_loss = float('inf')
         epochs = 50
@@ -560,6 +652,9 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                         severity=np.random.uniform(0.0, 1.0),  # Random severity
                         return_params=True
                     )
+                    
+                    # Normalize after transformation
+                    transformed_img = normalize(transformed_img)
                     
                     transformed_images.append(transformed_img)
                     transform_labels.append(transform_type_idx)
@@ -599,6 +694,9 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                             severity=0.5,  # Fixed severity for validation
                             return_params=True
                         )
+                        
+                        # Normalize after transformation
+                        transformed_img = normalize(transformed_img)
                         
                         transformed_images.append(transformed_img)
                         transform_labels.append(transform_type_idx)
@@ -700,6 +798,9 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
         # Create ContinuousTransforms for BlendedTTT training
         continuous_transform = ContinuousTransforms(severity=0.5)
         
+        # Get normalization transform
+        normalize = get_cifar10_normalize()
+        
         best_val_acc = 0.0
         epochs = 50
         patience = 5
@@ -731,6 +832,9 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
                         severity=np.random.uniform(0.0, 1.0),
                         return_params=True
                     )
+                    
+                    # Normalize after transformation
+                    transformed_img = normalize(transformed_img)
                     
                     transformed_images.append(transformed_img)
                     transform_labels_list.append(transform_type_idx)
@@ -824,6 +928,9 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
         # Create ContinuousTransforms for BlendedTTT3fc training
         continuous_transform = ContinuousTransforms(severity=0.5)
         
+        # Get normalization transform
+        normalize = get_cifar10_normalize()
+        
         best_val_acc = 0.0
         epochs = 50
         patience = 5
@@ -855,6 +962,9 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
                         severity=np.random.uniform(0.0, 1.0),
                         return_params=True
                     )
+                    
+                    # Normalize after transformation
+                    transformed_img = normalize(transformed_img)
                     
                     transformed_images.append(transformed_img)
                     transform_labels_list.append(transform_type_idx)
@@ -923,6 +1033,252 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
     return blended_model, blended3fc_model
 
 
+def train_healer_model(train_loader, val_loader):
+    """Train Transformation Healer model on CIFAR-10 with ContinuousTransforms"""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Check if model already exists
+    healer_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_healer", "best_model.pt")
+    if os.path.exists(healer_model_path):
+        print(f"✓ Healer model already exists at {healer_model_path}, skipping training")
+        return None
+    
+    print("\n🚀 Training Healer model on CIFAR-10...")
+    
+    # Create healer model
+    healer_model = TransformationHealerCIFAR10(
+        img_size=IMG_SIZE,
+        patch_size=4,
+        in_chans=3,
+        embed_dim=384,
+        depth=6,
+        head_dim=64
+    ).to(device)
+    
+    save_dir_healer = os.path.join(CHECKPOINT_PATH, "bestmodel_healer")
+    os.makedirs(save_dir_healer, exist_ok=True)
+    
+    # Training setup
+    optimizer = optim.AdamW(healer_model.parameters(), lr=0.0005)
+    healer_loss_fn = HealerLossCIFAR10()
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.5)
+    
+    # Create ContinuousTransforms for healer training
+    continuous_transform = ContinuousTransforms(severity=0.5)
+    
+    # Get normalization transform
+    normalize = get_cifar10_normalize()
+    
+    best_val_loss = float('inf')
+    epochs = 50
+    patience = 5
+    epochs_no_improve = 0
+    
+    for epoch in range(epochs):
+        healer_model.train()
+        train_loss = 0.0
+        train_type_correct = 0
+        train_total = 0
+        
+        for images, _ in tqdm(train_loader, desc=f"Healer Epoch {epoch+1}/{epochs}"):
+            images = images.to(device)
+            batch_size = images.size(0)
+            
+            # Apply continuous transformations and store parameters
+            transformed_images = []
+            true_params = {
+                'transform_type': [],
+                'severity': [],
+                'rotation_angle': [],
+                'noise_std': [],
+                'affine_params': []
+            }
+            
+            for i in range(batch_size):
+                # Randomly choose transformation type
+                transform_type = np.random.choice(continuous_transform.transform_types)
+                transform_type_idx = continuous_transform.transform_types.index(transform_type)
+                
+                # Apply transformation with random severity
+                severity = np.random.uniform(0.0, 1.0)
+                transformed_img, params = continuous_transform.apply_transforms(
+                    images[i], 
+                    transform_type=transform_type,
+                    severity=severity,
+                    return_params=True
+                )
+                
+                # Normalize after transformation
+                transformed_img = normalize(transformed_img)
+                
+                transformed_images.append(transformed_img)
+                true_params['transform_type'].append(transform_type_idx)
+                true_params['severity'].append(severity)
+                
+                # Store specific parameters based on transform type
+                if transform_type == 'gaussian_noise':
+                    true_params['noise_std'].append(torch.tensor(params.get('std', 0.0)))
+                    true_params['rotation_angle'].append(torch.tensor(0.0))
+                    true_params['affine_params'].append(torch.zeros(4))
+                elif transform_type == 'rotation':
+                    true_params['rotation_angle'].append(torch.tensor(params.get('angle', 0.0)))
+                    true_params['noise_std'].append(torch.tensor(0.0))
+                    true_params['affine_params'].append(torch.zeros(4))
+                elif transform_type == 'affine':
+                    affine_p = torch.tensor([
+                        params.get('translate_x', 0.0),
+                        params.get('translate_y', 0.0),
+                        params.get('shear_x', 0.0),
+                        params.get('shear_y', 0.0)
+                    ])
+                    true_params['affine_params'].append(affine_p)
+                    true_params['rotation_angle'].append(torch.tensor(0.0))
+                    true_params['noise_std'].append(torch.tensor(0.0))
+                else:  # no_transform
+                    true_params['rotation_angle'].append(torch.tensor(0.0))
+                    true_params['noise_std'].append(torch.tensor(0.0))
+                    true_params['affine_params'].append(torch.zeros(4))
+            
+            # Convert to tensors
+            transformed_images = torch.stack(transformed_images)
+            true_params['transform_type'] = torch.tensor(true_params['transform_type'], device=device)
+            true_params['severity'] = torch.tensor(true_params['severity'], device=device, dtype=torch.float32)
+            true_params['rotation_angle'] = torch.stack(true_params['rotation_angle']).to(device)
+            true_params['noise_std'] = torch.stack(true_params['noise_std']).to(device)
+            true_params['affine_params'] = torch.stack(true_params['affine_params']).to(device)
+            
+            optimizer.zero_grad()
+            
+            # Forward pass
+            predictions = healer_model(transformed_images)
+            
+            # Calculate loss
+            loss, loss_dict = healer_loss_fn(predictions, true_params)
+            
+            loss.backward()
+            optimizer.step()
+            
+            train_loss += loss.item()
+            
+            # Calculate accuracy for transform type prediction
+            _, predicted_type = torch.max(predictions['transform_type_logits'], 1)
+            train_total += true_params['transform_type'].size(0)
+            train_type_correct += (predicted_type == true_params['transform_type']).sum().item()
+        
+        # Validation
+        healer_model.eval()
+        val_loss = 0.0
+        val_type_correct = 0
+        val_total = 0
+        
+        with torch.no_grad():
+            for images, _ in val_loader:
+                images = images.to(device)
+                batch_size = images.size(0)
+                
+                # Apply transformations for validation
+                transformed_images = []
+                true_params = {
+                    'transform_type': [],
+                    'severity': [],
+                    'rotation_angle': [],
+                    'noise_std': [],
+                    'affine_params': []
+                }
+                
+                for i in range(batch_size):
+                    transform_type = np.random.choice(continuous_transform.transform_types)
+                    transform_type_idx = continuous_transform.transform_types.index(transform_type)
+                    
+                    severity = 0.5  # Fixed severity for validation
+                    transformed_img, params = continuous_transform.apply_transforms(
+                        images[i], 
+                        transform_type=transform_type,
+                        severity=severity,
+                        return_params=True
+                    )
+                    
+                    # Normalize after transformation
+                    transformed_img = normalize(transformed_img)
+                    
+                    transformed_images.append(transformed_img)
+                    true_params['transform_type'].append(transform_type_idx)
+                    true_params['severity'].append(severity)
+                    
+                    # Store parameters (same logic as training)
+                    if transform_type == 'gaussian_noise':
+                        true_params['noise_std'].append(torch.tensor(params.get('std', 0.0)))
+                        true_params['rotation_angle'].append(torch.tensor(0.0))
+                        true_params['affine_params'].append(torch.zeros(4))
+                    elif transform_type == 'rotation':
+                        true_params['rotation_angle'].append(torch.tensor(params.get('angle', 0.0)))
+                        true_params['noise_std'].append(torch.tensor(0.0))
+                        true_params['affine_params'].append(torch.zeros(4))
+                    elif transform_type == 'affine':
+                        affine_p = torch.tensor([
+                            params.get('translate_x', 0.0),
+                            params.get('translate_y', 0.0),
+                            params.get('shear_x', 0.0),
+                            params.get('shear_y', 0.0)
+                        ])
+                        true_params['affine_params'].append(affine_p)
+                        true_params['rotation_angle'].append(torch.tensor(0.0))
+                        true_params['noise_std'].append(torch.tensor(0.0))
+                    else:
+                        true_params['rotation_angle'].append(torch.tensor(0.0))
+                        true_params['noise_std'].append(torch.tensor(0.0))
+                        true_params['affine_params'].append(torch.zeros(4))
+                
+                # Convert to tensors
+                transformed_images = torch.stack(transformed_images)
+                true_params['transform_type'] = torch.tensor(true_params['transform_type'], device=device)
+                true_params['severity'] = torch.tensor(true_params['severity'], device=device, dtype=torch.float32)
+                true_params['rotation_angle'] = torch.stack(true_params['rotation_angle']).to(device)
+                true_params['noise_std'] = torch.stack(true_params['noise_std']).to(device)
+                true_params['affine_params'] = torch.stack(true_params['affine_params']).to(device)
+                
+                predictions = healer_model(transformed_images)
+                loss, _ = healer_loss_fn(predictions, true_params)
+                val_loss += loss.item()
+                
+                # Calculate accuracy
+                _, predicted_type = torch.max(predictions['transform_type_logits'], 1)
+                val_total += true_params['transform_type'].size(0)
+                val_type_correct += (predicted_type == true_params['transform_type']).sum().item()
+        
+        val_loss /= len(val_loader)
+        train_type_acc = train_type_correct / train_total
+        val_type_acc = val_type_correct / val_total
+        
+        print(f"Healer Epoch {epoch+1}: Train Loss: {train_loss/len(train_loader):.4f}, "
+              f"Train Type Acc: {train_type_acc:.4f}, Val Loss: {val_loss:.4f}, "
+              f"Val Type Acc: {val_type_acc:.4f}")
+        
+        # Update learning rate scheduler
+        scheduler.step(val_loss)
+        
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            epochs_no_improve = 0
+            torch.save({
+                'model_state_dict': healer_model.state_dict(),
+                'val_loss': val_loss,
+                'val_type_acc': val_type_acc,
+            }, os.path.join(save_dir_healer, "best_model.pt"))
+            print(f"  ✅ New best model saved with val_loss: {val_loss:.4f}")
+        else:
+            epochs_no_improve += 1
+            print(f"  No improvement for {epochs_no_improve} epochs")
+            
+        # Early stopping
+        if epochs_no_improve >= patience:
+            print(f"  🛑 Early stopping triggered after {epoch+1} epochs")
+            print(f"  Best validation loss: {best_val_loss:.4f}")
+            break
+    
+    return healer_model
+
+
 def evaluate_all_models(val_loader):
     """Evaluate all trained models on CIFAR-10"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -942,6 +1298,7 @@ def evaluate_all_models(val_loader):
         ("BlendedTTT", "bestmodel_blended", "blended"),
         ("TTT3fc", "bestmodel_ttt3fc", "ttt3fc"),
         ("BlendedTTT3fc", "bestmodel_blended3fc", "blended3fc"),
+        ("Healer", "bestmodel_healer", "healer"),
     ]
     
     for model_name, model_dir, model_type in model_configs:
@@ -996,11 +1353,21 @@ def evaluate_all_models(val_loader):
             model = BlendedTTT3fc(img_size=IMG_SIZE, patch_size=4, embed_dim=384, depth=8, num_classes=NUM_CLASSES)
             checkpoint = torch.load(model_path, map_location=device)
             model.load_state_dict(checkpoint['model_state_dict'])
+        elif model_type == "healer":
+            model = TransformationHealerCIFAR10(IMG_SIZE, 4, 3, 384, 6, 64)
+            checkpoint = torch.load(model_path, map_location=device)
+            model.load_state_dict(checkpoint['model_state_dict'])
         
         model = model.to(device)
         model.eval()
         
         # Evaluate
+        if model_type == "healer":
+            # Healer is evaluated differently - it predicts transformation types
+            print(f"   Note: Healer model predicts transformation types, not classes.")
+            print(f"   See healer training logs for transformation prediction accuracy.")
+            continue
+        
         correct = 0
         total = 0
         
@@ -1056,6 +1423,9 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     continuous_transform = ContinuousTransforms(severity=0.5)
     
+    # Get normalization transform
+    normalize = get_cifar10_normalize()
+    
     print("\n" + "="*80)
     print("📊 EVALUATING MODELS WITH CONTINUOUS TRANSFORMATIONS")
     print("="*80)
@@ -1070,6 +1440,7 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
         ("TTT", "bestmodel_ttt", "ttt"),
         ("BlendedTTT", "bestmodel_blended", "blended"),
         ("TTT3fc", "bestmodel_ttt3fc", "ttt3fc"),
+        ("Healer", "bestmodel_healer", "healer"),
         ("BlendedTTT3fc", "bestmodel_blended3fc", "blended3fc"),
     ]
     
@@ -1109,11 +1480,18 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
             model = BlendedTTTCIFAR10(IMG_SIZE, 4, 384, 8, NUM_CLASSES)
         elif model_type == "blended3fc":
             model = BlendedTTT3fcCIFAR10(IMG_SIZE, 4, 384, 8, num_classes=NUM_CLASSES)
+        elif model_type == "healer":
+            model = TransformationHealerCIFAR10(IMG_SIZE, 4, 3, 384, 6, 64)
         
         checkpoint = torch.load(model_path, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
         model = model.to(device)
         model.eval()
+        
+        # Skip healer for classification evaluation
+        if model_type == "healer":
+            print(f"   Skipping healer model (doesn't do classification)")
+            continue
         
         model_results = {}
         
@@ -1128,8 +1506,16 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
                     batch_size = images.size(0)
                     
                     if severity == 0.0:
-                        # Clean images
-                        transformed_images = images
+                        # Clean images - normalize based on model type
+                        if model_type in ["ttt", "blended", "ttt3fc", "blended3fc"]:
+                            # TTT and Blended models expect normalized images
+                            transformed_images = []
+                            for i in range(batch_size):
+                                transformed_images.append(normalize(images[i]))
+                            transformed_images = torch.stack(transformed_images)
+                        else:
+                            # Other models already have normalized images
+                            transformed_images = images
                     else:
                         # Apply transformations
                         transformed_images = []
@@ -1142,6 +1528,9 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
                                 severity=severity,
                                 return_params=True
                             )
+                            # Normalize after transformation for TTT and Blended models
+                            if model_type in ["ttt", "blended", "ttt3fc", "blended3fc"]:
+                                transformed_img = normalize(transformed_img)
                             transformed_images.append(transformed_img)
                         transformed_images = torch.stack(transformed_images)
                     
@@ -1466,6 +1855,7 @@ def main():
     parser.add_argument("--train_baselines", action="store_true", help="Train ResNet baselines")
     parser.add_argument("--train_ttt", action="store_true", help="Train TTT models")
     parser.add_argument("--train_blended", action="store_true", help="Train Blended models")
+    parser.add_argument("--train_healer", action="store_true", help="Train Healer model")
     parser.add_argument("--train_all", action="store_true", help="Train all models")
     
     # Evaluation options
@@ -1484,7 +1874,7 @@ def main():
     
     # Default behavior: if no specific arguments are provided, train missing models and evaluate all
     if not any([args.train_main, args.train_robust, args.train_baselines, args.train_ttt, 
-                args.train_blended, args.train_all, args.evaluate, args.visualize,
+                args.train_blended, args.train_healer, args.train_all, args.evaluate, args.visualize,
                 args.skip_training, args.skip_evaluation]):
         print("No specific arguments provided. Using default behavior:")
         print("- Training missing models")
@@ -1501,6 +1891,8 @@ def main():
     
     # Load CIFAR-10 data
     train_loader, val_loader = load_cifar10_data()
+    # Load data without normalization for TTT and Blended models
+    train_loader_no_norm, val_loader_no_norm = load_cifar10_data_no_norm()
     
     print("\n" + "="*80)
     print("🚀 CIFAR-10 MODEL TRAINING AND EVALUATION PIPELINE")
@@ -1592,7 +1984,7 @@ def main():
             
         if not ttt_exists or not ttt3fc_exists:
             print("\n=== TRAINING TTT MODELS ===")
-            train_ttt_models(train_loader, val_loader)
+            train_ttt_models(train_loader_no_norm, val_loader_no_norm)
     
     if not args.retrain and not args.skip_training and (args.train_all or args.train_blended):
         blended_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_blended", "best_model.pt")
@@ -1604,7 +1996,16 @@ def main():
             print(f"  - Blended3fc: {blended3fc_model_path}")
         else:
             print("\n=== TRAINING BLENDED MODELS ===")
-            train_blended_models(train_loader, val_loader)
+            train_blended_models(train_loader_no_norm, val_loader_no_norm)
+    
+    if not args.retrain and not args.skip_training and (args.train_all or args.train_healer):
+        healer_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_healer", "best_model.pt")
+        
+        if os.path.exists(healer_model_path):
+            print(f"\n✓ Healer model already exists at {healer_model_path}")
+        else:
+            print("\n=== TRAINING HEALER MODEL ===")
+            train_healer_model(train_loader_no_norm, val_loader_no_norm)
     
     # Evaluation phase (skip if --skip_evaluation is set)
     if not args.skip_evaluation and (args.evaluate or args.train_all):
@@ -1617,7 +2018,7 @@ def main():
         # Then evaluate with transformations
         print("\n📋 Part 2: Transformation Robustness Evaluation")
         transform_results = evaluate_models_with_transforms(
-            val_loader, 
+            val_loader_no_norm, 
             severities=[0.0, 0.3, 0.5, 0.7, 1.0]
         )
         

@@ -1,145 +1,197 @@
 """
-Additional functions to add to main_cifar10_all.py for healer support and comprehensive evaluation
+CIFAR-10 Healer Model Implementation
 """
 
-def train_healer_model_cifar10(train_loader, val_loader):
-    """Train healer model for CIFAR-10"""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    print("\n" + "="*80)
-    print("🏥 TRAINING HEALER MODEL FOR CIFAR-10")
-    print("="*80)
-    
-    # Import healer model
-    from new_new import TransformationHealer
-    
-    # Create healer model
-    healer_model = TransformationHealer(
-        img_size=IMG_SIZE,
-        patch_size=4,
-        in_chans=3,
-        embed_dim=384,
-        depth=6,
-        head_dim=64
-    ).to(device)
-    
-    # Training parameters
-    optimizer = optim.AdamW(healer_model.parameters(), lr=0.001, weight_decay=0.05)
-    criterion = nn.MSELoss()  # For reconstruction
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
-    
-    # Training loop
-    epochs = 30
-    best_val_loss = float('inf')
-    
-    for epoch in range(epochs):
-        # Training phase
-        healer_model.train()
-        train_loss = 0.0
-        
-        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]")
-        for images, _ in pbar:
-            images = images.to(device)
-            
-            # Apply random transformations
-            batch_size = images.size(0)
-            transformed_images = []
-            
-            for i in range(batch_size):
-                img = images[i]
-                # Random transformation
-                if np.random.rand() > 0.5:
-                    # Add noise
-                    noise = torch.randn_like(img) * 0.1
-                    transformed_img = img + noise
-                else:
-                    # Random rotation
-                    angle = np.random.uniform(-15, 15)
-                    transformed_img = transforms.functional.rotate(img, angle)
-                transformed_images.append(transformed_img)
-            
-            transformed_images = torch.stack(transformed_images)
-            
-            optimizer.zero_grad()
-            
-            # Forward pass
-            healer_output = healer_model(transformed_images)
-            healed_images = healer_model.apply_correction(transformed_images, healer_output)
-            
-            # Loss: reconstruction loss
-            loss = criterion(healed_images, images)
-            
-            loss.backward()
-            optimizer.step()
-            
-            train_loss += loss.item()
-            pbar.set_postfix({'loss': f'{loss.item():.4f}'})
-        
-        # Validation phase
-        healer_model.eval()
-        val_loss = 0.0
-        
-        with torch.no_grad():
-            for images, _ in tqdm(val_loader, desc=f"Epoch {epoch+1}/{epochs} [Val]"):
-                images = images.to(device)
-                
-                # Apply transformations
-                batch_size = images.size(0)
-                transformed_images = []
-                
-                for i in range(batch_size):
-                    img = images[i]
-                    if np.random.rand() > 0.5:
-                        noise = torch.randn_like(img) * 0.1
-                        transformed_img = img + noise
-                    else:
-                        angle = np.random.uniform(-15, 15)
-                        transformed_img = transforms.functional.rotate(img, angle)
-                    transformed_images.append(transformed_img)
-                
-                transformed_images = torch.stack(transformed_images)
-                
-                healer_output = healer_model(transformed_images)
-                healed_images = healer_model.apply_correction(transformed_images, healer_output)
-                loss = criterion(healed_images, images)
-                val_loss += loss.item()
-        
-        avg_val_loss = val_loss / len(val_loader)
-        print(f"Epoch {epoch+1}: Train Loss: {train_loss/len(train_loader):.4f}, Val Loss: {avg_val_loss:.4f}")
-        
-        # Save best model
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            save_path = os.path.join(CHECKPOINT_PATH, "bestmodel_healer")
-            os.makedirs(save_path, exist_ok=True)
-            torch.save({
-                'model_state_dict': healer_model.state_dict(),
-                'val_loss': best_val_loss,
-                'epoch': epoch
-            }, os.path.join(save_path, "best_model.pt"))
-            print(f"💾 Saved best model with val loss: {best_val_loss:.4f}")
-        
-        scheduler.step()
-    
-    print(f"✅ Healer training completed. Best val loss: {best_val_loss:.4f}")
-    return healer_model
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+from transformer_utils import LayerNorm, TransformerTrunk
+from vit_implementation import PatchEmbed
 
 
-# Add to the main() function's training section:
-"""
-if not args.retrain and not args.skip_training and (args.train_all or args.train_healer):
-    healer_model_path = os.path.join(CHECKPOINT_PATH, "bestmodel_healer", "best_model.pt")
-    
-    if os.path.exists(healer_model_path):
-        print(f"\n✓ Healer model already exists at {healer_model_path}")
-    else:
-        print("\n=== TRAINING HEALER MODEL ===")
-        train_healer_model_cifar10(train_loader, val_loader)
-"""
+class TransformationHealerCIFAR10(nn.Module):
+    """Transformation Healer model adapted for CIFAR-10 (32x32 images)"""
+    def __init__(self, img_size=32, patch_size=4, in_chans=3, embed_dim=384, depth=6, head_dim=64):
+        super().__init__()
+        
+        # Use the same patch embedding as our ViT model
+        self.patch_embed = PatchEmbed(
+            img_size=img_size,
+            patch_size=patch_size,
+            in_chans=in_chans,
+            embed_dim=embed_dim,
+            use_resnet_stem=True
+        )
+        
+        # Transformer backbone
+        self.transformer = TransformerTrunk(
+            dim=embed_dim,
+            depth=depth,
+            head_dim=head_dim,
+            mlp_ratio=4.0,
+            use_bias=False
+        )
+        
+        # Heads for different transformation parameters
+        self.transform_type_head = nn.Linear(embed_dim, 4)  # 4 types: no_transform, gaussian_noise, rotation, affine
+        
+        # Severity heads for each transform type
+        self.severity_noise_head = nn.Linear(embed_dim, 1)   
+        self.severity_rotation_head = nn.Linear(embed_dim, 1)
+        self.severity_affine_head = nn.Linear(embed_dim, 1)
+        
+        # Specific parameter heads for each transform type
+        self.rotation_head = nn.Linear(embed_dim, 1)        # Rotation angle
+        self.noise_head = nn.Linear(embed_dim, 1)           # Noise std
+        self.affine_head = nn.Linear(embed_dim, 4)          # Affine params: translate_x, translate_y, shear_x, shear_y
+        
+        # Learnable cls token
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        nn.init.normal_(self.cls_token, std=0.02)
+        
+        # Learnable position embeddings
+        self.pos_embed = nn.Parameter(
+            torch.zeros(1, 1 + self.patch_embed.num_patches, embed_dim)
+        )
+        nn.init.normal_(self.pos_embed, std=0.02)
+        
+        self.norm = LayerNorm(embed_dim, bias=False)
+        
+    def forward(self, x):
+        B = x.shape[0]
+        
+        # Patch embedding
+        x = self.patch_embed(x)
+        
+        # Add cls token
+        cls_tokens = self.cls_token.expand(B, -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
+        
+        # Add position embeddings
+        x = x + self.pos_embed
+        
+        # Apply transformer
+        x = self.transformer(x)
+        
+        # Use cls token for predictions
+        x = self.norm(x)
+        cls_output = x[:, 0]
+        
+        # Predict transformation type
+        transform_type_logits = self.transform_type_head(cls_output)
+        
+        # Predict severity for each transform type
+        severity_noise = torch.sigmoid(self.severity_noise_head(cls_output))
+        severity_rotation = torch.sigmoid(self.severity_rotation_head(cls_output))
+        severity_affine = torch.sigmoid(self.severity_affine_head(cls_output))
+        
+        # Predict specific parameters
+        rotation_angle = self.rotation_head(cls_output)
+        noise_std = torch.sigmoid(self.noise_head(cls_output))
+        affine_params = torch.tanh(self.affine_head(cls_output))
+        
+        predictions = {
+            'transform_type_logits': transform_type_logits,
+            'severity_noise': severity_noise,
+            'severity_rotation': severity_rotation,
+            'severity_affine': severity_affine,
+            'rotation_angle': rotation_angle,
+            'noise_std': noise_std,
+            'affine_params': affine_params
+        }
+        
+        return predictions
 
-# Add --train_healer argument to argparse:
-"""
-parser.add_argument("--train_healer", action="store_true", help="Train Healer model")
-"""
 
-# Replace the evaluate_all_models function with the comprehensive version from evaluate_all_models_enhanced.py
+class HealerLossCIFAR10(nn.Module):
+    """Combined loss for training the CIFAR-10 healer model"""
+    def __init__(self):
+        super().__init__()
+        self.ce_loss = nn.CrossEntropyLoss()
+        self.mse_loss = nn.MSELoss()
+        
+    def forward(self, predictions, true_params):
+        """
+        Calculate combined loss for healer predictions
+        
+        Args:
+            predictions: Dict of model predictions
+            true_params: Dict of true transformation parameters
+        """
+        # Transform type classification loss
+        type_loss = self.ce_loss(
+            predictions['transform_type_logits'], 
+            true_params['transform_type']
+        )
+        
+        # Severity prediction losses
+        batch_size = predictions['severity_noise'].shape[0]
+        severity_losses = []
+        
+        for i in range(batch_size):
+            true_type = true_params['transform_type'][i].item()
+            
+            if true_type == 1:  # gaussian_noise
+                severity_losses.append(
+                    self.mse_loss(
+                        predictions['severity_noise'][i], 
+                        true_params['severity'][i].unsqueeze(0)
+                    )
+                )
+            elif true_type == 2:  # rotation
+                severity_losses.append(
+                    self.mse_loss(
+                        predictions['severity_rotation'][i], 
+                        true_params['severity'][i].unsqueeze(0)
+                    )
+                )
+            elif true_type == 3:  # affine
+                severity_losses.append(
+                    self.mse_loss(
+                        predictions['severity_affine'][i], 
+                        true_params['severity'][i].unsqueeze(0)
+                    )
+                )
+        
+        severity_loss = torch.stack(severity_losses).mean() if severity_losses else torch.tensor(0.0).to(predictions['severity_noise'].device)
+        
+        # Parameter prediction losses
+        param_losses = []
+        
+        for i in range(batch_size):
+            true_type = true_params['transform_type'][i].item()
+            
+            if true_type == 1 and 'noise_std' in true_params:  # gaussian_noise
+                param_losses.append(
+                    self.mse_loss(
+                        predictions['noise_std'][i], 
+                        true_params['noise_std'][i].unsqueeze(0)
+                    )
+                )
+            elif true_type == 2 and 'rotation_angle' in true_params:  # rotation
+                param_losses.append(
+                    self.mse_loss(
+                        predictions['rotation_angle'][i], 
+                        true_params['rotation_angle'][i].unsqueeze(0)
+                    )
+                )
+            elif true_type == 3 and 'affine_params' in true_params:  # affine
+                param_losses.append(
+                    self.mse_loss(
+                        predictions['affine_params'][i], 
+                        true_params['affine_params'][i]
+                    )
+                )
+        
+        param_loss = torch.stack(param_losses).mean() if param_losses else torch.tensor(0.0).to(predictions['severity_noise'].device)
+        
+        # Combine losses
+        total_loss = type_loss + 0.5 * severity_loss + 0.5 * param_loss
+        
+        return total_loss, {
+            'type_loss': type_loss.item(),
+            'severity_loss': severity_loss.item() if isinstance(severity_loss, torch.Tensor) else 0.0,
+            'param_loss': param_loss.item() if isinstance(param_loss, torch.Tensor) else 0.0,
+            'total_loss': total_loss.item()
+        }
