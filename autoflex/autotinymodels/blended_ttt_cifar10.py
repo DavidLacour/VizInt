@@ -10,6 +10,14 @@ from transformer_utils import LayerNorm, TransformerTrunk
 
 
 class BlendedTTTCIFAR10(nn.Module):
+    """
+    BlendedTTT models are standalone models that use transformation predictions 
+    internally to get better feature maps. They don't do test time adaptation.
+    
+    This CIFAR-10 variant is optimized for 32x32 images with 10 classes.
+    The model predicts transformation parameters and uses these predictions to
+    enhance feature representations during both training and inference.
+    """
     def __init__(self, img_size=32, patch_size=4, embed_dim=384, depth=8, num_classes=10):
         super().__init__()
         

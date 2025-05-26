@@ -29,7 +29,15 @@ class MLP3Layer(nn.Module):
 
 class BlendedTTT3fcCIFAR10(nn.Module):
     """
-    BlendedTTT model with 3 fully connected layers for CIFAR-10
+    BlendedTTT3fc models are standalone models that use transformation predictions 
+    internally to get better feature maps. They don't do test time adaptation.
+    
+    This CIFAR-10 variant is optimized for 32x32 images with 10 classes and
+    includes 3 fully connected layers before classification and transform predictions,
+    providing additional capacity for feature refinement.
+    
+    The model predicts transformation parameters and uses these predictions to
+    enhance feature representations during both training and inference.
     """
     def __init__(self, img_size=32, patch_size=4, embed_dim=384, depth=8, 
                  hidden_dim=512, dropout_rate=0.1, num_classes=10):

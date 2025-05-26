@@ -70,7 +70,14 @@ class MLP3Layer(nn.Module):
 
 class BlendedTTT3fc(nn.Module):
     """
-    BlendedTTT model with 3 fully connected layers before classification and transform predictions
+    BlendedTTT3fc models are standalone models that use transformation predictions 
+    internally to get better feature maps. They don't do test time adaptation.
+    
+    This variant includes 3 fully connected layers before classification and 
+    transform predictions, providing additional capacity for feature refinement.
+    
+    The model predicts transformation parameters and uses these predictions to
+    enhance feature representations during both training and inference.
     """
     def __init__(self, img_size=64, patch_size=8, embed_dim=384, depth=8, hidden_dim=512, dropout_rate=0.1):
         super().__init__()

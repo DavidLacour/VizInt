@@ -51,6 +51,13 @@ MAX_SHEAR_ANGLE = 15.0
 DEBUG = False 
 
 class BlendedTTT(nn.Module):
+    """
+    BlendedTTT models are standalone models that use transformation predictions 
+    internally to get better feature maps. They don't do test time adaptation.
+    
+    The model predicts transformation parameters and uses these predictions to
+    enhance feature representations during both training and inference.
+    """
     def __init__(self, img_size=64, patch_size=8, embed_dim=384,depth=8):
         super().__init__()
         
