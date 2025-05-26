@@ -33,6 +33,11 @@ from ttt3fc_blended3fc_evaluation import (
 from vit_implementation import create_vit_model
 from transformer_utils import set_seed
 
+# Set batch size based on LOCALHERE.TXT existence
+LOCALHERE_PATH = os.path.join(os.path.dirname(__file__), "../../../LOCALHERE.TXT")
+BATCH_SIZE = 128 if os.path.exists(LOCALHERE_PATH) else 250
+print(f"Using batch size: {BATCH_SIZE} (LOCALHERE.TXT {'exists' if os.path.exists(LOCALHERE_PATH) else 'does not exist'})")
+
 
 class IdentityHealer(nn.Module):
     """Dummy healer that does nothing - for baseline comparison"""
@@ -359,7 +364,7 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
         if severity == 0.0:
             # Clean data evaluation
             val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
-            val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4)
+            val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
             
             correct = 0
             total = 0
@@ -406,7 +411,7 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
                 orig_imgs, trans_imgs, labels, params = zip(*batch)
                 return torch.stack(orig_imgs), torch.stack(trans_imgs), torch.tensor(labels), params
             
-            ood_val_loader = DataLoader(ood_val_dataset, batch_size=128, shuffle=False, num_workers=4, collate_fn=collate_fn)
+            ood_val_loader = DataLoader(ood_val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=collate_fn)
             
             correct = 0
             total = 0
@@ -825,8 +830,8 @@ def train_pretrained_resnet18(dataset_path):
     train_dataset = TinyImageNetDataset(dataset_path, "train", transform_train)
     val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
     
-    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
     
     # Fine-tuning setup
     criterion = nn.CrossEntropyLoss()
