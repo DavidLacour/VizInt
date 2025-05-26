@@ -1,0 +1,15 @@
+{"time":"2025-05-25T20:32:26.826262084+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250525_203226-ksu68smz/logs/debug-core.log"}
+{"time":"2025-05-25T20:32:28.974478986+02:00","level":"INFO","msg":"created new stream","id":"ksu68smz"}
+{"time":"2025-05-25T20:32:28.974546187+02:00","level":"INFO","msg":"stream: started","id":"ksu68smz"}
+{"time":"2025-05-25T20:32:28.975138619+02:00","level":"INFO","msg":"sender: started","stream_id":"ksu68smz"}
+{"time":"2025-05-25T20:32:28.975180313+02:00","level":"INFO","msg":"handler: started","stream_id":"ksu68smz"}
+{"time":"2025-05-25T20:32:28.975253373+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"ksu68smz"}
+{"time":"2025-05-25T20:32:29.329834563+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-25T20:32:30.791618799+02:00","level":"INFO","msg":"stream: closing","id":"ksu68smz"}
+{"time":"2025-05-25T20:32:30.791646076+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-25T20:32:30.791701896+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-25T20:32:32.227016271+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-25T20:32:32.432267963+02:00","level":"INFO","msg":"handler: closed","stream_id":"ksu68smz"}
+{"time":"2025-05-25T20:32:32.43234101+02:00","level":"INFO","msg":"sender: closed","stream_id":"ksu68smz"}
+{"time":"2025-05-25T20:32:32.432329803+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"ksu68smz"}
+{"time":"2025-05-25T20:32:32.432483348+02:00","level":"INFO","msg":"stream: closed","id":"ksu68smz"}

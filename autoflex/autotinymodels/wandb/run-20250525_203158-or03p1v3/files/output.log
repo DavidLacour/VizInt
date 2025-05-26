@@ -1,0 +1,34 @@
+usage: main_baselines_3fc.py [-h] [--mode {train,evaluate,visualize,all}]
+                             [--dataset DATASET] [--model_dir MODEL_DIR]
+                             [--severity SEVERITY] [--num_samples NUM_SAMPLES]
+                             [--seed SEED] [--exclude_blended3fc]
+                             [--exclude_ttt3fc] [--skip_ttt3fc]
+                             [--severities SEVERITIES] [--compare_baseline]
+                             [--compare_original] [--retrain]
+
+Complete 3FC model training and evaluation pipeline
+
+options:
+  -h, --help            show this help message and exit
+  --mode {train,evaluate,visualize,all}
+                        Mode to run: train only, evaluate only, visualize
+                        only, or all
+  --dataset DATASET     Path to Tiny ImageNet dataset
+  --model_dir MODEL_DIR
+                        Directory to save/load models
+  --severity SEVERITY   Severity of transformations for training/visualization
+  --num_samples NUM_SAMPLES
+                        Number of samples to visualize
+  --seed SEED           Random seed for reproducibility
+  --exclude_blended3fc  Whether to exclude BlendedTTT3fc model from the
+                        pipeline
+  --exclude_ttt3fc      Whether to exclude TTT3fc model from the pipeline
+  --skip_ttt3fc         Skip training TTT3fc model (but still use it for
+                        evaluation if available)
+  --severities SEVERITIES
+                        Comma-separated list of transformation severities to
+                        evaluate
+  --compare_baseline    Include baseline comparison in evaluation
+  --compare_original    Compare 3FC models with original TTT/BlendedTTT models
+  --retrain             Reload existing models and retrain with validation
+                        early stopping

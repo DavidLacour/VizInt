@@ -1,0 +1,16 @@
+{"time":"2025-05-25T21:32:16.696393449+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250525_213216-gzjyhhad/logs/debug-core.log"}
+{"time":"2025-05-25T21:32:18.936061578+02:00","level":"INFO","msg":"created new stream","id":"gzjyhhad"}
+{"time":"2025-05-25T21:32:18.936100518+02:00","level":"INFO","msg":"stream: started","id":"gzjyhhad"}
+{"time":"2025-05-25T21:32:18.936164774+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"gzjyhhad"}
+{"time":"2025-05-25T21:32:18.936220741+02:00","level":"INFO","msg":"handler: started","stream_id":"gzjyhhad"}
+{"time":"2025-05-25T21:32:18.936365978+02:00","level":"INFO","msg":"sender: started","stream_id":"gzjyhhad"}
+{"time":"2025-05-25T21:32:18.937620309+02:00","level":"INFO","msg":"stream: closing","id":"gzjyhhad"}
+{"time":"2025-05-25T21:32:19.959714857+02:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-05-25T21:32:19.959806811+02:00","level":"ERROR","msg":"runfiles: CreateRunFiles returned error: returned error 404: {\"data\":{\"createRunFiles\":null},\"errors\":[{\"message\":\"project /vit-tiny-imagenet-ood not found during createRunFiles\",\"path\":[\"createRunFiles\"]}]}"}
+{"time":"2025-05-25T21:32:20.266680008+02:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-05-25T21:32:20.266855803+02:00","level":"ERROR","msg":"runfiles: CreateRunFiles returned error: returned error 404: {\"data\":{\"createRunFiles\":null},\"errors\":[{\"message\":\"project /vit-tiny-imagenet-ood not found during createRunFiles\",\"path\":[\"createRunFiles\"]}]}"}
+{"time":"2025-05-25T21:32:20.266910978+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-25T21:32:20.26699513+02:00","level":"INFO","msg":"handler: closed","stream_id":"gzjyhhad"}
+{"time":"2025-05-25T21:32:20.267049248+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"gzjyhhad"}
+{"time":"2025-05-25T21:32:20.267058693+02:00","level":"INFO","msg":"sender: closed","stream_id":"gzjyhhad"}
+{"time":"2025-05-25T21:32:20.267118743+02:00","level":"INFO","msg":"stream: closed","id":"gzjyhhad"}

@@ -1,0 +1,10 @@
+{"time":"2025-05-25T21:00:41.140191668+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250525_210041-ysdu8l84/logs/debug-core.log"}
+{"time":"2025-05-25T21:00:42.96497703+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/graphql\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-25T21:00:45.180171618+02:00","level":"INFO","msg":"created new stream","id":"ysdu8l84"}
+{"time":"2025-05-25T21:00:45.180205281+02:00","level":"INFO","msg":"stream: started","id":"ysdu8l84"}
+{"time":"2025-05-25T21:00:45.180219548+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"ysdu8l84"}
+{"time":"2025-05-25T21:00:45.180289389+02:00","level":"INFO","msg":"sender: started","stream_id":"ysdu8l84"}
+{"time":"2025-05-25T21:00:45.18031761+02:00","level":"INFO","msg":"handler: started","stream_id":"ysdu8l84"}
+{"time":"2025-05-25T21:00:45.427535497+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-25T21:02:30.919743302+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/ysdu8l84/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-25T21:04:15.918984468+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/ysdu8l84/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}

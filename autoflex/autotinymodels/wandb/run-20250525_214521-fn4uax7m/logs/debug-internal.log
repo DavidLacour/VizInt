@@ -1,0 +1,17 @@
+{"time":"2025-05-25T21:45:21.629759345+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250525_214521-fn4uax7m/logs/debug-core.log"}
+{"time":"2025-05-25T21:45:30.980417893+02:00","level":"INFO","msg":"created new stream","id":"fn4uax7m"}
+{"time":"2025-05-25T21:45:30.980438297+02:00","level":"INFO","msg":"stream: started","id":"fn4uax7m"}
+{"time":"2025-05-25T21:45:30.980446722+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"fn4uax7m"}
+{"time":"2025-05-25T21:45:30.980539783+02:00","level":"INFO","msg":"handler: started","stream_id":"fn4uax7m"}
+{"time":"2025-05-25T21:45:30.980562789+02:00","level":"INFO","msg":"sender: started","stream_id":"fn4uax7m"}
+{"time":"2025-05-25T21:45:32.867503783+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-25T21:46:23.217527694+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/fn4uax7m/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-25T21:46:25.615650393+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/fn4uax7m/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-25T21:46:34.156680372+02:00","level":"INFO","msg":"stream: closing","id":"fn4uax7m"}
+{"time":"2025-05-25T21:46:34.156713899+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-25T21:46:34.156771892+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-25T21:46:34.8691062+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-25T21:46:35.47443545+02:00","level":"INFO","msg":"handler: closed","stream_id":"fn4uax7m"}
+{"time":"2025-05-25T21:46:35.474469484+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"fn4uax7m"}
+{"time":"2025-05-25T21:46:35.474474845+02:00","level":"INFO","msg":"sender: closed","stream_id":"fn4uax7m"}
+{"time":"2025-05-25T21:46:35.474501236+02:00","level":"INFO","msg":"stream: closed","id":"fn4uax7m"}

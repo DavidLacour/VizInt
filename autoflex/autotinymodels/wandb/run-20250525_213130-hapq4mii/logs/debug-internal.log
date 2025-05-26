@@ -1,0 +1,15 @@
+{"time":"2025-05-25T21:31:30.910607747+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250525_213130-hapq4mii/logs/debug-core.log"}
+{"time":"2025-05-25T21:31:33.004211658+02:00","level":"INFO","msg":"created new stream","id":"hapq4mii"}
+{"time":"2025-05-25T21:31:33.004243073+02:00","level":"INFO","msg":"stream: started","id":"hapq4mii"}
+{"time":"2025-05-25T21:31:33.004296491+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"hapq4mii"}
+{"time":"2025-05-25T21:31:33.004344297+02:00","level":"INFO","msg":"sender: started","stream_id":"hapq4mii"}
+{"time":"2025-05-25T21:31:33.004402647+02:00","level":"INFO","msg":"handler: started","stream_id":"hapq4mii"}
+{"time":"2025-05-25T21:31:33.270733767+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-25T21:31:33.444720664+02:00","level":"INFO","msg":"stream: closing","id":"hapq4mii"}
+{"time":"2025-05-25T21:31:33.444761964+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-25T21:31:33.444837968+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-25T21:31:34.618068477+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-25T21:31:34.860642895+02:00","level":"INFO","msg":"handler: closed","stream_id":"hapq4mii"}
+{"time":"2025-05-25T21:31:34.860681696+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"hapq4mii"}
+{"time":"2025-05-25T21:31:34.860719146+02:00","level":"INFO","msg":"sender: closed","stream_id":"hapq4mii"}
+{"time":"2025-05-25T21:31:34.860726264+02:00","level":"INFO","msg":"stream: closed","id":"hapq4mii"}

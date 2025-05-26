@@ -1,0 +1,32 @@
+No specific arguments provided. Using default behavior:
+- Training missing models
+- Evaluating all existing models
+✅ Created checkpoint directory: ../../cifar10checkpoints
+✅ Loaded CIFAR-10 dataset
+   Training samples: 50000
+   Validation samples: 10000
+
+================================================================================
+🚀 CIFAR-10 MODEL TRAINING AND EVALUATION PIPELINE
+================================================================================
+📁 Dataset: ../../cifar10
+📁 Checkpoints: ../../cifar10checkpoints
+🎯 Device: cuda
+
+=== TRAINING MAIN VIT MODEL ===
+
+🚀 Training main ViT model on CIFAR-10...
+Epoch 1/100 [Train]: 100%|██████████████████████████████████████████████████████████| 391/391 [01:04<00:00,  6.04it/s, loss=1.8348, acc=0.2435]
+Epoch 1/100 [Val]: 100%|███████████████████████████████████████████████████████████████████████████████████████| 79/79 [00:04<00:00, 18.60it/s]
+Epoch 1: Train Loss: 2.0918, Train Acc: 0.2435, Val Loss: 1.6545, Val Acc: 0.3803
+  ✅ New best model saved with val_acc: 0.3803
+Epoch 2/100 [Train]:  68%|███████████████████████████████████████▍                  | 266/391 [00:45<00:21,  5.90it/s, loss=1.5342, acc=0.3823]
+Traceback (most recent call last):
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 867, in <module>
+    main()
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 800, in main
+    train_vit_model(train_loader, val_loader, model_name="main", robust=False)
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 162, in train_vit_model
+    train_loss += loss.item()
+                  ^^^^^^^^^^^
+KeyboardInterrupt

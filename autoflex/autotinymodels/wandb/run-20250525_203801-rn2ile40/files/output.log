@@ -1,0 +1,23 @@
+usage: main_cifar10_all.py [-h] [--train_main] [--train_robust]
+                           [--train_baselines] [--train_ttt] [--train_blended]
+                           [--train_all] [--evaluate] [--visualize]
+                           [--skip_training] [--skip_evaluation] [--retrain]
+                           [--seed SEED]
+
+Train and evaluate all models on CIFAR-10
+
+options:
+  -h, --help         show this help message and exit
+  --train_main       Train main ViT model
+  --train_robust     Train robust ViT model
+  --train_baselines  Train ResNet baselines
+  --train_ttt        Train TTT models
+  --train_blended    Train Blended models
+  --train_all        Train all models
+  --evaluate         Evaluate all trained models
+  --visualize        Create visualization plots
+  --skip_training    Skip training phase
+  --skip_evaluation  Skip evaluation phase
+  --retrain          Reload existing models and retrain with validation early
+                     stopping
+  --seed SEED        Random seed

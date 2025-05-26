@@ -1,0 +1,20 @@
+Using device: cuda
+
+=== Checking for existing models (mode: evaluate) ===
+✓ Main model found at ../../../currentmodels/bestmodel_main/best_model.pt
+Loading main model from ../../../currentmodels/bestmodel_main/best_model.pt
+✓ Robust model found at ../../../currentmodels/bestmodel_robust/best_model.pt
+Loading main model from ../../../currentmodels/bestmodel_robust/best_model.pt
+✓ Healer model found at ../../../currentmodels/bestmodel_healer/best_model.pt
+Loading healer model from ../../../currentmodels/bestmodel_healer/best_model.pt
+✓ TTT model found at ../../../currentmodels/bestmodel_ttt/best_model.pt
+Loading TTT model from ../../../currentmodels/bestmodel_ttt/best_model.pt
+✓ BlendedTTT model found at ../../../currentmodels/bestmodel_blended/best_model.pt
+Loading BlendedTTT model from ../../../currentmodels/bestmodel_blended/best_model.pt
+Traceback (most recent call last):
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_baselines.py", line 2061, in <module>
+    main()
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_baselines.py", line 1727, in main
+    elif os.path.exists(pretrained_model_path):
+                        ^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'pretrained_model_path' is not defined. Did you mean: 'blended_model_path'?

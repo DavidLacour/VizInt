@@ -1,0 +1,50 @@
+✅ Created checkpoint directory: ../../cifar10checkpoints
+✅ Loaded CIFAR-10 dataset
+   Training samples: 50000
+   Validation samples: 10000
+
+================================================================================
+🚀 CIFAR-10 MODEL TRAINING AND EVALUATION PIPELINE
+================================================================================
+📁 Dataset: ../../cifar10
+📁 Checkpoints: ../../cifar10checkpoints
+🎯 Device: cuda
+
+✓ Main ViT model already exists at ../../cifar10checkpoints/bestmodel_main/best_model.pt
+
+✓ Robust ViT model already exists at ../../cifar10checkpoints/bestmodel_robust/best_model.pt
+
+✓ ResNet baseline already exists at ../../cifar10checkpoints/bestmodel_resnet18_baseline/best_model.pt
+
+✓ Pretrained ResNet baseline already exists at ../../cifar10checkpoints/bestmodel_resnet18_pretrained/best_model.pt
+
+=== TRAINING TTT MODELS ===
+✅ Loaded base model for TTT training
+
+🚀 Training TTT model on CIFAR-10...
+TTT Epoch 1/50: 100%|█████████████████████████| 391/391 [00:59<00:00,  6.53it/s]
+TTT Epoch 1: Train Loss: 1.3077, Val Loss: 1.2023
+TTT Epoch 2/50: 100%|█████████████████████████| 391/391 [01:00<00:00,  6.45it/s]
+TTT Epoch 2: Train Loss: 0.8765, Val Loss: 0.8057
+TTT Epoch 3/50: 100%|█████████████████████████| 391/391 [01:01<00:00,  6.38it/s]
+TTT Epoch 3: Train Loss: 0.7354, Val Loss: 0.7008
+TTT Epoch 4/50: 100%|█████████████████████████| 391/391 [01:01<00:00,  6.33it/s]
+TTT Epoch 4: Train Loss: 0.6970, Val Loss: 0.6534
+TTT Epoch 5/50: 100%|█████████████████████████| 391/391 [01:01<00:00,  6.31it/s]
+TTT Epoch 5: Train Loss: 0.6780, Val Loss: 0.6400
+TTT Epoch 6/50:   6%|█▌                        | 24/391 [00:03<01:01,  6.01it/s]
+Traceback (most recent call last):
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 1024, in <module>
+    main()
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 993, in main
+    train_ttt_models(train_loader, val_loader)
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 385, in train_ttt_models
+    loss.backward()
+  File "/home/david-lacour/.pyenv/versions/myenv/lib/python3.12/site-packages/torch/_tensor.py", line 648, in backward
+    torch.autograd.backward(
+  File "/home/david-lacour/.pyenv/versions/myenv/lib/python3.12/site-packages/torch/autograd/__init__.py", line 353, in backward
+    _engine_run_backward(
+  File "/home/david-lacour/.pyenv/versions/myenv/lib/python3.12/site-packages/torch/autograd/graph.py", line 824, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

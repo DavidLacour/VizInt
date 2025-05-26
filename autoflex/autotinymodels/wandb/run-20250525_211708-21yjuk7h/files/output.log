@@ -1,0 +1,64 @@
+✅ Created checkpoint directory: ../../cifar10checkpoints
+✅ Loaded CIFAR-10 dataset
+   Training samples: 50000
+   Validation samples: 10000
+
+================================================================================
+🚀 CIFAR-10 MODEL TRAINING AND EVALUATION PIPELINE
+================================================================================
+📁 Dataset: ../../cifar10
+📁 Checkpoints: ../../cifar10checkpoints
+🎯 Device: cuda
+
+✓ Main ViT model already exists at ../../cifar10checkpoints/bestmodel_main/best_model.pt
+
+✓ Robust ViT model already exists at ../../cifar10checkpoints/bestmodel_robust/best_model.pt
+
+=== TRAINING RESNET BASELINE (from scratch) ===
+/home/david-lacour/.pyenv/versions/myenv/lib/python3.12/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/david-lacour/.pyenv/versions/myenv/lib/python3.12/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=None`.
+  warnings.warn(msg)
+
+🚀 Training resnet18_baseline on CIFAR-10...
+Epoch 1/100 [Train]: 100%|█| 391/391 [00:34<00:00, 11.50it/s, loss=0.9250, acc=0
+Epoch 1/100 [Val]: 100%|████████████████████████| 79/79 [00:02<00:00, 38.03it/s]
+Epoch 1: Train Loss: 1.3515, Train Acc: 0.5068, Val Loss: 1.6298, Val Acc: 0.5151
+  ✅ New best model saved with val_acc: 0.5151
+Epoch 2/100 [Train]: 100%|█| 391/391 [00:33<00:00, 11.52it/s, loss=0.4972, acc=0
+Epoch 2/100 [Val]: 100%|████████████████████████| 79/79 [00:02<00:00, 38.75it/s]
+Epoch 2: Train Loss: 0.8687, Train Acc: 0.6925, Val Loss: 1.0610, Val Acc: 0.6467
+  ✅ New best model saved with val_acc: 0.6467
+Epoch 3/100 [Train]: 100%|█| 391/391 [00:34<00:00, 11.49it/s, loss=0.6837, acc=0
+Epoch 3/100 [Val]: 100%|████████████████████████| 79/79 [00:02<00:00, 38.93it/s]
+Epoch 3: Train Loss: 0.6796, Train Acc: 0.7638, Val Loss: 0.6922, Val Acc: 0.7654
+  ✅ New best model saved with val_acc: 0.7654
+Epoch 4/100 [Train]: 100%|█| 391/391 [00:34<00:00, 11.44it/s, loss=0.5338, acc=0
+Epoch 4/100 [Val]: 100%|████████████████████████| 79/79 [00:02<00:00, 38.86it/s]
+Epoch 4: Train Loss: 0.5753, Train Acc: 0.7995, Val Loss: 0.5636, Val Acc: 0.8108
+  ✅ New best model saved with val_acc: 0.8108
+Epoch 5/100 [Train]: 100%|█| 391/391 [00:34<00:00, 11.40it/s, loss=0.5593, acc=0
+Epoch 5/100 [Val]: 100%|████████████████████████| 79/79 [00:02<00:00, 38.53it/s]
+Epoch 5: Train Loss: 0.5128, Train Acc: 0.8228, Val Loss: 0.6671, Val Acc: 0.7916
+Epoch 6/100 [Train]: 100%|█| 391/391 [00:34<00:00, 11.36it/s, loss=0.5387, acc=0
+Epoch 6/100 [Val]: 100%|████████████████████████| 79/79 [00:02<00:00, 37.76it/s]
+Epoch 6: Train Loss: 0.4468, Train Acc: 0.8455, Val Loss: 0.5515, Val Acc: 0.8159
+  ✅ New best model saved with val_acc: 0.8159
+Epoch 7/100 [Train]: 100%|█| 391/391 [00:34<00:00, 11.36it/s, loss=0.3081, acc=0
+Epoch 7/100 [Val]: 100%|█████████████████████████████████████████████| 79/79 [00:02<00:00, 37.89it/s]
+Epoch 7: Train Loss: 0.4064, Train Acc: 0.8610, Val Loss: 0.5601, Val Acc: 0.8184
+  ✅ New best model saved with val_acc: 0.8184
+Epoch 8/100 [Train]: 100%|████████████████| 391/391 [00:34<00:00, 11.33it/s, loss=0.4700, acc=0.8713]
+Epoch 8/100 [Val]: 100%|█████████████████████████████████████████████| 79/79 [00:02<00:00, 37.45it/s]
+Epoch 8: Train Loss: 0.3733, Train Acc: 0.8713, Val Loss: 0.4300, Val Acc: 0.8558
+  ✅ New best model saved with val_acc: 0.8558
+Epoch 9/100 [Train]:  92%|██████████████▋ | 358/391 [00:31<00:02, 11.29it/s, loss=0.3821, acc=0.8825]
+Traceback (most recent call last):
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 1025, in <module>
+    main()
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 976, in main
+    train_resnet_baseline(train_loader, val_loader, pretrained=False)
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 271, in train_resnet_baseline
+    train_loss += loss.item()
+                  ^^^^^^^^^^^
+KeyboardInterrupt

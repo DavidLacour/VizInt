@@ -1,0 +1,18 @@
+{"time":"2025-05-24T13:10:17.338859351+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250524_131017-mtj6stwi/logs/debug-core.log"}
+{"time":"2025-05-24T13:10:19.15704185+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/graphql\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-24T13:10:21.319029975+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/graphql\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-24T13:10:25.730006442+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/graphql\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-24T13:10:39.028166547+02:00","level":"INFO","msg":"created new stream","id":"mtj6stwi"}
+{"time":"2025-05-24T13:10:39.028213474+02:00","level":"INFO","msg":"stream: started","id":"mtj6stwi"}
+{"time":"2025-05-24T13:10:39.028247326+02:00","level":"INFO","msg":"handler: started","stream_id":"mtj6stwi"}
+{"time":"2025-05-24T13:10:39.028241153+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"mtj6stwi"}
+{"time":"2025-05-24T13:10:39.028299572+02:00","level":"INFO","msg":"sender: started","stream_id":"mtj6stwi"}
+{"time":"2025-05-24T13:10:39.28410988+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-24T13:11:43.672058528+02:00","level":"INFO","msg":"stream: closing","id":"mtj6stwi"}
+{"time":"2025-05-24T13:11:43.672101449+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-24T13:11:43.672162933+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-24T13:11:44.547534139+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-24T13:11:44.89065772+02:00","level":"INFO","msg":"handler: closed","stream_id":"mtj6stwi"}
+{"time":"2025-05-24T13:11:44.890673824+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"mtj6stwi"}
+{"time":"2025-05-24T13:11:44.890686005+02:00","level":"INFO","msg":"sender: closed","stream_id":"mtj6stwi"}
+{"time":"2025-05-24T13:11:44.890709237+02:00","level":"INFO","msg":"stream: closed","id":"mtj6stwi"}

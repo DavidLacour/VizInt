@@ -1,0 +1,24 @@
+{"time":"2025-05-26T08:58:11.551875782+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250526_085811-mic5f2ms/logs/debug-core.log"}
+{"time":"2025-05-26T08:58:13.37360933+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/graphql\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T08:58:15.619202797+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/graphql\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T08:58:21.044017894+02:00","level":"INFO","msg":"created new stream","id":"mic5f2ms"}
+{"time":"2025-05-26T08:58:21.0441784+02:00","level":"INFO","msg":"stream: started","id":"mic5f2ms"}
+{"time":"2025-05-26T08:58:21.044342127+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"mic5f2ms"}
+{"time":"2025-05-26T08:58:21.044442119+02:00","level":"INFO","msg":"sender: started","stream_id":"mic5f2ms"}
+{"time":"2025-05-26T08:58:21.044650315+02:00","level":"INFO","msg":"handler: started","stream_id":"mic5f2ms"}
+{"time":"2025-05-26T08:58:21.407468392+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-26T08:59:28.729082057+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/mic5f2ms/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T08:59:30.973468221+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/mic5f2ms/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T08:59:35.897082802+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/mic5f2ms/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T08:59:45.823634892+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/mic5f2ms/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T09:01:51.068614983+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/mic5f2ms/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T09:01:53.295017062+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/mic5f2ms/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T09:04:11.97063147+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/mic5f2ms/file_stream\": read tcp 10.23.0.172:52002->35.186.228.49:443: read: connection reset by peer"}
+{"time":"2025-05-26T09:04:17.545692234+02:00","level":"INFO","msg":"stream: closing","id":"mic5f2ms"}
+{"time":"2025-05-26T09:04:17.545724889+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-26T09:04:17.545822246+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-26T09:04:18.944858384+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-26T09:04:20.055261722+02:00","level":"INFO","msg":"handler: closed","stream_id":"mic5f2ms"}
+{"time":"2025-05-26T09:04:20.05532353+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"mic5f2ms"}
+{"time":"2025-05-26T09:04:20.055333652+02:00","level":"INFO","msg":"sender: closed","stream_id":"mic5f2ms"}
+{"time":"2025-05-26T09:04:20.0554045+02:00","level":"INFO","msg":"stream: closed","id":"mic5f2ms"}

@@ -1,0 +1,19 @@
+{"time":"2025-05-24T12:57:01.94927992+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250524_125701-3fn9eyw3/logs/debug-core.log"}
+{"time":"2025-05-24T12:57:03.975233798+02:00","level":"INFO","msg":"created new stream","id":"3fn9eyw3"}
+{"time":"2025-05-24T12:57:03.975254559+02:00","level":"INFO","msg":"stream: started","id":"3fn9eyw3"}
+{"time":"2025-05-24T12:57:03.975265709+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"3fn9eyw3"}
+{"time":"2025-05-24T12:57:03.975278541+02:00","level":"INFO","msg":"sender: started","stream_id":"3fn9eyw3"}
+{"time":"2025-05-24T12:57:03.975337796+02:00","level":"INFO","msg":"handler: started","stream_id":"3fn9eyw3"}
+{"time":"2025-05-24T12:57:04.214865082+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-24T12:58:19.701604709+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/3fn9eyw3/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-24T12:58:21.812672731+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/3fn9eyw3/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-24T12:58:25.864566301+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/3fn9eyw3/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-24T12:58:50.274181377+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/3fn9eyw3/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-24T12:59:00.293104143+02:00","level":"INFO","msg":"stream: closing","id":"3fn9eyw3"}
+{"time":"2025-05-24T12:59:00.293130901+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-24T12:59:00.293149254+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-24T12:59:01.207822255+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-24T12:59:01.61700205+02:00","level":"INFO","msg":"handler: closed","stream_id":"3fn9eyw3"}
+{"time":"2025-05-24T12:59:01.617033491+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"3fn9eyw3"}
+{"time":"2025-05-24T12:59:01.61706232+02:00","level":"INFO","msg":"sender: closed","stream_id":"3fn9eyw3"}
+{"time":"2025-05-24T12:59:01.617068849+02:00","level":"INFO","msg":"stream: closed","id":"3fn9eyw3"}

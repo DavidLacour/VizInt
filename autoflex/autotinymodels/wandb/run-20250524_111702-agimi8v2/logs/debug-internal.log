@@ -1,0 +1,15 @@
+{"time":"2025-05-24T11:17:02.049816933+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250524_111702-agimi8v2/logs/debug-core.log"}
+{"time":"2025-05-24T11:17:04.079457671+02:00","level":"INFO","msg":"created new stream","id":"agimi8v2"}
+{"time":"2025-05-24T11:17:04.079495783+02:00","level":"INFO","msg":"stream: started","id":"agimi8v2"}
+{"time":"2025-05-24T11:17:04.079540638+02:00","level":"INFO","msg":"handler: started","stream_id":"agimi8v2"}
+{"time":"2025-05-24T11:17:04.079552011+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"agimi8v2"}
+{"time":"2025-05-24T11:17:04.07962282+02:00","level":"INFO","msg":"sender: started","stream_id":"agimi8v2"}
+{"time":"2025-05-24T11:17:04.53305144+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-24T11:23:10.876657375+02:00","level":"INFO","msg":"stream: closing","id":"agimi8v2"}
+{"time":"2025-05-24T11:23:10.876809438+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-24T11:23:10.877039747+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-24T11:23:23.773156067+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-24T11:23:23.969410092+02:00","level":"INFO","msg":"handler: closed","stream_id":"agimi8v2"}
+{"time":"2025-05-24T11:23:23.969511501+02:00","level":"INFO","msg":"sender: closed","stream_id":"agimi8v2"}
+{"time":"2025-05-24T11:23:23.969502294+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"agimi8v2"}
+{"time":"2025-05-24T11:23:23.969686829+02:00","level":"INFO","msg":"stream: closed","id":"agimi8v2"}

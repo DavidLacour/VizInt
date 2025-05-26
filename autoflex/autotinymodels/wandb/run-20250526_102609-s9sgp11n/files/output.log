@@ -1,0 +1,82 @@
+✅ Created checkpoint directory: ../../cifar10checkpoints
+✅ Loaded CIFAR-10 dataset
+   Training samples: 50000
+   Validation samples: 10000
+
+================================================================================
+🚀 CIFAR-10 MODEL TRAINING AND EVALUATION PIPELINE
+================================================================================
+📁 Dataset: ../../cifar10
+📁 Checkpoints: ../../cifar10checkpoints
+🎯 Device: cuda
+
+=== TRAINING MAIN VIT MODEL ===
+
+🚀 Training main ViT model on CIFAR-10...
+Epoch 1/100 [Train]: 100%|█| 391/391 [01:04<00:00,  6.03it/s, loss=1.8348, acc=0
+Epoch 1/100 [Val]: 100%|████████████████████████| 79/79 [00:04<00:00, 18.56it/s]
+Epoch 1: Train Loss: 2.0918, Train Acc: 0.2435, Val Loss: 1.6545, Val Acc: 0.3803
+  ✅ New best model saved with val_acc: 0.3803
+Epoch 2/100 [Train]: 100%|█| 391/391 [01:06<00:00,  5.90it/s, loss=1.5748, acc=0
+Epoch 2/100 [Val]: 100%|████████████████████████| 79/79 [00:04<00:00, 18.26it/s]
+Epoch 2: Train Loss: 1.6362, Train Acc: 0.3894, Val Loss: 1.5654, Val Acc: 0.4139
+  ✅ New best model saved with val_acc: 0.4139
+Epoch 3/100 [Train]: 100%|█| 391/391 [01:06<00:00,  5.88it/s, loss=1.5978, acc=0
+Epoch 3/100 [Val]: 100%|████████████████████████| 79/79 [00:04<00:00, 18.28it/s]
+Epoch 3: Train Loss: 1.5449, Train Acc: 0.4286, Val Loss: 1.4855, Val Acc: 0.4589
+  ✅ New best model saved with val_acc: 0.4589
+Epoch 4/100 [Train]: 100%|█| 391/391 [01:06<00:00,  5.87it/s, loss=1.7249, acc=0
+Epoch 4/100 [Val]: 100%|████████████████████████| 79/79 [00:04<00:00, 18.15it/s]
+Epoch 4: Train Loss: 1.5283, Train Acc: 0.4403, Val Loss: 1.5748, Val Acc: 0.4235
+  No improvement for 1 epochs
+Epoch 5/100 [Train]: 100%|█| 391/391 [01:06<00:00,  5.85it/s, loss=1.6696, acc=0
+Epoch 5/100 [Val]: 100%|████████████████████████| 79/79 [00:04<00:00, 18.13it/s]
+Epoch 5: Train Loss: 1.6560, Train Acc: 0.3868, Val Loss: 1.5317, Val Acc: 0.4244
+  No improvement for 2 epochs
+Epoch 6/100 [Train]: 100%|█| 391/391 [01:06<00:00,  5.84it/s, loss=1.3357, acc=0
+Epoch 6/100 [Val]: 100%|████████████████████████| 79/79 [00:04<00:00, 18.10it/s]
+Epoch 6: Train Loss: 1.5213, Train Acc: 0.4352, Val Loss: 1.4256, Val Acc: 0.4691
+  ✅ New best model saved with val_acc: 0.4691
+Epoch 7/100 [Train]: 100%|█| 391/391 [01:07<00:00,  5.83it/s, loss=1.5462, acc=0
+Epoch 7/100 [Val]: 100%|████████████████████████| 79/79 [00:04<00:00, 18.01it/s]
+Epoch 7: Train Loss: 1.5357, Train Acc: 0.4302, Val Loss: 1.4761, Val Acc: 0.4474
+  No improvement for 1 epochs
+Epoch 8/100 [Train]: 100%|█| 391/391 [01:07<00:00,  5.81it/s, loss=1.4888, acc=0
+Epoch 8/100 [Val]: 100%|████████████████████████| 79/79 [00:04<00:00, 17.95it/s]
+Epoch 8: Train Loss: 1.5436, Train Acc: 0.4295, Val Loss: 1.5972, Val Acc: 0.4148
+  No improvement for 2 epochs
+Epoch 9/100 [Train]: 100%|█| 391/391 [01:07<00:00,  5.81it/s, loss=1.5248, acc=0
+Epoch 9/100 [Val]: 100%|████████████████████████| 79/79 [00:04<00:00, 17.92it/s]
+Epoch 9: Train Loss: 1.5762, Train Acc: 0.4195, Val Loss: 1.4849, Val Acc: 0.4521
+  No improvement for 3 epochs
+Epoch 10/100 [Train]: 100%|█| 391/391 [01:08<00:00,  5.71it/s, loss=1.5674, acc=
+Epoch 10/100 [Val]: 100%|███████████████████████| 79/79 [00:04<00:00, 17.25it/s]
+Epoch 10: Train Loss: 1.5316, Train Acc: 0.4388, Val Loss: 1.4747, Val Acc: 0.4522
+  No improvement for 4 epochs
+Epoch 11/100 [Train]: 100%|█| 391/391 [01:10<00:00,  5.57it/s, loss=1.5476, acc=
+Epoch 11/100 [Val]: 100%|███████████████████████| 79/79 [00:04<00:00, 17.01it/s]
+Epoch 11: Train Loss: 1.5303, Train Acc: 0.4378, Val Loss: 1.5172, Val Acc: 0.4422
+  No improvement for 5 epochs
+  🛑 Early stopping triggered after 11 epochs
+  Best validation accuracy: 0.4691
+✅ Training completed. Best validation accuracy: 0.4691
+
+=== TRAINING ROBUST VIT MODEL ===
+
+🚀 Training robust ViT model on CIFAR-10...
+Epoch 1/100 [Train]: 100%|█| 391/391 [01:10<00:00,  5.52it/s, loss=1.9741, acc=0
+Epoch 1/100 [Val]: 100%|████████████████████████| 79/79 [00:04<00:00, 17.33it/s]
+Epoch 1: Train Loss: 2.1234, Train Acc: 0.2297, Val Loss: 1.7939, Val Acc: 0.3263
+  ✅ New best model saved with val_acc: 0.3263
+Epoch 2/100 [Train]:  26%|▎| 103/391 [00:18<00:51,  5.59it/s, loss=1.8370, acc=0
+Traceback (most recent call last):
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 1638, in <module>
+    if os.path.exists(resnet_pretrained_path):
+    ^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 1563, in main
+    create_directories()
+            ^^^^^^^^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 167, in train_vit_model
+    print(f"✅ Loaded CIFAR-10 dataset (without normalization)")
+                         ^^^^^^^^^^^
+KeyboardInterrupt

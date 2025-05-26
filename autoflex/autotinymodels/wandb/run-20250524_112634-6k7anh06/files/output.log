@@ -1,0 +1,34 @@
+✓ Model directory: ../../newModels
+Using device: cuda
+
+=== Checking for existing models (mode: all) ===
+
+=== Training Main Classification Model ===
+Using device: cuda
+Phase 1: Finding an initial working batch size...
+Starting batch size 128 fits in memory!
+Phase 2: Refining batch size around 128...
+Testing batch size: 144...
+Testing batch size: 160...
+Testing batch size: 152...
+Testing batch size: 148...
+Testing batch size: 146...
+Testing batch size: 145...
+Found optimal batch size: 144
+Using safe batch size: 139
+Training set size: 100000
+Validation set size: 10000
+Epoch 1/50: 100%|██████████████████| 720/720 [03:20<00:00,  3.58it/s, loss=4.24]
+Epoch 1/50 - Train Loss: 4.7902, Train Acc: 0.0599, Val Loss: 4.0844, Val Acc: 0.1342
+Saved best model with validation accuracy: 0.1342
+Epoch 2/50:   9%|█▉                    | 65/720 [00:15<02:35,  4.22it/s, loss=4]
+Traceback (most recent call last):
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_baselines_3fc.py", line 574, in <module>
+    main()
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_baselines_3fc.py", line 440, in main
+    main_model = train_main_model(args.dataset)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/new_new.py", line 830, in train_main_model
+    train_loss += loss.item()
+                  ^^^^^^^^^^^
+KeyboardInterrupt

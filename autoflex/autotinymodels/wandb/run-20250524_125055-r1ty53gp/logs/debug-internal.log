@@ -1,0 +1,15 @@
+{"time":"2025-05-24T12:50:55.627391258+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250524_125055-r1ty53gp/logs/debug-core.log"}
+{"time":"2025-05-24T12:50:57.661983417+02:00","level":"INFO","msg":"created new stream","id":"r1ty53gp"}
+{"time":"2025-05-24T12:50:57.662001632+02:00","level":"INFO","msg":"stream: started","id":"r1ty53gp"}
+{"time":"2025-05-24T12:50:57.662026136+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"r1ty53gp"}
+{"time":"2025-05-24T12:50:57.662029361+02:00","level":"INFO","msg":"sender: started","stream_id":"r1ty53gp"}
+{"time":"2025-05-24T12:50:57.662048117+02:00","level":"INFO","msg":"handler: started","stream_id":"r1ty53gp"}
+{"time":"2025-05-24T12:50:58.011963892+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-24T12:51:13.088138355+02:00","level":"INFO","msg":"stream: closing","id":"r1ty53gp"}
+{"time":"2025-05-24T12:51:13.088163938+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-24T12:51:13.088204792+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-24T12:51:14.251927877+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-24T12:51:14.532278756+02:00","level":"INFO","msg":"handler: closed","stream_id":"r1ty53gp"}
+{"time":"2025-05-24T12:51:14.532311618+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"r1ty53gp"}
+{"time":"2025-05-24T12:51:14.532318931+02:00","level":"INFO","msg":"sender: closed","stream_id":"r1ty53gp"}
+{"time":"2025-05-24T12:51:14.532350403+02:00","level":"INFO","msg":"stream: closed","id":"r1ty53gp"}

@@ -1,0 +1,17 @@
+{"time":"2025-05-25T21:46:42.3798915+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250525_214642-7qgyzmh9/logs/debug-core.log"}
+{"time":"2025-05-25T21:46:42.661418576+02:00","level":"INFO","msg":"created new stream","id":"7qgyzmh9"}
+{"time":"2025-05-25T21:46:42.661444872+02:00","level":"INFO","msg":"stream: started","id":"7qgyzmh9"}
+{"time":"2025-05-25T21:46:42.661457375+02:00","level":"INFO","msg":"handler: started","stream_id":"7qgyzmh9"}
+{"time":"2025-05-25T21:46:42.66147941+02:00","level":"INFO","msg":"sender: started","stream_id":"7qgyzmh9"}
+{"time":"2025-05-25T21:46:42.66149291+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"7qgyzmh9"}
+{"time":"2025-05-25T21:46:42.872949104+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-25T21:46:58.383910196+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/7qgyzmh9/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-25T21:47:00.764375109+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/7qgyzmh9/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-25T21:47:35.952756675+02:00","level":"INFO","msg":"stream: closing","id":"7qgyzmh9"}
+{"time":"2025-05-25T21:47:35.95277855+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-25T21:47:35.952820907+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-25T21:47:36.912057406+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-25T21:47:37.159155858+02:00","level":"INFO","msg":"handler: closed","stream_id":"7qgyzmh9"}
+{"time":"2025-05-25T21:47:37.159196431+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"7qgyzmh9"}
+{"time":"2025-05-25T21:47:37.159205166+02:00","level":"INFO","msg":"sender: closed","stream_id":"7qgyzmh9"}
+{"time":"2025-05-25T21:47:37.159246405+02:00","level":"INFO","msg":"stream: closed","id":"7qgyzmh9"}

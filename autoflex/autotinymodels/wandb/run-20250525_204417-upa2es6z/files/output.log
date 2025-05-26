@@ -1,0 +1,12 @@
+🖥️  Using device: cuda
+
+================================================================================
+🚀 COMPREHENSIVE MODEL PIPELINE WITH 3FC INTEGRATION
+================================================================================
+📁 Dataset: ../../tiny-imagenet-200
+📁 Model Directory: ../../newModels
+📊 Severities: [0.0, 0.5, 1.0, 1.5, 2.0]
+🎯 Mode: evaluate
+🔧 Auto-train missing models: True
+❌ Dataset not found at ../../tiny-imagenet-200
+Please ensure the dataset path is correct.

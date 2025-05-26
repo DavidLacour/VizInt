@@ -1,0 +1,42 @@
+✅ Created checkpoint directory: ../../cifar10checkpoints
+✅ Loaded CIFAR-10 dataset
+   Training samples: 50000
+   Validation samples: 10000
+
+================================================================================
+🚀 CIFAR-10 MODEL TRAINING AND EVALUATION PIPELINE
+================================================================================
+📁 Dataset: ../../cifar10
+📁 Checkpoints: ../../cifar10checkpoints
+🎯 Device: cuda
+
+✓ Main ViT model already exists at ../../cifar10checkpoints/bestmodel_main/best_model.pt
+
+✓ Robust ViT model already exists at ../../cifar10checkpoints/bestmodel_robust/best_model.pt
+
+✓ ResNet baseline already exists at ../../cifar10checkpoints/bestmodel_resnet18_baseline/best_model.pt
+
+✓ Pretrained ResNet baseline already exists at ../../cifar10checkpoints/bestmodel_resnet18_pretrained/best_model.pt
+
+✓ TTT model already exists at ../../cifar10checkpoints/bestmodel_ttt/best_model.pt
+
+=== TRAINING TTT MODELS ===
+✓ TTT model already exists at ../../cifar10checkpoints/bestmodel_ttt/best_model.pt, skipping training
+✅ Loaded base model for TTT training
+
+🚀 Training TTT3fc model on CIFAR-10...
+Using device: cuda
+Traceback (most recent call last):
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 1053, in <module>
+    main()
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 1022, in main
+    train_ttt_models(train_loader, val_loader)
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 455, in train_ttt_models
+    train_ttt3fc_model(
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/ttt3fc_model.py", line 395, in train_ttt3fc_model
+    train_dataset = TinyImageNetDataset(
+                    ^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/new_new.py", line 176, in __init__
+    with open(os.path.join(root_dir, 'wnids.txt'), 'r') as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '../../cifar10/wnids.txt'

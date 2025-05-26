@@ -1,0 +1,48 @@
+✅ Created checkpoint directory: ../../cifar10checkpoints
+✅ Loaded CIFAR-10 dataset
+   Training samples: 50000
+   Validation samples: 10000
+
+================================================================================
+🚀 CIFAR-10 MODEL TRAINING AND EVALUATION PIPELINE
+================================================================================
+📁 Dataset: ../../cifar10
+📁 Checkpoints: ../../cifar10checkpoints
+🎯 Device: cuda
+
+✓ Main ViT model already exists at ../../cifar10checkpoints/bestmodel_main/best_model.pt
+
+✓ Robust ViT model already exists at ../../cifar10checkpoints/bestmodel_robust/best_model.pt
+
+✓ ResNet baseline already exists at ../../cifar10checkpoints/bestmodel_resnet18_baseline/best_model.pt
+
+✓ Pretrained ResNet baseline already exists at ../../cifar10checkpoints/bestmodel_resnet18_pretrained/best_model.pt
+
+✓ TTT model already exists at ../../cifar10checkpoints/bestmodel_ttt/best_model.pt
+✓ TTT3fc model already exists at ../../cifar10checkpoints/bestmodel_ttt3fc/best_model.pt
+
+=== TRAINING BLENDED MODELS ===
+✅ Loaded base model for Blended training
+
+🚀 Training BlendedTTT model on CIFAR-10...
+Blended Epoch 1/50:   0%|                               | 0/391 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 1237, in <module>
+    main()
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 1218, in main
+    train_blended_models(train_loader, val_loader)
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/main_cifar10_all.py", line 625, in train_blended_models
+    class_logits, aux_outputs = blended_model(transformed_images)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/.pyenv/versions/myenv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/.pyenv/versions/myenv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/blended_ttt_cifar10.py", line 85, in forward
+    features = self.forward_features(x)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/blended_ttt_cifar10.py", line 75, in forward_features
+    for blk in self.blocks:
+TypeError: 'TransformerTrunk' object is not iterable

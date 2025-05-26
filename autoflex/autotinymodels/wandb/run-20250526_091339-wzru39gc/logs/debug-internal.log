@@ -1,0 +1,15 @@
+{"time":"2025-05-26T09:13:39.532909503+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250526_091339-wzru39gc/logs/debug-core.log"}
+{"time":"2025-05-26T09:13:41.592260432+02:00","level":"INFO","msg":"created new stream","id":"wzru39gc"}
+{"time":"2025-05-26T09:13:41.59229508+02:00","level":"INFO","msg":"stream: started","id":"wzru39gc"}
+{"time":"2025-05-26T09:13:41.592376776+02:00","level":"INFO","msg":"handler: started","stream_id":"wzru39gc"}
+{"time":"2025-05-26T09:13:41.592354101+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"wzru39gc"}
+{"time":"2025-05-26T09:13:41.592444063+02:00","level":"INFO","msg":"sender: started","stream_id":"wzru39gc"}
+{"time":"2025-05-26T09:13:41.952627326+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-26T09:13:45.31507481+02:00","level":"INFO","msg":"stream: closing","id":"wzru39gc"}
+{"time":"2025-05-26T09:13:45.315135742+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-26T09:13:45.315199766+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-26T09:13:45.960934627+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-26T09:13:46.279461313+02:00","level":"INFO","msg":"handler: closed","stream_id":"wzru39gc"}
+{"time":"2025-05-26T09:13:46.279497921+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"wzru39gc"}
+{"time":"2025-05-26T09:13:46.279519986+02:00","level":"INFO","msg":"sender: closed","stream_id":"wzru39gc"}
+{"time":"2025-05-26T09:13:46.279606403+02:00","level":"INFO","msg":"stream: closed","id":"wzru39gc"}

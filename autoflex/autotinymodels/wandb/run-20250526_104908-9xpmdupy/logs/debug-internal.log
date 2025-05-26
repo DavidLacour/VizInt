@@ -1,0 +1,29 @@
+{"time":"2025-05-26T10:49:08.939555387+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250526_104908-9xpmdupy/logs/debug-core.log"}
+{"time":"2025-05-26T10:49:12.298974685+02:00","level":"INFO","msg":"created new stream","id":"9xpmdupy"}
+{"time":"2025-05-26T10:49:12.299000545+02:00","level":"INFO","msg":"stream: started","id":"9xpmdupy"}
+{"time":"2025-05-26T10:49:12.299044481+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"9xpmdupy"}
+{"time":"2025-05-26T10:49:12.299100449+02:00","level":"INFO","msg":"sender: started","stream_id":"9xpmdupy"}
+{"time":"2025-05-26T10:49:12.299118818+02:00","level":"INFO","msg":"handler: started","stream_id":"9xpmdupy"}
+{"time":"2025-05-26T10:49:12.64835608+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-26T10:49:58.877796195+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T10:52:28.877552723+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T10:52:43.89774675+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T10:54:28.877268062+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T10:57:58.87807288+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T10:59:09.726380602+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: read udp 127.0.0.1:60601->127.0.0.53:53: i/o timeout"}
+{"time":"2025-05-26T10:59:12.125730901+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T10:59:17.017716873+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T10:59:26.584421172+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T10:59:27.754706339+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/graphql\": net/http: request canceled (Client.Timeout exceeded while awaiting headers)"}
+{"time":"2025-05-26T11:03:03.96678416+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T11:05:33.967163331+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T11:06:18.96677873+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T11:13:18.96713899+02:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/david-lacour-epfl/vit-tiny-imagenet-ood/9xpmdupy/file_stream\": dial tcp: lookup api.wandb.ai on 127.0.0.53:53: server misbehaving"}
+{"time":"2025-05-26T11:13:32.770128902+02:00","level":"INFO","msg":"stream: closing","id":"9xpmdupy"}
+{"time":"2025-05-26T11:13:32.770147705+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-26T11:13:32.770190069+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-26T11:13:33.974998903+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-26T11:13:34.796682028+02:00","level":"INFO","msg":"handler: closed","stream_id":"9xpmdupy"}
+{"time":"2025-05-26T11:13:34.79671091+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"9xpmdupy"}
+{"time":"2025-05-26T11:13:34.796732939+02:00","level":"INFO","msg":"sender: closed","stream_id":"9xpmdupy"}
+{"time":"2025-05-26T11:13:34.796741625+02:00","level":"INFO","msg":"stream: closed","id":"9xpmdupy"}

@@ -1,0 +1,3 @@
+usage: main_cifar10_all.py [-h] [--train_main] [--train_robust] [--train_baselines] [--train_ttt] [--train_blended] [--train_all]
+                           [--evaluate] [--visualize] [--skip_training] [--skip_evaluation] [--retrain] [--seed SEED]
+main_cifar10_all.py: error: unrecognized arguments: retrein
