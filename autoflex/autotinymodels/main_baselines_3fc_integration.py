@@ -351,11 +351,13 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
     """Evaluate a specific model + healer combination (extended for 3FC models)"""
     results = {}
     
-    # Standard validation transforms
-    transform_val = transforms.Compose([
+    # Transforms without normalization
+    transform_val_no_norm = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
+    
+    # Normalization to apply separately
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     
     # Evaluate on each severity level
     for severity in severities:
@@ -363,7 +365,7 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
         
         if severity == 0.0:
             # Clean data evaluation
-            val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
+            val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val_no_norm)
             val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
             
             correct = 0
@@ -375,6 +377,13 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
             with torch.no_grad():
                 for images, labels in val_loader:
                     images, labels = images.to(device), labels.to(device)
+                    
+                    # Normalize images
+                    batch_size = images.size(0)
+                    normalized_images = []
+                    for i in range(batch_size):
+                        normalized_images.append(normalize(images[i]))
+                    images = torch.stack(normalized_images)
                     
                     # Apply healer if not identity
                     if not isinstance(healer_model, IdentityHealer):
@@ -405,7 +414,7 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
         else:
             # Transformed data evaluation
             ood_transform = ContinuousTransforms(severity=severity)
-            ood_val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val, ood_transform=ood_transform)
+            ood_val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val_no_norm, ood_transform=ood_transform)
             
             def collate_fn(batch):
                 orig_imgs, trans_imgs, labels, params = zip(*batch)
@@ -422,6 +431,13 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
             with torch.no_grad():
                 for orig_images, trans_images, labels, params in ood_val_loader:
                     trans_images, labels = trans_images.to(device), labels.to(device)
+                    
+                    # Normalize transformed images
+                    batch_size = trans_images.size(0)
+                    normalized_images = []
+                    for i in range(batch_size):
+                        normalized_images.append(normalize(trans_images[i]))
+                    trans_images = torch.stack(normalized_images)
                     
                     # Apply healer if not identity
                     if not isinstance(healer_model, IdentityHealer):

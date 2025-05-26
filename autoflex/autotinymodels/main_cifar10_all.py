@@ -1280,6 +1280,9 @@ def evaluate_all_models(val_loader):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     results = {}
     
+    # Get normalization transform
+    normalize = get_cifar10_normalize()
+    
     print("\n" + "="*80)
     print("📊 EVALUATING ALL MODELS ON CIFAR-10")
     print("="*80)
@@ -1371,11 +1374,18 @@ def evaluate_all_models(val_loader):
             for images, labels in tqdm(val_loader, desc=f"Evaluating {model_name}"):
                 images, labels = images.to(device), labels.to(device)
                 
+                # Normalize images if using val_loader_no_norm
+                batch_size = images.size(0)
+                normalized_images = []
+                for i in range(batch_size):
+                    normalized_images.append(normalize(images[i]))
+                normalized_images = torch.stack(normalized_images)
+                
                 # Handle different model outputs
                 if model_type in ["ttt", "blended", "ttt3fc", "blended3fc"]:
-                    outputs, _ = model(images)
+                    outputs, _ = model(normalized_images)
                 else:
-                    outputs = model(images)
+                    outputs = model(normalized_images)
                 
                 _, predicted = torch.max(outputs, 1)
                 total += labels.size(0)
@@ -1501,7 +1511,7 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
                     batch_size = images.size(0)
                     
                     if severity == 0.0:
-                        # Clean images - all models need normalization since we're using val_loader_no_norm
+                        # Clean images - just normalize since we're using val_loader_no_norm
                         transformed_images = []
                         for i in range(batch_size):
                             transformed_images.append(normalize(images[i]))
@@ -1518,7 +1528,7 @@ def evaluate_models_with_transforms(val_loader, severities=[0.0, 0.3, 0.5, 0.7, 
                                 severity=severity,
                                 return_params=True
                             )
-                            # Normalize after transformation for all models since we're using val_loader_no_norm
+                            # Normalize after transformation
                             transformed_img = normalize(transformed_img)
                             transformed_images.append(transformed_img)
                         transformed_images = torch.stack(transformed_images)
@@ -2140,7 +2150,7 @@ def main():
         
         # First evaluate on clean data
         print("\n📋 Part 1: Clean Data Evaluation")
-        results = evaluate_all_models(val_loader)
+        results = evaluate_all_models(val_loader_no_norm)
         
         # Then evaluate with transformations
         print("\n📋 Part 2: Transformation Robustness Evaluation")
