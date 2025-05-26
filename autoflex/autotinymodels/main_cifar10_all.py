@@ -133,6 +133,8 @@ def train_vit_model(train_loader, val_loader, model_name="vit", robust=False):
     
     best_val_acc = 0.0
     epochs = 100
+    patience = 5
+    epochs_no_improve = 0
     
     print(f"\n🚀 Training {model_name} ViT model on CIFAR-10...")
     
@@ -192,9 +194,10 @@ def train_vit_model(train_loader, val_loader, model_name="vit", robust=False):
               f"Train Acc: {train_acc:.4f}, Val Loss: {val_loss/len(val_loader):.4f}, "
               f"Val Acc: {val_acc:.4f}")
         
-        # Save best model
+        # Save best model and early stopping
         if val_acc > best_val_acc:
             best_val_acc = val_acc
+            epochs_no_improve = 0
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -209,6 +212,15 @@ def train_vit_model(train_loader, val_loader, model_name="vit", robust=False):
                 }
             }, os.path.join(save_dir, "best_model.pt"))
             print(f"  ✅ New best model saved with val_acc: {val_acc:.4f}")
+        else:
+            epochs_no_improve += 1
+            print(f"  No improvement for {epochs_no_improve} epochs")
+            
+        # Early stopping
+        if epochs_no_improve >= patience:
+            print(f"  🛑 Early stopping triggered after {epoch+1} epochs")
+            print(f"  Best validation accuracy: {best_val_acc:.4f}")
+            break
         
         scheduler.step()
     
@@ -248,6 +260,8 @@ def train_resnet_baseline(train_loader, val_loader, pretrained=False):
     
     best_val_acc = 0.0
     epochs = 100
+    patience = 5
+    epochs_no_improve = 0
     
     print(f"\n🚀 Training {model_name} on CIFAR-10...")
     
@@ -301,9 +315,10 @@ def train_resnet_baseline(train_loader, val_loader, pretrained=False):
               f"Train Acc: {train_acc:.4f}, Val Loss: {val_loss/len(val_loader):.4f}, "
               f"Val Acc: {val_acc:.4f}")
         
-        # Save best model
+        # Save best model and early stopping
         if val_acc > best_val_acc:
             best_val_acc = val_acc
+            epochs_no_improve = 0
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -311,6 +326,15 @@ def train_resnet_baseline(train_loader, val_loader, pretrained=False):
                 'val_acc': val_acc,
             }, os.path.join(save_dir, "best_model.pt"))
             print(f"  ✅ New best model saved with val_acc: {val_acc:.4f}")
+        else:
+            epochs_no_improve += 1
+            print(f"  No improvement for {epochs_no_improve} epochs")
+            
+        # Early stopping
+        if epochs_no_improve >= patience:
+            print(f"  🛑 Early stopping triggered after {epoch+1} epochs")
+            print(f"  Best validation accuracy: {best_val_acc:.4f}")
+            break
         
         scheduler.step()
     
@@ -380,6 +404,8 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
         
         best_val_loss = float('inf')
         epochs = 50
+        patience = 5
+        epochs_no_improve = 0
         
         for epoch in range(epochs):
             ttt_model.train()
@@ -440,10 +466,21 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
             
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
+                epochs_no_improve = 0
                 torch.save({
                     'model_state_dict': ttt_model.state_dict(),
                     'val_loss': val_loss,
                 }, os.path.join(save_dir_ttt, "best_model.pt"))
+                print(f"  ✅ New best model saved with val_loss: {val_loss:.4f}")
+            else:
+                epochs_no_improve += 1
+                print(f"  No improvement for {epochs_no_improve} epochs")
+                
+            # Early stopping
+            if epochs_no_improve >= patience:
+                print(f"  🛑 Early stopping triggered after {epoch+1} epochs")
+                print(f"  Best validation loss: {best_val_loss:.4f}")
+                break
     
     # Train TTT3fc model if needed
     if train_ttt3fc:
@@ -465,6 +502,8 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
         
         best_val_loss = float('inf')
         epochs = 50
+        patience = 5
+        epochs_no_improve = 0
         
         # Training loop similar to TTT but with 3fc architecture
         for epoch in range(epochs):
@@ -525,10 +564,21 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
             
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
+                epochs_no_improve = 0
                 torch.save({
                     'model_state_dict': ttt3fc_model.state_dict(),
                     'val_loss': val_loss,
                 }, os.path.join(save_dir_ttt3fc, "best_model.pt"))
+                print(f"  ✅ New best model saved with val_loss: {val_loss:.4f}")
+            else:
+                epochs_no_improve += 1
+                print(f"  No improvement for {epochs_no_improve} epochs")
+                
+            # Early stopping
+            if epochs_no_improve >= patience:
+                print(f"  🛑 Early stopping triggered after {epoch+1} epochs")
+                print(f"  Best validation loss: {best_val_loss:.4f}")
+                break
     
     return ttt_model, ttt3fc_model  # Return trained models
 
@@ -597,7 +647,7 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
         
         best_val_acc = 0.0
         epochs = 50
-        patience = 10
+        patience = 5
         epochs_no_improve = 0
         
         for epoch in range(epochs):
@@ -707,7 +757,7 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
         
         best_val_acc = 0.0
         epochs = 50
-        patience = 10
+        patience = 5
         epochs_no_improve = 0
         
         for epoch in range(epochs):
