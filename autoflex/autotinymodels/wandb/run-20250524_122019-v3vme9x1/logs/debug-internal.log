@@ -1,7 +1,0 @@
-{"time":"2025-05-24T12:20:19.414964618+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizInt/autoflex/autotinymodels/wandb/run-20250524_122019-v3vme9x1/logs/debug-core.log"}
-{"time":"2025-05-24T12:20:21.450896036+02:00","level":"INFO","msg":"created new stream","id":"v3vme9x1"}
-{"time":"2025-05-24T12:20:21.450915661+02:00","level":"INFO","msg":"stream: started","id":"v3vme9x1"}
-{"time":"2025-05-24T12:20:21.450927401+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"v3vme9x1"}
-{"time":"2025-05-24T12:20:21.450980405+02:00","level":"INFO","msg":"handler: started","stream_id":"v3vme9x1"}
-{"time":"2025-05-24T12:20:21.451016987+02:00","level":"INFO","msg":"sender: started","stream_id":"v3vme9x1"}
-{"time":"2025-05-24T12:20:21.807027069+02:00","level":"INFO","msg":"Starting system monitor"}
