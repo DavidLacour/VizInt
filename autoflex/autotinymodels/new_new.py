@@ -72,7 +72,7 @@ class ContinuousTransforms:
         device = img.device
         
         if severity is None:
-            severity = self.severity
+            severity = 0.0
             
         if transform_type is None:
             # Choose a transform type based on probabilities
