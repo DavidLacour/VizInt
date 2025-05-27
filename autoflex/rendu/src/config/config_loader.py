@@ -1,0 +1,181 @@
+"""
+Configuration loader module for managing experiment configurations
+"""
+import os
+import yaml
+from pathlib import Path
+from typing import Dict, Any, Optional
+import logging
+
+
+class ConfigLoader:
+    """Handles loading and accessing configuration settings"""
+    
+    def __init__(self, config_path: str = None):
+        """
+        Initialize configuration loader
+        
+        Args:
+            config_path: Path to config file. If None, uses default config.yaml
+        """
+        if config_path is None:
+            config_path = Path(__file__).parent / "config.yaml"
+        
+        self.config_path = Path(config_path)
+        self.config = self._load_config()
+        self._setup_logging()
+        
+    def _load_config(self) -> Dict[str, Any]:
+        """Load configuration from YAML file"""
+        if not self.config_path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
+        
+        with open(self.config_path, 'r') as f:
+            config = yaml.safe_load(f)
+            
+        # Process environment variables
+        config = self._process_env_vars(config)
+        
+        return config
+    
+    def _process_env_vars(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Replace environment variable references in config"""
+        if isinstance(config, dict):
+            for key, value in config.items():
+                if isinstance(value, str) and value.startswith("$"):
+                    env_var = value[1:]
+                    config[key] = os.environ.get(env_var, value)
+                elif isinstance(value, dict):
+                    config[key] = self._process_env_vars(value)
+        return config
+    
+    def _setup_logging(self):
+        """Setup logging based on configuration"""
+        log_config = self.config.get('logging', {})
+        log_level = getattr(logging, log_config.get('level', 'INFO'))
+        log_format = log_config.get('format', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        
+        logging.basicConfig(
+            level=log_level,
+            format=log_format
+        )
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        """
+        Get configuration value by dot-separated key
+        
+        Args:
+            key: Dot-separated configuration key (e.g., 'training.batch_size')
+            default: Default value if key not found
+            
+        Returns:
+            Configuration value
+        """
+        keys = key.split('.')
+        value = self.config
+        
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return default
+                
+        return value
+    
+    def get_dataset_config(self, dataset_name: str) -> Dict[str, Any]:
+        """Get dataset-specific configuration"""
+        datasets = self.config.get('datasets', {})
+        if dataset_name not in datasets:
+            raise ValueError(f"Unknown dataset: {dataset_name}")
+        return datasets[dataset_name]
+    
+    def get_model_config(self, model_name: str) -> Dict[str, Any]:
+        """Get model-specific configuration"""
+        models = self.config.get('models', {})
+        if model_name not in models:
+            raise ValueError(f"Unknown model: {model_name}")
+        return models[model_name]
+    
+    def get_training_config(self) -> Dict[str, Any]:
+        """Get training configuration"""
+        return self.config.get('training', {})
+    
+    def get_evaluation_config(self) -> Dict[str, Any]:
+        """Get evaluation configuration"""
+        return self.config.get('evaluation', {})
+    
+    def get_debug_config(self) -> Dict[str, Any]:
+        """Get debug mode configuration"""
+        return self.config.get('debug', {})
+    
+    def is_debug_mode(self) -> bool:
+        """Check if debug mode is enabled"""
+        return self.get('debug.enabled', False)
+    
+    def get_batch_size(self, mode: str = 'training') -> int:
+        """
+        Get batch size based on mode and debug settings
+        
+        Args:
+            mode: 'training' or 'evaluation'
+            
+        Returns:
+            Batch size
+        """
+        if self.is_debug_mode():
+            return self.get('debug.batch_size', 3)
+        
+        if mode == 'training':
+            return self.get('training.batch_size', 128)
+        else:
+            return self.get('evaluation.batch_size', 128)
+    
+    def get_num_epochs(self) -> int:
+        """Get number of epochs based on debug mode"""
+        if self.is_debug_mode():
+            return self.get('debug.epochs', 2)
+        return self.get('training.epochs', 100)
+    
+    def get_checkpoint_dir(self, dataset_name: str) -> Path:
+        """Get checkpoint directory for a dataset"""
+        paths = self.config.get('paths', {})
+        checkpoint_dirs = paths.get('checkpoint_dir', {})
+        
+        if dataset_name in checkpoint_dirs:
+            return Path(checkpoint_dirs[dataset_name])
+        
+        # Default to current directory
+        return Path('./checkpoints') / dataset_name
+    
+    def get_device(self) -> str:
+        """Get device configuration"""
+        import torch
+        
+        device_config = self.get('general.device', 'auto')
+        
+        if device_config == 'auto':
+            return 'cuda' if torch.cuda.is_available() else 'cpu'
+        
+        return device_config
+    
+    def update(self, updates: Dict[str, Any]):
+        """Update configuration with new values"""
+        def deep_update(d, u):
+            for k, v in u.items():
+                if isinstance(v, dict):
+                    d[k] = deep_update(d.get(k, {}), v)
+                else:
+                    d[k] = v
+            return d
+        
+        self.config = deep_update(self.config, updates)
+    
+    def save(self, path: Optional[str] = None):
+        """Save current configuration to file"""
+        save_path = path or self.config_path
+        
+        with open(save_path, 'w') as f:
+            yaml.dump(self.config, f, default_flow_style=False, sort_keys=False)
+    
+    def __repr__(self) -> str:
+        return f"ConfigLoader(config_path='{self.config_path}')"

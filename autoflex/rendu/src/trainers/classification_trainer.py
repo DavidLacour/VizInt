@@ -1,0 +1,159 @@
+"""
+Trainer for standard classification models
+"""
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from typing import Dict, Any, Optional
+from src.trainers.base_trainer import BaseTrainer
+
+
+class ClassificationTrainer(BaseTrainer):
+    """Trainer for standard classification models"""
+    
+    def __init__(self, 
+                 model: nn.Module,
+                 config: Dict[str, Any],
+                 device: str = 'cuda',
+                 robust_training: bool = False):
+        """
+        Initialize classification trainer
+        
+        Args:
+            model: Model to train
+            config: Training configuration
+            device: Device to train on
+            robust_training: Whether to use robust training with transformations
+        """
+        super().__init__(model, config, device)
+        self.robust_training = robust_training
+        self.criterion = nn.CrossEntropyLoss()
+        
+        # Load transformation module if robust training
+        if self.robust_training:
+            import sys
+            from pathlib import Path
+            sys.path.append(str(Path(__file__).parent.parent.parent))
+            from new_new import ContinuousTransforms
+            
+            robust_config = config.get('training', {}).get('robust', {})
+            self.transform_severity = robust_config.get('severity', 0.5)
+            self.apply_probability = robust_config.get('apply_probability', 0.5)
+            self.continuous_transform = ContinuousTransforms(severity=self.transform_severity)
+            
+    def create_optimizer(self) -> torch.optim.Optimizer:
+        """Create optimizer for training"""
+        optimizer_type = self.config.get('training', {}).get('optimizer', 'AdamW')
+        
+        if optimizer_type == 'AdamW':
+            return optim.AdamW(
+                self.model.parameters(),
+                lr=self.learning_rate,
+                weight_decay=self.weight_decay
+            )
+        elif optimizer_type == 'Adam':
+            return optim.Adam(
+                self.model.parameters(),
+                lr=self.learning_rate,
+                weight_decay=self.weight_decay
+            )
+        elif optimizer_type == 'SGD':
+            return optim.SGD(
+                self.model.parameters(),
+                lr=self.learning_rate,
+                momentum=0.9,
+                weight_decay=self.weight_decay
+            )
+        else:
+            raise ValueError(f"Unknown optimizer type: {optimizer_type}")
+    
+    def create_scheduler(self, optimizer: torch.optim.Optimizer) -> Optional[torch.optim.lr_scheduler._LRScheduler]:
+        """Create learning rate scheduler"""
+        scheduler_config = self.config.get('training', {}).get('scheduler', {})
+        scheduler_type = scheduler_config.get('type', 'CosineAnnealingLR')
+        
+        if scheduler_type == 'CosineAnnealingLR':
+            return optim.lr_scheduler.CosineAnnealingLR(
+                optimizer,
+                T_max=scheduler_config.get('T_max', self.max_epochs)
+            )
+        elif scheduler_type == 'StepLR':
+            return optim.lr_scheduler.StepLR(
+                optimizer,
+                step_size=scheduler_config.get('step_size', 30),
+                gamma=scheduler_config.get('gamma', 0.1)
+            )
+        elif scheduler_type == 'ReduceLROnPlateau':
+            return optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode='max',
+                patience=scheduler_config.get('patience', 5),
+                factor=scheduler_config.get('factor', 0.5)
+            )
+        elif scheduler_type == 'none':
+            return None
+        else:
+            raise ValueError(f"Unknown scheduler type: {scheduler_type}")
+    
+    def training_step(self, batch: Any, batch_idx: int) -> Dict[str, torch.Tensor]:
+        """Single training step"""
+        images, labels = batch
+        
+        # Apply robust training transformations if enabled
+        if self.robust_training and hasattr(self, 'continuous_transform'):
+            images = self._apply_robust_transformations(images)
+        
+        # Forward pass
+        outputs = self.model(images)
+        loss = self.criterion(outputs, labels)
+        
+        # Calculate accuracy
+        _, predicted = torch.max(outputs, 1)
+        accuracy = (predicted == labels).float().mean()
+        
+        return {
+            'loss': loss,
+            'accuracy': accuracy
+        }
+    
+    def validation_step(self, batch: Any, batch_idx: int) -> Dict[str, torch.Tensor]:
+        """Single validation step"""
+        images, labels = batch
+        
+        # Forward pass
+        outputs = self.model(images)
+        loss = self.criterion(outputs, labels)
+        
+        # Calculate accuracy
+        _, predicted = torch.max(outputs, 1)
+        accuracy = (predicted == labels).float().mean()
+        
+        return {
+            'loss': loss,
+            'accuracy': accuracy
+        }
+    
+    def _apply_robust_transformations(self, images: torch.Tensor) -> torch.Tensor:
+        """Apply robust training transformations"""
+        import numpy as np
+        
+        batch_size = images.size(0)
+        transformed_images = []
+        
+        for i in range(batch_size):
+            if np.random.rand() > self.apply_probability:
+                transformed_images.append(images[i])
+            else:
+                # Randomly choose transformation type
+                transform_type = np.random.choice(self.continuous_transform.transform_types[1:])  # Skip 'no_transform'
+                # Apply transformation with random severity
+                severity = np.random.uniform(0.0, self.transform_severity)
+                transformed_img, _ = self.continuous_transform.apply_transforms_unnormalized(
+                    images[i], 
+                    transform_type=transform_type,
+                    severity=severity,
+                    return_params=True
+                )
+                transformed_images.append(transformed_img)
+        
+        return torch.stack(transformed_images)
