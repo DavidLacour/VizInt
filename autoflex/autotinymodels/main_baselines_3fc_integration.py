@@ -33,14 +33,6 @@ from ttt3fc_blended3fc_evaluation import (
 from vit_implementation import create_vit_model
 from transformer_utils import set_seed
 
-# Set batch size based on LOCALHERE.TXT existence
-LOCALHERE_PATH = os.path.join(os.path.dirname(__file__), "../../../LOCALHERE.TXT")
-BATCH_SIZE = 128 if os.path.exists(LOCALHERE_PATH) else 250
-print(f"Using batch size: {BATCH_SIZE} (LOCALHERE.TXT {'exists' if os.path.exists(LOCALHERE_PATH) else 'does not exist'})")
-
-CHANCE_OF_APPLYING_TRANSFORM = 1.0
-LOWER_SEVERITY_BOUND = 0.0
-HIGHER_SEVERITY_BOUND =1.0 
 
 class IdentityHealer(nn.Module):
     """Dummy healer that does nothing - for baseline comparison"""
@@ -186,11 +178,14 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
     4. Healer + Main robust
     5. TTT + Main (not robust)
     6. TTT + Main robust
-    7. BlendedTTT 
-    9. TTT3fc + Main (not robust)
-    10. TTT3fc + Main robust
-    13. Baseline (ResNet18 from scratch)
-    14. Pretrained (ResNet18 with ImageNet pretraining)
+    7. BlendedTTT + Main (not robust) 
+    8. TTT3fc + Main (not robust)
+    9. TTT3fc + Main robust
+    10. BlendedTTT3fc
+    11. ResNet18 (from scratch)
+    12. ResNet18 (pretrained)
+    
+    Note: BlendedTTT and BlendedTTT3fc don't have robust versions since they only predict transforms
     """
     
     print("\n" + "="*100)
@@ -240,15 +235,16 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
         else:
             print("⚠️  Missing: TTT Model - will skip TTT combinations")
     
-    # 3. Load original BlendedTTT models  
+    # 3. Load original BlendedTTT model (no robust version needed)
     if not getattr(args, 'exclude_blended', False):
         blended_model_path = f"{model_dir}/bestmodel_blended/best_model.pt"
         if os.path.exists(blended_model_path):
             models['blended'] = load_blended_model(blended_model_path, models['main'], device)
-            print("✅ Loaded: BlendedTTT Model (based on main)")
+            print("✅ Loaded: BlendedTTT Model")
+            # Note: No robust version for BlendedTTT since it only predicts transforms
         else:
             print("⚠️  Missing: BlendedTTT Model - will skip BlendedTTT combinations")
-
+    
     # 4. Load NEW TTT3fc models
     if not getattr(args, 'exclude_ttt3fc', False):
         ttt3fc_model_path = f"{model_dir}/bestmodel_ttt3fc/best_model.pt"
@@ -262,48 +258,54 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
         else:
             print("⚠️  Missing: TTT3fc Model - will skip TTT3fc combinations")
     
-    # 5. Load NEW BlendedTTT3fc models
+    # 5. Load NEW BlendedTTT3fc model (no robust version needed)
     if not getattr(args, 'exclude_blended3fc', False):
         blended3fc_model_path = f"{model_dir}/bestmodel_blended3fc/best_model.pt"
         if os.path.exists(blended3fc_model_path):
             models['blended3fc'] = load_blended3fc_model(blended3fc_model_path, device)
             print("✅ Loaded: BlendedTTT3fc Model")
+            # Note: No robust version for BlendedTTT3fc since it only predicts transforms
         else:
             print("⚠️  Missing: BlendedTTT3fc Model - will skip BlendedTTT3fc combinations")
     
-    # 6. Load baseline models
-    if getattr(args, 'compare_baseline', False):
-        baseline_model_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
-        if os.path.exists(baseline_model_path):
-            models['baseline'] = load_baseline_model(baseline_model_path, device)
-            print("✅ Loaded: Baseline ResNet18 (from scratch)")
-        else:
-            print("⚠️  Missing: Baseline ResNet18 - use --train_baseline to train it")
+    # 6. Load baseline ResNet18 models
+    baseline_model_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
+    if os.path.exists(baseline_model_path):
+        models['baseline'] = load_baseline_model(baseline_model_path, device)
+        print("✅ Loaded: ResNet18 (from scratch)")
+    else:
+        print("⚠️  Missing: ResNet18 baseline - use --train_baseline to train it")
     
-    if getattr(args, 'compare_pretrained', False):
-        pretrained_model_path = f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt"
-        if os.path.exists(pretrained_model_path):
-            models['pretrained'] = load_pretrained_model(pretrained_model_path, device)
-            print("✅ Loaded: Pretrained ResNet18 (ImageNet)")
-        else:
-            print("⚠️  Missing: Pretrained ResNet18 - use --train_pretrained to train it")
+    pretrained_model_path = f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt"
+    if os.path.exists(pretrained_model_path):
+        models['pretrained'] = load_pretrained_model(pretrained_model_path, device)
+        print("✅ Loaded: ResNet18 (ImageNet pretrained)")
+    else:
+        print("⚠️  Missing: ResNet18 pretrained - use --train_pretrained to train it")
     
     print(f"\n📊 Evaluating {len(models)} model combinations on {len(severities)} severity levels...")
     
+    # Define evaluation combinations (updated to remove BlendedTTT robust versions)
     combinations = [
+        # Original combinations
         ("Main", "main", None, "Main ViT (not robust)"),
         ("Main_Robust", "main_robust", None, "Main ViT (robust training)"),
         ("Healer+Main", "main", "healer", "Healer + Main ViT (not robust)"),
         ("Healer+Main_Robust", "main_robust", "healer", "Healer + Main ViT (robust)"),
-        ("TTT", "ttt", None, "TTT (Test-Time Training)"),
-        ("TTT_Robust", "ttt_robust", None, "TTT (robust compatible)"),
-        ("BlendedTTT", "blended", None, "BlendedTTT (standalone)"),
-        ("TTT3fc", "ttt3fc", None, "TTT3fc (Test-Time Training with 3FC)"),
-        ("TTT3fc_Robust", "ttt3fc_robust", None, "TTT3fc (robust compatible)"),
-        ("BlendedTTT3fc", "blended3fc", None, "BlendedTTT3fc (standalone)"),
-        ("Baseline", "baseline", None, "ResNet18 (from scratch)"),
-        ("Pretrained", "pretrained", None, "ResNet18 (ImageNet pretrained)"),
+        ("TTT+Main", "ttt", None, "TTT + Main ViT (not robust)"),
+        ("TTT+Main_Robust", "ttt_robust", None, "TTT + Main ViT (robust)"),
+        ("BlendedTTT+Main", "blended", None, "BlendedTTT + Main ViT"),
+        
+        # NEW 3FC combinations
+        ("TTT3fc+Main", "ttt3fc", None, "TTT3fc + Main ViT (not robust)"),
+        ("TTT3fc+Main_Robust", "ttt3fc_robust", None, "TTT3fc + Main ViT (robust)"),
+        ("BlendedTTT3fc", "blended3fc", None, "BlendedTTT3fc"),
+        
+        # ResNet18 baseline combinations
+        ("ResNet18", "baseline", None, "ResNet18 (from scratch)"),
+        ("ResNet18_Pretrained", "pretrained", None, "ResNet18 (ImageNet pretrained)"),
     ]
+    
     # Evaluate each combination
     for combo_name, main_key, healer_key, description in combinations:
         if main_key not in models:
@@ -318,6 +320,8 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
         
         main_model = models[main_key]
         healer_model = models[healer_key] if healer_key else IdentityHealer().to(device)
+        
+        # Evaluate this combination
         results = evaluate_model_combination_3fc(main_model, healer_model, dataset_path, severities, device, main_key)
         
         all_model_results[combo_name] = {
@@ -332,14 +336,10 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
     """Evaluate a specific model + healer combination (extended for 3FC models)"""
     results = {}
     
-    # Standard validation transforms with normalization
+    # Standard validation transforms
     transform_val = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-    
-    transform_val_no_norm = transforms.Compose([
-        transforms.ToTensor(),
     ])
     
     # Evaluate on each severity level
@@ -347,8 +347,9 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
         print(f"    Severity {severity}...", end=" ")
         
         if severity == 0.0:
+            # Clean data evaluation
             val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
-            val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+            val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4)
             
             correct = 0
             total = 0
@@ -365,16 +366,17 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
                         healer_predictions = healer_model(images)
                         images = healer_model.apply_correction(images, healer_predictions)
                     
+                    # Forward pass - handle different model types
                     if 'ttt3fc' in model_type.lower():
-                        outputs, _ = main_model(images, use_base_model=False)  
+                        outputs, _ = main_model(images, use_base_model=False)  # TTT3fc models with own classification
                     elif 'blended3fc' in model_type.lower():
-                        outputs, _ = main_model(images)  
+                        outputs, _ = main_model(images)  # BlendedTTT3fc models return tuple
                     elif 'ttt' in model_type.lower():
-                        outputs, _ = main_model(images)  
+                        outputs, _ = main_model(images)  # TTT models return tuple
                     elif 'blended' in model_type.lower():
-                        outputs, _ = main_model(images) 
+                        outputs, _ = main_model(images)  # BlendedTTT models return tuple
                     else:
-                        outputs = main_model(images) 
+                        outputs = main_model(images)  # Regular models
                     
                     _, predicted = torch.max(outputs, 1)
                     
@@ -384,7 +386,9 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
             accuracy = correct / total
             results[severity] = accuracy
             print(f"{accuracy:.4f}")
+            
         else:
+            # Transformed data evaluation
             ood_transform = ContinuousTransforms(severity=severity)
             ood_val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val, ood_transform=ood_transform)
             
@@ -392,7 +396,7 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
                 orig_imgs, trans_imgs, labels, params = zip(*batch)
                 return torch.stack(orig_imgs), torch.stack(trans_imgs), torch.tensor(labels), params
             
-            ood_val_loader = DataLoader(ood_val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4, collate_fn=collate_fn)
+            ood_val_loader = DataLoader(ood_val_dataset, batch_size=128, shuffle=False, num_workers=4, collate_fn=collate_fn)
             
             correct = 0
             total = 0
@@ -404,21 +408,22 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
                 for orig_images, trans_images, labels, params in ood_val_loader:
                     trans_images, labels = trans_images.to(device), labels.to(device)
                     
+                    # Apply healer if not identity
                     if not isinstance(healer_model, IdentityHealer):
                         healer_predictions = healer_model(trans_images)
                         trans_images = healer_model.apply_correction(trans_images, healer_predictions)
                     
-                    
+                    # Forward pass - handle different model types
                     if 'ttt3fc' in model_type.lower():
-                        outputs, _ = main_model(trans_images, use_base_model=False)  
+                        outputs, _ = main_model(trans_images, use_base_model=False)  # TTT3fc models with own classification
                     elif 'blended3fc' in model_type.lower():
-                        outputs, _ = main_model(trans_images) 
+                        outputs, _ = main_model(trans_images)  # BlendedTTT3fc models return tuple
                     elif 'ttt' in model_type.lower():
-                        outputs, _ = main_model(trans_images)  
+                        outputs, _ = main_model(trans_images)  # TTT models return tuple
                     elif 'blended' in model_type.lower():
-                        outputs, _ = main_model(trans_images)  
+                        outputs, _ = main_model(trans_images)  # BlendedTTT models return tuple
                     else:
-                        outputs = main_model(trans_images) 
+                        outputs = main_model(trans_images)  # Regular models
                     
                     _, predicted = torch.max(outputs, 1)
                     
@@ -629,7 +634,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     main_model_path = f"{model_dir}/bestmodel_main/best_model.pt"
     if not os.path.exists(main_model_path):
         print("\n🔧 Training Main Classification Model...")
-        main_model = train_main_model(dataset_path, model_dir=model_dir)
+        main_model = train_main_model(dataset_path)
         models['main'] = main_model
     else:
         print("✅ Main model already exists")
@@ -639,7 +644,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     robust_model_path = f"{model_dir}/bestmodel_robust/best_model.pt"
     if not os.path.exists(robust_model_path):
         print("\n🔧 Training Robust Main Classification Model...")
-        robust_model = train_main_model_robust(dataset_path, severity=0.5, model_dir=model_dir)
+        robust_model = train_main_model_robust(dataset_path, severity=0.5)
         models['main_robust'] = robust_model
     else:
         print("✅ Robust main model already exists")
@@ -649,7 +654,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     healer_model_path = f"{model_dir}/bestmodel_healer/best_model.pt"
     if not os.path.exists(healer_model_path):
         print("\n🔧 Training Transformation Healer Model...")
-        healer_model = train_healer_model(dataset_path, severity=0.5, model_dir=model_dir)
+        healer_model = train_healer_model(dataset_path, severity=0.5)
         models['healer'] = healer_model
     else:
         print("✅ Healer model already exists")
@@ -660,7 +665,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
         ttt_model_path = f"{model_dir}/bestmodel_ttt/best_model.pt"
         if not os.path.exists(ttt_model_path):
             print("\n🔧 Training Test-Time Training (TTT) Model...")
-            ttt_model = train_ttt_model(dataset_path, base_model=models['main'], severity=0.5, model_dir=model_dir)
+            ttt_model = train_ttt_model(dataset_path, base_model=models['main'], severity=0.5)
             models['ttt'] = ttt_model
         else:
             print("✅ TTT model already exists")
@@ -671,7 +676,7 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
         blended_model_path = f"{model_dir}/bestmodel_blended/best_model.pt"
         if not os.path.exists(blended_model_path):
             print("\n🔧 Training BlendedTTT Model...")
-            blended_model = train_blended_ttt_model(models['main'], dataset_path, model_dir=model_dir)
+            blended_model = train_blended_ttt_model(models['main'], dataset_path)
             models['blended'] = blended_model
         else:
             print("✅ BlendedTTT model already exists")
@@ -682,12 +687,9 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     # Train BlendedTTT3fc
     if not getattr(args, 'exclude_blended3fc', False):
         blended3fc_path = f"{model_dir}/bestmodel_blended3fc/best_model.pt"
-        # Ensure directory exists
-        os.makedirs(f"{model_dir}/bestmodel_blended3fc", exist_ok=True)
-        
         if not os.path.exists(blended3fc_path):
             print("\n🔧 Training BlendedTTT3fc Model...")
-            train_blended_ttt3fc_model(models['main'], dataset_path, model_dir=model_dir)
+            train_blended_ttt3fc_model(models['main'], dataset_path)
             models['blended3fc'] = load_blended3fc_model(blended3fc_path, device)
         else:
             print("✅ BlendedTTT3fc model already exists")
@@ -696,40 +698,35 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     # Train TTT3fc
     if not getattr(args, 'exclude_ttt3fc', False):
         ttt3fc_path = f"{model_dir}/bestmodel_ttt3fc/best_model.pt"
-        # Ensure directory exists
-        os.makedirs(f"{model_dir}/bestmodel_ttt3fc", exist_ok=True)
-        
         if not os.path.exists(ttt3fc_path):
             print("\n🔧 Training TTT3fc Model...")
-            train_ttt3fc_model(dataset_path, models['main'], model_dir=model_dir)
+            train_ttt3fc_model(dataset_path, models['main'])
             models['ttt3fc'] = load_ttt3fc_model(ttt3fc_path, models['main'], device)
         else:
             print("✅ TTT3fc model already exists")
             models['ttt3fc'] = load_ttt3fc_model(ttt3fc_path, models['main'], device)
     
-    # 7. Train Baseline Models (if requested)
+    # 7. Train Baseline Models (always train these)
     
     # Train Baseline ResNet18
-    if True:
-        baseline_model_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
-        if not os.path.exists(baseline_model_path):
-            print("\n🔧 Training Baseline ResNet18 Model...")
-            baseline_model = train_baseline_resnet18(dataset_path, model_dir=model_dir)
-            models['baseline'] = baseline_model
-        else:
-            print("✅ Baseline ResNet18 model already exists")
-            models['baseline'] = load_baseline_model(baseline_model_path, device)
+    baseline_model_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
+    if not os.path.exists(baseline_model_path):
+        print("\n🔧 Training Baseline ResNet18 Model...")
+        baseline_model = train_baseline_resnet18(dataset_path)
+        models['baseline'] = baseline_model
+    else:
+        print("✅ Baseline ResNet18 model already exists")
+        models['baseline'] = load_baseline_model(baseline_model_path, device)
     
     # Train Pretrained ResNet18
-    if True:
-        pretrained_model_path = f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt"
-        if not os.path.exists(pretrained_model_path):
-            print("\n🔧 Training Pretrained ResNet18 Model...")
-            pretrained_model = train_pretrained_resnet18(dataset_path, model_dir=model_dir)
-            models['pretrained'] = pretrained_model
-        else:
-            print("✅ Pretrained ResNet18 model already exists")
-            models['pretrained'] = load_pretrained_model(pretrained_model_path, device)
+    pretrained_model_path = f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt"
+    if not os.path.exists(pretrained_model_path):
+        print("\n🔧 Training Pretrained ResNet18 Model...")
+        pretrained_model = train_pretrained_resnet18(dataset_path)
+        models['pretrained'] = pretrained_model
+    else:
+        print("✅ Pretrained ResNet18 model already exists")
+        models['pretrained'] = load_pretrained_model(pretrained_model_path, device)
     
     print("\n" + "="*80)
     print("✅ COMPREHENSIVE MODEL TRAINING COMPLETED!")
@@ -740,126 +737,24 @@ def train_all_models_if_missing(dataset_path, model_dir="./", args=None, device=
     return models
 
 
-def train_baseline_resnet18(dataset_path, model_dir="./"):
-    """Train a ResNet18 baseline model with early stopping"""
-    print("Training ResNet18 baseline model with early stopping...")
+def train_baseline_resnet18(dataset_path):
+    """Train a ResNet18 baseline model"""
+    print("Training ResNet18 baseline model...")
     
-    # Import required modules
-    from baseline_models import SimpleResNet18
-    from torch.utils.data import DataLoader
-    from torchvision import transforms
-    from new_new import TinyImageNetDataset
-    import torch.optim as optim
-    from tqdm import tqdm
+    # Import baseline training functions
+    from baseline_models import SimpleResNet18, train_baseline_model
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SimpleResNet18(num_classes=200).to(device)
-    
-    # Data transforms
-    transform_train = transforms.Compose([
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(degrees=10),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-    
-    transform_val = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-    
-    # Datasets and loaders
-    train_dataset = TinyImageNetDataset(dataset_path, "train", transform_train)
-    val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
-    
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
-    
-    # Training setup
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
-    
-    best_val_acc = 0.0
-    patience = 5
-    early_stop_counter = 0
-    epochs = 50
-    
-    for epoch in range(epochs):
-        # Training phase
-        model.train()
-        train_loss = 0.0
-        train_correct = 0
-        train_total = 0
-        
-        for images, labels in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]"):
-            images, labels = images.to(device), labels.to(device)
-            
-            optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            
-            train_loss += loss.item()
-            _, predicted = torch.max(outputs, 1)
-            train_total += labels.size(0)
-            train_correct += (predicted == labels).sum().item()
-        
-        train_acc = train_correct / train_total
-        
-        # Validation phase
-        model.eval()
-        val_loss = 0.0
-        val_correct = 0
-        val_total = 0
-        
-        with torch.no_grad():
-            for images, labels in tqdm(val_loader, desc=f"Epoch {epoch+1}/{epochs} [Val]"):
-                images, labels = images.to(device), labels.to(device)
-                outputs = model(images)
-                loss = criterion(outputs, labels)
-                
-                val_loss += loss.item()
-                _, predicted = torch.max(outputs, 1)
-                val_total += labels.size(0)
-                val_correct += (predicted == labels).sum().item()
-        
-        val_acc = val_correct / val_total
-        
-        print(f"Epoch {epoch+1}/{epochs}:")
-        print(f"  Train Loss: {train_loss/len(train_loader):.4f}, Train Acc: {train_acc:.4f}")
-        print(f"  Val Loss: {val_loss/len(val_loader):.4f}, Val Acc: {val_acc:.4f}")
-        
-        # Save best model
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            early_stop_counter = 0
-            save_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
-            os.makedirs(f"{model_dir}/bestmodel_resnet18_baseline", exist_ok=True)
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'val_acc': val_acc,
-            }, save_path)
-            print(f"  ✅ New best baseline model saved with val_acc: {val_acc:.4f}")
-        else:
-            early_stop_counter += 1
-            
-            if early_stop_counter >= patience:
-                print(f"Early stopping triggered after {epoch+1} epochs")
-                break
-        
-        scheduler.step()
-        print()
-    
-    print(f"Baseline ResNet18 training completed. Best validation accuracy: {best_val_acc:.4f}")
-    return model
+    model = SimpleResNet18(num_classes=200)
+    trained_model = train_baseline_model(
+        model, dataset_path, 
+        model_name="resnet18_baseline", 
+        epochs=50, 
+        lr=0.001
+    )
+    return trained_model
 
 
-def train_pretrained_resnet18(dataset_path, model_dir="./"):
+def train_pretrained_resnet18(dataset_path):
     """Train pretrained ResNet18 model with fine-tuning"""
     import torch.optim as optim
     from torch.utils.data import DataLoader
@@ -912,8 +807,8 @@ def train_pretrained_resnet18(dataset_path, model_dir="./"):
     train_dataset = TinyImageNetDataset(dataset_path, "train", transform_train)
     val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
     
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=4)
     
     # Fine-tuning setup
     criterion = nn.CrossEntropyLoss()
@@ -937,10 +832,8 @@ def train_pretrained_resnet18(dataset_path, model_dir="./"):
     
     epochs = 30
     best_val_acc = 0.0
-    patience = 5
-    early_stop_counter = 0
     
-    print(f"Fine-tuning for {epochs} epochs with early stopping (patience={patience})...")
+    print(f"Fine-tuning for {epochs} epochs...")
     
     for epoch in range(epochs):
         # Training phase
@@ -991,21 +884,14 @@ def train_pretrained_resnet18(dataset_path, model_dir="./"):
         # Save best model
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            os.makedirs(f"{model_dir}/bestmodel_pretrained_resnet18", exist_ok=True)
+            os.makedirs("./bestmodel_pretrained_resnet18", exist_ok=True)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_acc': val_acc,
-            }, f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt")
+            }, "./bestmodel_pretrained_resnet18/best_model.pt")
             print(f"  ✅ New best pretrained model saved with val_acc: {val_acc:.4f}")
-            early_stop_counter = 0
-        else:
-            early_stop_counter += 1
-            
-            if early_stop_counter >= patience:
-                print(f"Early stopping triggered after {epoch+1} epochs")
-                break
         
         scheduler.step()
         print()
@@ -1029,7 +915,7 @@ def train_3fc_models_if_missing(dataset_path, base_model=None, model_dir="./"):
     ttt3fc_path = f"{model_dir}/bestmodel_ttt3fc/best_model.pt"
     if not os.path.exists(ttt3fc_path):
         print("\n🔧 Training TTT3fc model...")
-        train_ttt3fc_model(dataset_path, base_model, model_dir=model_dir)
+        train_ttt3fc_model(dataset_path, base_model)
     else:
         print("✅ TTT3fc model already exists")
 
@@ -1137,14 +1023,14 @@ def main():
     parser = argparse.ArgumentParser(description="3FC Models Integration and Comprehensive Evaluation")
     
     # Basic arguments
-    parser.add_argument("--dataset", type=str, default="../../../tiny-imagenet-200",
+    parser.add_argument("--dataset", type=str, default="../../tiny-imagenet-200",
                       help="Path to the dataset")
-    parser.add_argument("--model_dir", type=str, default="../../newmodelsintc3999",
+    parser.add_argument("--model_dir", type=str, default="./",
                       help="Directory containing model checkpoints")
     parser.add_argument("--visualize_dir", type=str, default="./visualizations",
                       help="Directory to save visualization plots")
     parser.add_argument("--severities", type=float, nargs="+", 
-                      default=[0.0, 0.25, 0.5, 0.75, 1.0],
+                      default=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5],
                       help="Severity levels to evaluate")
     
     # Mode arguments
@@ -1158,15 +1044,15 @@ def main():
     # Training flags
     parser.add_argument("--train_all", action="store_true", default=True,
                       help="Train all missing models automatically")
-    parser.add_argument("--train_baseline", action="store_true", default=False,
+    parser.add_argument("--train_baseline", action="store_true", default=True,
                       help="Include baseline ResNet18 training")
-    parser.add_argument("--train_pretrained", action="store_true", default=False,
+    parser.add_argument("--train_pretrained", action="store_true", default=True,
                       help="Include pretrained ResNet18 training")
     
     # Comparison flags
-    parser.add_argument("--compare_baseline", action="store_true", default=False,
+    parser.add_argument("--compare_baseline", action="store_true", default=True,
                       help="Include baseline models in comparison")
-    parser.add_argument("--compare_pretrained", action="store_true", default=False,
+    parser.add_argument("--compare_pretrained", action="store_true", default=True,
                       help="Include pretrained models in comparison")
     
     # Exclusion flags (keep original behavior for compatibility)
@@ -1217,7 +1103,7 @@ def main():
         print(f"\n✅ Training phase completed! {len(trained_models)} models ready.")
     
     # 📊 EVALUATION PHASE - Comprehensive evaluation including 3FC models
-    if True:
+    if args.mode in ["evaluate", "all"]:
         print("\n=== COMPREHENSIVE EVALUATION WITH 3FC MODELS ===")
         
         # Run the comprehensive evaluation that includes 3FC models
