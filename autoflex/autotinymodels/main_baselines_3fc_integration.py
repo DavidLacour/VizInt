@@ -247,9 +247,6 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
             models['blended'] = load_blended_model(blended_model_path, models['main'], device)
             print("✅ Loaded: BlendedTTT Model (based on main)")
             
-            if 'main_robust' in models:
-                models['blended_robust'] = load_blended_model(blended_model_path, models['main_robust'], device)
-                print("✅ Loaded: BlendedTTT Model (based on robust)")
         else:
             print("⚠️  Missing: BlendedTTT Model - will skip BlendedTTT combinations")
     
@@ -274,13 +271,11 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
             print("✅ Loaded: BlendedTTT3fc Model")
             
             # Note: BlendedTTT3fc doesn't depend on base model like TTT3fc does
-            models['blended3fc_robust'] = models['blended3fc']  # Same model for both
-            print("✅ Loaded: BlendedTTT3fc Model (compatible with robust)")
         else:
             print("⚠️  Missing: BlendedTTT3fc Model - will skip BlendedTTT3fc combinations")
     
     # 6. Load baseline models
-    if getattr(args, 'compare_baseline', False):
+    if True:
         baseline_model_path = f"{model_dir}/bestmodel_resnet18_baseline/best_model.pt"
         if os.path.exists(baseline_model_path):
             models['baseline'] = load_baseline_model(baseline_model_path, device)
@@ -288,7 +283,7 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
         else:
             print("⚠️  Missing: Baseline ResNet18 - use --train_baseline to train it")
     
-    if getattr(args, 'compare_pretrained', False):
+    if True:
         pretrained_model_path = f"{model_dir}/bestmodel_pretrained_resnet18/best_model.pt"
         if os.path.exists(pretrained_model_path):
             models['pretrained'] = load_pretrained_model(pretrained_model_path, device)
