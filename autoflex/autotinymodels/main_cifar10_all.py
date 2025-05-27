@@ -39,7 +39,9 @@ DATASET_PATH = "../../cifar10"
 CHECKPOINT_PATH = "../../cifar10checkpoints999"
 NUM_CLASSES = 10  # CIFAR-10 has 10 classes
 IMG_SIZE = 32  # CIFAR-10 images are 32x32
-
+CHANCE_OF_APPLYING_TRANSFORM = 1.0
+LOWER_SEVERITY_BOUND = 0.0
+HIGHER_SEVERITY_BOUND =1.0 
 
 def create_directories():
     """Create necessary directories for checkpoints"""
@@ -247,7 +249,7 @@ def train_vit_model(train_loader, val_loader, model_name="vit", robust=False):
     
     # Create ContinuousTransforms for robust training
     if robust:
-        continuous_transform = ContinuousTransforms(severity=0.3)
+        continuous_transform = ContinuousTransforms()
     
     # Model save path
     save_dir = os.path.join(CHECKPOINT_PATH, f"bestmodel_{model_name}")
@@ -277,14 +279,14 @@ def train_vit_model(train_loader, val_loader, model_name="vit", robust=False):
                 transformed_images = []
                 
                 for i in range(batch_size):
-                    if np.random.rand() > 0.5:  # Apply transformations 50% of the time
+                    if np.random.rand() < CHANCE_OF_APPLYING_TRANSFORM: 
                         # Randomly choose transformation type
-                        transform_type = np.random.choice(continuous_transform.transform_types[1:])  # Skip 'no_transform'
+                        transform_type = np.random.choice(continuous_transform.transform_types[1:])  
                         # Apply transformation with random severity without clamping
-                        transformed_img, _ = continuous_transform.apply_transforms_unnormalized(
+                        transformed_img, _ = continuous_transform.apply_transforms(
                             images[i], 
                             transform_type=transform_type,
-                            severity=np.random.uniform(0.0, 0.5),  # Random severity up to 0.5
+                            severity=np.random.uniform(LOWER_SEVERITY_BOUND, HIGHER_SEVERITY_BOUND), 
                             return_params=True
                         )
                         transformed_images.append(transformed_img)
@@ -541,7 +543,7 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
         criterion = nn.CrossEntropyLoss()  # For transformation prediction
         
         # Create ContinuousTransforms for TTT training
-        continuous_transform = ContinuousTransforms(severity=0.5)
+        continuous_transform = ContinuousTransforms()
         normalize = get_cifar10_normalize()
         
         best_val_loss = float('inf')
@@ -570,7 +572,7 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                     transformed_img, _ = continuous_transform.apply_transforms_unnormalized(
                         images[i], 
                         transform_type=transform_type,
-                        severity=np.random.uniform(0.0, 1.0),  # Random severity
+                        severity=np.random.uniform(LOWER_SEVERITY_BOUND, HIGHER_SEVERITY_BOUND),  # Random severity
                         return_params=True
                     )
                     
@@ -671,7 +673,7 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
         criterion = nn.CrossEntropyLoss()
         
         # Create ContinuousTransforms for TTT3fc training
-        continuous_transform = ContinuousTransforms(severity=0.5)
+        continuous_transform = ContinuousTransforms()
         normalize = get_cifar10_normalize()
         
         best_val_loss = float('inf')
@@ -698,16 +700,13 @@ def train_ttt_models(train_loader, val_loader, base_model=None, train_ttt=True, 
                     transform_type_idx = continuous_transform.transform_types.index(transform_type)
                     
                     # Apply transformation without clamping
-                    transformed_img, _ = continuous_transform.apply_transforms_unnormalized(
+                    transformed_img, _ = continuous_transform.apply_transforms(
                         images[i], 
                         transform_type=transform_type,
-                        severity=np.random.uniform(0.0, 1.0),  # Random severity
+                        severity=np.random.uniform(LOWER_SEVERITY_BOUND, HIGHER_SEVERITY_BOUND),  # Random severity
                         return_params=True
                     )
-                    
-                    # Normalize after transformation
-                    transformed_img = normalize(transformed_img)
-                    
+                
                     transformed_images.append(transformed_img)
                     transform_labels.append(transform_type_idx)
                 
@@ -848,7 +847,7 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=5, factor=0.5)
         
         # Create ContinuousTransforms for BlendedTTT training
-        continuous_transform = ContinuousTransforms(severity=0.5)
+        continuous_transform = ContinuousTransforms()
         
         # Get normalization transform
         normalize = get_cifar10_normalize()
@@ -881,7 +880,7 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
                     transformed_img, _ = continuous_transform.apply_transforms_unnormalized(
                         images[i], 
                         transform_type=transform_type,
-                        severity=np.random.uniform(0.0, 1.0),
+                        severity=np.random.uniform(LOWER_SEVERITY_BOUND,HIGHER_SEVERITY_BOUND),
                         return_params=True
                     )
                     
@@ -1011,7 +1010,7 @@ def train_blended_models(train_loader, val_loader, base_model=None, train_blende
                     transformed_img, _ = continuous_transform.apply_transforms_unnormalized(
                         images[i], 
                         transform_type=transform_type,
-                        severity=np.random.uniform(0.0, 1.0),
+                        severity=np.random.uniform(LOWER_SEVERITY_BOUND,HIGHER_SEVERITY_BOUND),
                         return_params=True
                     )
                     
@@ -1152,7 +1151,7 @@ def train_healer_model(train_loader, val_loader):
                 transform_type_idx = continuous_transform.transform_types.index(transform_type)
                 
                 # Apply transformation with random severity without clamping
-                severity = np.random.uniform(0.0, 1.0)
+                severity = np.random.uniform(LOWER_SEVERITY_BOUND,HIGHER_SEVERITY_BOUND)
                 transformed_img, params = continuous_transform.apply_transforms_unnormalized(
                     images[i], 
                     transform_type=transform_type,

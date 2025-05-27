@@ -54,7 +54,7 @@ MAX_SHEAR_ANGLE = 15.0
 DEBUG = False 
 
 
-def train_blended_ttt_model(base_model, dataset_path="tiny-imagenet-200", model_dir="./"):
+def train_blended_ttt_model(dataset_path="tiny-imagenet-200", model_dir="./"):
     """
     Train the BlendedTTT model on the Tiny ImageNet dataset with validation-based early stopping
     """

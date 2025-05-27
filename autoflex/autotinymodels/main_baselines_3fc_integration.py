@@ -38,6 +38,9 @@ LOCALHERE_PATH = os.path.join(os.path.dirname(__file__), "../../../LOCALHERE.TXT
 BATCH_SIZE = 128 if os.path.exists(LOCALHERE_PATH) else 250
 print(f"Using batch size: {BATCH_SIZE} (LOCALHERE.TXT {'exists' if os.path.exists(LOCALHERE_PATH) else 'does not exist'})")
 
+CHANCE_OF_APPLYING_TRANSFORM = 1.0
+LOWER_SEVERITY_BOUND = 0.0
+HIGHER_SEVERITY_BOUND =1.0 
 
 class IdentityHealer(nn.Module):
     """Dummy healer that does nothing - for baseline comparison"""
@@ -183,12 +186,9 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
     4. Healer + Main robust
     5. TTT + Main (not robust)
     6. TTT + Main robust
-    7. BlendedTTT + Main (not robust) 
-    8. BlendedTTT + Main robust
+    7. BlendedTTT 
     9. TTT3fc + Main (not robust)
     10. TTT3fc + Main robust
-    11. BlendedTTT3fc + Main (not robust)
-    12. BlendedTTT3fc + Main robust
     13. Baseline (ResNet18 from scratch)
     14. Pretrained (ResNet18 with ImageNet pretraining)
     """
@@ -246,13 +246,9 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
         if os.path.exists(blended_model_path):
             models['blended'] = load_blended_model(blended_model_path, models['main'], device)
             print("✅ Loaded: BlendedTTT Model (based on main)")
-            
-            if 'main_robust' in models:
-                models['blended_robust'] = load_blended_model(blended_model_path, models['main_robust'], device)
-                print("✅ Loaded: BlendedTTT Model (based on robust)")
         else:
             print("⚠️  Missing: BlendedTTT Model - will skip BlendedTTT combinations")
-    
+
     # 4. Load NEW TTT3fc models
     if not getattr(args, 'exclude_ttt3fc', False):
         ttt3fc_model_path = f"{model_dir}/bestmodel_ttt3fc/best_model.pt"
@@ -272,10 +268,6 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
         if os.path.exists(blended3fc_model_path):
             models['blended3fc'] = load_blended3fc_model(blended3fc_model_path, device)
             print("✅ Loaded: BlendedTTT3fc Model")
-            
-            # Note: BlendedTTT3fc doesn't depend on base model like TTT3fc does
-            models['blended3fc_robust'] = models['blended3fc']  # Same model for both
-            print("✅ Loaded: BlendedTTT3fc Model (compatible with robust)")
         else:
             print("⚠️  Missing: BlendedTTT3fc Model - will skip BlendedTTT3fc combinations")
     
@@ -298,9 +290,7 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
     
     print(f"\n📊 Evaluating {len(models)} model combinations on {len(severities)} severity levels...")
     
-    # Define evaluation combinations (including new 3FC models)
     combinations = [
-        # Original combinations
         ("Main", "main", None, "Main ViT (not robust)"),
         ("Main_Robust", "main_robust", None, "Main ViT (robust training)"),
         ("Healer+Main", "main", "healer", "Healer + Main ViT (not robust)"),
@@ -308,19 +298,12 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
         ("TTT", "ttt", None, "TTT (Test-Time Training)"),
         ("TTT_Robust", "ttt_robust", None, "TTT (robust compatible)"),
         ("BlendedTTT", "blended", None, "BlendedTTT (standalone)"),
-        ("BlendedTTT_Robust", "blended_robust", None, "BlendedTTT (robust compatible)"),
-        
-        # NEW 3FC combinations
         ("TTT3fc", "ttt3fc", None, "TTT3fc (Test-Time Training with 3FC)"),
         ("TTT3fc_Robust", "ttt3fc_robust", None, "TTT3fc (robust compatible)"),
         ("BlendedTTT3fc", "blended3fc", None, "BlendedTTT3fc (standalone)"),
-        ("BlendedTTT3fc_Robust", "blended3fc_robust", None, "BlendedTTT3fc (robust compatible)"),
-        
-        # Baseline combinations
         ("Baseline", "baseline", None, "ResNet18 (from scratch)"),
         ("Pretrained", "pretrained", None, "ResNet18 (ImageNet pretrained)"),
     ]
-    
     # Evaluate each combination
     for combo_name, main_key, healer_key, description in combinations:
         if main_key not in models:
@@ -335,8 +318,6 @@ def evaluate_all_model_combinations_with_3fc(dataset_path, severities, model_dir
         
         main_model = models[main_key]
         healer_model = models[healer_key] if healer_key else IdentityHealer().to(device)
-        
-        # Evaluate this combination
         results = evaluate_model_combination_3fc(main_model, healer_model, dataset_path, severities, device, main_key)
         
         all_model_results[combo_name] = {
@@ -357,20 +338,15 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     
-    # Transforms without normalization (for manual normalization)
     transform_val_no_norm = transforms.Compose([
         transforms.ToTensor(),
     ])
-    
-    # Normalization to apply separately
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     
     # Evaluate on each severity level
     for severity in severities:
         print(f"    Severity {severity}...", end=" ")
         
         if severity == 0.0:
-            # Clean data evaluation
             val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val)
             val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
             
@@ -384,24 +360,21 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
                 for images, labels in val_loader:
                     images, labels = images.to(device), labels.to(device)
                     
-                    # Images are already normalized by transform_val
-                    
                     # Apply healer if not identity
                     if not isinstance(healer_model, IdentityHealer):
                         healer_predictions = healer_model(images)
                         images = healer_model.apply_correction(images, healer_predictions)
                     
-                    # Forward pass - handle different model types
                     if 'ttt3fc' in model_type.lower():
-                        outputs, _ = main_model(images, use_base_model=False)  # TTT3fc models with own classification
+                        outputs, _ = main_model(images, use_base_model=False)  
                     elif 'blended3fc' in model_type.lower():
-                        outputs, _ = main_model(images)  # BlendedTTT3fc models return tuple
+                        outputs, _ = main_model(images)  
                     elif 'ttt' in model_type.lower():
-                        outputs, _ = main_model(images)  # TTT models return tuple
+                        outputs, _ = main_model(images)  
                     elif 'blended' in model_type.lower():
-                        outputs, _ = main_model(images)  # BlendedTTT models return tuple
+                        outputs, _ = main_model(images) 
                     else:
-                        outputs = main_model(images)  # Regular models
+                        outputs = main_model(images) 
                     
                     _, predicted = torch.max(outputs, 1)
                     
@@ -411,9 +384,7 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
             accuracy = correct / total
             results[severity] = accuracy
             print(f"{accuracy:.4f}")
-            
         else:
-            # Transformed data evaluation
             ood_transform = ContinuousTransforms(severity=severity)
             ood_val_dataset = TinyImageNetDataset(dataset_path, "val", transform_val, ood_transform=ood_transform)
             
@@ -433,24 +404,21 @@ def evaluate_model_combination_3fc(main_model, healer_model, dataset_path, sever
                 for orig_images, trans_images, labels, params in ood_val_loader:
                     trans_images, labels = trans_images.to(device), labels.to(device)
                     
-                    # trans_images are already normalized by the dataset
-                    
-                    # Apply healer if not identity
                     if not isinstance(healer_model, IdentityHealer):
                         healer_predictions = healer_model(trans_images)
                         trans_images = healer_model.apply_correction(trans_images, healer_predictions)
                     
-                    # Forward pass - handle different model types
+                    
                     if 'ttt3fc' in model_type.lower():
-                        outputs, _ = main_model(trans_images, use_base_model=False)  # TTT3fc models with own classification
+                        outputs, _ = main_model(trans_images, use_base_model=False)  
                     elif 'blended3fc' in model_type.lower():
-                        outputs, _ = main_model(trans_images)  # BlendedTTT3fc models return tuple
+                        outputs, _ = main_model(trans_images) 
                     elif 'ttt' in model_type.lower():
-                        outputs, _ = main_model(trans_images)  # TTT models return tuple
+                        outputs, _ = main_model(trans_images)  
                     elif 'blended' in model_type.lower():
-                        outputs, _ = main_model(trans_images)  # BlendedTTT models return tuple
+                        outputs, _ = main_model(trans_images)  
                     else:
-                        outputs = main_model(trans_images)  # Regular models
+                        outputs = main_model(trans_images) 
                     
                     _, predicted = torch.max(outputs, 1)
                     

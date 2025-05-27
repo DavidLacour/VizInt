@@ -50,8 +50,7 @@ wandb.init(project="vit-tiny-imagenet-ood", name="transform-healing-gpu-optimize
 
 # Define GPU-optimized continuous transformations for OOD testing
 class ContinuousTransforms:
-    def __init__(self, severity=1.0):
-        self.severity = severity
+    def __init__(self, ):
         self.transform_types = ['no_transform', 'gaussian_noise', 'rotation', 'affine']
         self.transform_probs = [0.3, 1.0, 1.0, 1.0]  # Adjusted weights
         
