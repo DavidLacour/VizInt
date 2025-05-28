@@ -1,0 +1,190 @@
+# Configuration file for model training and evaluation
+# This file contains all settings for both CIFAR-10 and TinyImageNet experiments
+
+# General settings
+general:
+  seed: 42
+  device: "auto"  # "auto", "cuda", or "cpu"
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: false
+  
+# Debug mode settings
+debug:
+  enabled: false
+  batch_size: 3
+  num_samples: 30  # Number of samples to use in debug mode
+  epochs: 2
+  
+# Dataset configurations
+datasets:
+  cifar10:
+    name: "CIFAR10"
+    path: "../../cifar10"
+    num_classes: 10
+    img_size: 32
+    mean: [0.4914, 0.4822, 0.4465]
+    std: [0.2023, 0.1994, 0.2010]
+    
+  tinyimagenet:
+    name: "TinyImageNet"
+    path: "../../../tiny-imagenet-200"
+    num_classes: 200
+    img_size: 64
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+# Model configurations
+models:
+  vit:
+    embed_dim: 384
+    depth: 8
+    head_dim: 64
+    mlp_ratio: 4.0
+    use_resnet_stem: true
+    patch_size:
+      cifar10: 4
+      tinyimagenet: 8
+      
+  resnet:
+    pretrained: false
+    
+  ttt:
+    enabled: true
+    
+  ttt3fc:
+    enabled: true
+    
+  blended:
+    enabled: true
+    
+  blended3fc:
+    enabled: true
+    
+  healer:
+    enabled: true
+    depth: 6
+
+# Training configurations
+training:
+  batch_size: 128
+  learning_rate: 0.001
+  weight_decay: 0.05
+  optimizer: "AdamW"
+  scheduler:
+    type: "CosineAnnealingLR"
+    T_max: 100
+  
+  epochs: 100
+  early_stopping:
+    enabled: true
+    patience: 5
+    
+  # Robust training settings
+  robust:
+    enabled: false
+    severity: 0.5
+    apply_probability: 0.5
+    
+  # TTT specific settings
+  ttt:
+    learning_rate: 0.0001
+    epochs: 50
+    
+  # Blended specific settings
+  blended:
+    learning_rate: 0.0005
+    aux_loss_weight: 0.5
+    
+# Evaluation settings
+evaluation:
+  severities: [0.0, 0.25, 0.5, 0.75, 1.0]
+  batch_size: 128
+  
+# Checkpoint and visualization settings
+paths:
+  checkpoint_dir:
+    cifar10: "../../cifar10checkpoints999"
+    tinyimagenet: "../../newmodelsintc3999"
+  visualization_dir: "./visualizations"
+  
+# Model combinations to evaluate
+model_combinations:
+  - name: "Main"
+    main_model: "main"
+    healer_model: null
+    description: "Main ViT (not robust)"
+    
+  - name: "Main_Robust"
+    main_model: "main_robust"
+    healer_model: null
+    description: "Main ViT (robust training)"
+    
+  - name: "Healer+Main"
+    main_model: "main"
+    healer_model: "healer"
+    description: "Healer + Main ViT (not robust)"
+    
+  - name: "Healer+Main_Robust"
+    main_model: "main_robust"
+    healer_model: "healer"
+    description: "Healer + Main ViT (robust)"
+    
+  - name: "TTT"
+    main_model: "ttt"
+    healer_model: null
+    description: "TTT (Test-Time Training)"
+    
+  - name: "TTT_Robust"
+    main_model: "ttt_robust"
+    healer_model: null
+    description: "TTT (robust compatible)"
+    
+  - name: "BlendedTTT"
+    main_model: "blended"
+    healer_model: null
+    description: "BlendedTTT (standalone)"
+    
+  - name: "BlendedTTT_Robust"
+    main_model: "blended_robust"
+    healer_model: null
+    description: "BlendedTTT (robust compatible)"
+    
+  - name: "TTT3fc"
+    main_model: "ttt3fc"
+    healer_model: null
+    description: "TTT3fc (Test-Time Training with 3FC)"
+    
+  - name: "TTT3fc_Robust"
+    main_model: "ttt3fc_robust"
+    healer_model: null
+    description: "TTT3fc (robust compatible)"
+    
+  - name: "BlendedTTT3fc"
+    main_model: "blended3fc"
+    healer_model: null
+    description: "BlendedTTT3fc (standalone)"
+    
+  - name: "BlendedTTT3fc_Robust"
+    main_model: "blended3fc_robust"
+    healer_model: null
+    description: "BlendedTTT3fc (robust compatible)"
+    
+  - name: "Baseline"
+    main_model: "baseline"
+    healer_model: null
+    description: "ResNet18 (from scratch)"
+    
+  - name: "Pretrained"
+    main_model: "pretrained"
+    healer_model: null
+    description: "ResNet18 (ImageNet pretrained)"
+
+# Logging settings
+logging:
+  level: "INFO"
+  format: "[%(asctime)s] %(levelname)s: %(message)s"
+  wandb:
+    enabled: false
+    project: "vision-transformers"
+    entity: null

@@ -1,0 +1,232 @@
+# TinyImageNet-200 specific configuration file
+
+# General settings
+general:
+  seed: 42
+  device: "auto"  # "auto", "cuda", or "cpu"
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: false
+
+# Debug mode settings
+debug:
+  enabled: false
+  batch_size: 2
+  num_samples: 20  # Number of samples to use in debug mode
+  epochs: 1
+  checkpoint_dir: "../../../debugmodel/tinyimagenet"
+  num_workers: 0  # Disable multiprocessing in debug mode
+
+# Dataset configuration
+dataset:
+  name: "tinyimagenet"
+  path: "../../../tinyimagenet200"
+  num_classes: 200
+  img_size: 64
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+  train_size: 100000
+  test_size: 10000
+
+# Model configurations
+models:
+  vanilla_vit:
+    embed_dim: 384
+    depth: 8
+    head_dim: 64
+    mlp_ratio: 4.0
+    use_resnet_stem: true
+    patch_size: 8
+    dropout: 0.1
+    
+  vanilla_vit_robust:
+    embed_dim: 384
+    depth: 8
+    head_dim: 64
+    mlp_ratio: 4.0
+    use_resnet_stem: true
+    patch_size: 8
+    dropout: 0.1
+    
+  resnet:
+    architecture: "resnet18"
+    pretrained: false
+    
+  resnet_pretrained:
+    architecture: "resnet18"
+    pretrained: true
+    
+  ttt:
+    embed_dim: 384
+    depth: 8
+    head_dim: 64
+    mlp_ratio: 4.0
+    patch_size: 8
+    ttt_layers: 2
+    inner_steps: 5
+    inner_lr: 0.001
+    
+  ttt3fc:
+    embed_dim: 384
+    depth: 8
+    head_dim: 64
+    mlp_ratio: 4.0
+    patch_size: 8
+    fc_layers: [512, 256, 128]
+    dropout: 0.1
+    ttt_layers: 2
+    inner_steps: 5
+    inner_lr: 0.001
+    
+  blended_training:
+    embed_dim: 384
+    depth: 8
+    head_dim: 64
+    mlp_ratio: 4.0
+    patch_size: 8
+    aux_loss_weight: 0.5
+    
+  blended_training_3fc:
+    embed_dim: 384
+    depth: 8
+    head_dim: 64
+    mlp_ratio: 4.0
+    patch_size: 8
+    fc_layers: [512, 256, 128]
+    aux_loss_weight: 0.5
+    dropout: 0.1
+    
+  healer:
+    embed_dim: 256
+    depth: 6
+    head_dim: 64
+    mlp_ratio: 4.0
+    patch_size: 8
+    num_denoising_steps: 3
+
+# Training configurations
+training:
+  batch_size: 128
+  learning_rate: 0.001
+  weight_decay: 0.05
+  optimizer: "AdamW"
+  scheduler:
+    type: "CosineAnnealingLR"
+    T_max: 100
+  
+  epochs: 100
+  gradient_clip_val: 1.0
+  early_stopping:
+    enabled: true
+    patience: 10
+    monitor: "val_loss"
+    
+  # Robust training settings
+  robust:
+    enabled: false
+    severity: 0.5
+    apply_probability: 0.5
+    transforms: ["rotate", "translate", "scale", "brightness"]
+    
+  # TTT specific settings
+  ttt:
+    learning_rate: 0.0001
+    epochs: 50
+    inner_steps: 5
+    
+  # Blended specific settings
+  blended:
+    learning_rate: 0.0005
+    aux_loss_weight: 0.5
+    warmup_epochs: 10
+
+# Evaluation settings
+evaluation:
+  severities: [0.0, 0.25, 0.5, 0.75, 1.0]
+  batch_size: 128
+  transforms:
+    - name: "rotate"
+      params: {max_angle: 30}
+    - name: "translate"
+      params: {max_pixels: 8}
+    - name: "scale"
+      params: {min_scale: 0.8, max_scale: 1.2}
+    - name: "brightness"
+      params: {max_delta: 0.3}
+
+# Checkpoint and visualization settings
+paths:
+  checkpoint_dir: "../../../tinyimagenetrendu"
+  visualization_dir: "../../../visualizationsrendu/tinyimagenet"
+  log_dir: "./logs/tinyimagenet"
+
+# Model combinations to evaluate
+model_combinations:
+  - name: "VanillaViT"
+    main_model: "vanilla_vit"
+    healer_model: null
+    description: "Vanilla ViT (not robust)"
+    
+  - name: "VanillaViT_Robust"
+    main_model: "vanilla_vit_robust"
+    healer_model: null
+    description: "Vanilla ViT (robust training)"
+    
+  - name: "Healer+VanillaViT"
+    main_model: "vanilla_vit"
+    healer_model: "healer"
+    description: "Healer + Vanilla ViT (not robust)"
+    
+  - name: "Healer+VanillaViT_Robust"
+    main_model: "vanilla_vit_robust"
+    healer_model: "healer"
+    description: "Healer + Vanilla ViT (robust)"
+    
+  - name: "TTT"
+    main_model: "ttt"
+    healer_model: null
+    description: "TTT (Test-Time Training)"
+    
+  - name: "TTT_Robust"
+    main_model: "ttt_robust"
+    healer_model: null
+    description: "TTT (robust compatible)"
+    
+  - name: "BlendedTraining"
+    main_model: "blended_training"
+    healer_model: null
+    description: "Blended Training (inherently robust)"
+    
+  - name: "TTT3fc"
+    main_model: "ttt3fc"
+    healer_model: null
+    description: "TTT3fc (Test-Time Training with 3FC)"
+    
+  - name: "TTT3fc_Robust"
+    main_model: "ttt3fc_robust"
+    healer_model: null
+    description: "TTT3fc (robust compatible)"
+    
+  - name: "BlendedTraining3fc"
+    main_model: "blended_training_3fc"
+    healer_model: null
+    description: "Blended Training 3fc (inherently robust)"
+    
+  - name: "ResNet18_Baseline"
+    main_model: "resnet"
+    healer_model: null
+    description: "ResNet18 (from scratch)"
+    
+  - name: "ResNet18_Pretrained"
+    main_model: "resnet_pretrained"
+    healer_model: null
+    description: "ResNet18 (ImageNet pretrained)"
+
+# Logging settings
+logging:
+  level: "INFO"
+  format: "[%(asctime)s] %(levelname)s: %(message)s"
+  wandb:
+    enabled: false
+    project: "tinyimagenet-vision-transformers"
+    entity: null
