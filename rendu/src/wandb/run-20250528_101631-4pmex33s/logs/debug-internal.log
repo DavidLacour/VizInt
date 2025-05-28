@@ -1,0 +1,15 @@
+{"time":"2025-05-28T10:16:31.25436332+02:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/david-lacour/Documents/transformerVision/githubs/VizIntcopyforrendu/rendu/src/wandb/run-20250528_101631-4pmex33s/logs/debug-core.log"}
+{"time":"2025-05-28T10:16:33.605108326+02:00","level":"INFO","msg":"created new stream","id":"4pmex33s"}
+{"time":"2025-05-28T10:16:33.605179555+02:00","level":"INFO","msg":"stream: started","id":"4pmex33s"}
+{"time":"2025-05-28T10:16:33.605337253+02:00","level":"INFO","msg":"writer: Do: started","stream_id":"4pmex33s"}
+{"time":"2025-05-28T10:16:33.605456235+02:00","level":"INFO","msg":"handler: started","stream_id":"4pmex33s"}
+{"time":"2025-05-28T10:16:33.605536697+02:00","level":"INFO","msg":"sender: started","stream_id":"4pmex33s"}
+{"time":"2025-05-28T10:16:34.275018445+02:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-28T10:16:39.778133883+02:00","level":"INFO","msg":"stream: closing","id":"4pmex33s"}
+{"time":"2025-05-28T10:16:39.778199244+02:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-28T10:16:39.778376834+02:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-28T10:16:40.854561819+02:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-28T10:16:41.241005177+02:00","level":"INFO","msg":"handler: closed","stream_id":"4pmex33s"}
+{"time":"2025-05-28T10:16:41.241139706+02:00","level":"INFO","msg":"writer: Close: closed","stream_id":"4pmex33s"}
+{"time":"2025-05-28T10:16:41.24116913+02:00","level":"INFO","msg":"sender: closed","stream_id":"4pmex33s"}
+{"time":"2025-05-28T10:16:41.241437943+02:00","level":"INFO","msg":"stream: closed","id":"4pmex33s"}

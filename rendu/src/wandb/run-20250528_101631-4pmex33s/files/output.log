@@ -1,0 +1,82 @@
+[2025-05-28 10:16:34,868] INFO: Set random seed to 42
+[2025-05-28 10:16:34,868] INFO: Dataset: cifar10
+[2025-05-28 10:16:34,868] INFO: Mode: both
+[2025-05-28 10:16:34,914] INFO: Device: cuda
+[2025-05-28 10:16:34,914] INFO: Debug mode: True
+[2025-05-28 10:16:34,914] INFO: Models to process: ['vanilla_vit', 'healer', 'ttt', 'ttt3fc', 'blended_training', 'blended_training_3fc', 'resnet', 'resnet_pretrained']
+[2025-05-28 10:16:34,914] INFO:
+============================================================
+[2025-05-28 10:16:34,914] INFO: Training vanilla_vit model on cifar10
+[2025-05-28 10:16:34,915] INFO: ============================================================
+[2025-05-28 10:16:34,915] INFO: Starting training for vanilla_vit on cifar10
+[2025-05-28 10:16:35,089] INFO: Created vanilla_vit model with 14,824,906 trainable parameters
+[2025-05-28 10:16:36,287] INFO: Debug mode: Using 20 train and 6 val samples
+[2025-05-28 10:16:36,288] INFO: Created CIFAR-10 loaders: 20 train, 6 val samples
+Epoch 1/100 [Train]: 100%|█████████████████████████████████████████████████████| 10/10 [00:00<00:00, 24.55it/s, loss=3.6896, accuracy=0.0000]
+Epoch 1/100 [Val]: 100%|████████████████████████████████████████████████████████| 3/3 [00:00<00:00, 360.46it/s, loss=2.0996, accuracy=0.0000]
+[2025-05-28 10:16:36,706] INFO: Epoch 1/100 - Time: 0.4s - train_loss: 3.5636, train_accuracy: 0.0000 - val_loss: 2.3484, val_accuracy: 0.0000
+[2025-05-28 10:16:36,843] INFO: Saved checkpoint to ../../../debugmodelrendu/cifar10/bestmodel_vanilla_vit/best_model.pt
+Epoch 2/100 [Train]: 100%|█████████████████████████████████████████████████████| 10/10 [00:00<00:00, 78.21it/s, loss=2.9768, accuracy=0.0000]
+Epoch 2/100 [Val]: 100%|████████████████████████████████████████████████████████| 3/3 [00:00<00:00, 421.17it/s, loss=3.4493, accuracy=0.0000]
+[2025-05-28 10:16:36,980] INFO: Epoch 2/100 - Time: 0.1s - train_loss: 2.4732, train_accuracy: 0.1000 - val_loss: 4.0822, val_accuracy: 0.0000
+Epoch 3/100 [Train]: 100%|█████████████████████████████████████████████████████| 10/10 [00:00<00:00, 77.13it/s, loss=1.9249, accuracy=0.0000]
+Epoch 3/100 [Val]: 100%|████████████████████████████████████████████████████████| 3/3 [00:00<00:00, 410.78it/s, loss=2.5350, accuracy=0.0000]
+[2025-05-28 10:16:37,118] INFO: Epoch 3/100 - Time: 0.1s - train_loss: 2.2652, train_accuracy: 0.1500 - val_loss: 3.4151, val_accuracy: 0.0000
+Epoch 4/100 [Train]: 100%|█████████████████████████████████████████████████████| 10/10 [00:00<00:00, 78.70it/s, loss=2.5689, accuracy=0.0000]
+Epoch 4/100 [Val]: 100%|████████████████████████████████████████████████████████| 3/3 [00:00<00:00, 438.77it/s, loss=1.8264, accuracy=0.0000]
+[2025-05-28 10:16:37,253] INFO: Epoch 4/100 - Time: 0.1s - train_loss: 2.1709, train_accuracy: 0.1000 - val_loss: 3.4480, val_accuracy: 0.0000
+Epoch 5/100 [Train]: 100%|█████████████████████████████████████████████████████| 10/10 [00:00<00:00, 77.35it/s, loss=1.8094, accuracy=0.5000]
+Epoch 5/100 [Val]: 100%|████████████████████████████████████████████████████████| 3/3 [00:00<00:00, 441.71it/s, loss=2.2688, accuracy=0.0000]
+[2025-05-28 10:16:37,391] INFO: Epoch 5/100 - Time: 0.1s - train_loss: 2.1648, train_accuracy: 0.2500 - val_loss: 3.3247, val_accuracy: 0.0000
+Epoch 6/100 [Train]: 100%|█████████████████████████████████████████████████████| 10/10 [00:00<00:00, 79.16it/s, loss=1.3671, accuracy=1.0000]
+Epoch 6/100 [Val]: 100%|████████████████████████████████████████████████████████| 3/3 [00:00<00:00, 455.41it/s, loss=3.2786, accuracy=0.0000]
+[2025-05-28 10:16:37,525] INFO: Epoch 6/100 - Time: 0.1s - train_loss: 2.2146, train_accuracy: 0.2000 - val_loss: 3.7277, val_accuracy: 0.0000
+Epoch 7/100 [Train]: 100%|█████████████████████████████████████████████████████| 10/10 [00:00<00:00, 77.77it/s, loss=2.8041, accuracy=0.0000]
+Epoch 7/100 [Val]: 100%|████████████████████████████████████████████████████████| 3/3 [00:00<00:00, 435.73it/s, loss=2.9446, accuracy=0.0000]
+[2025-05-28 10:16:37,661] INFO: Epoch 7/100 - Time: 0.1s - train_loss: 2.1733, train_accuracy: 0.2000 - val_loss: 3.8115, val_accuracy: 0.0000
+Epoch 8/100 [Train]: 100%|█████████████████████████████████████████████████████| 10/10 [00:00<00:00, 79.28it/s, loss=2.5316, accuracy=0.0000]
+Epoch 8/100 [Val]: 100%|████████████████████████████████████████████████████████| 3/3 [00:00<00:00, 438.66it/s, loss=2.2585, accuracy=0.0000]
+[2025-05-28 10:16:37,795] INFO: Epoch 8/100 - Time: 0.1s - train_loss: 2.1899, train_accuracy: 0.1500 - val_loss: 3.5983, val_accuracy: 0.0000
+Epoch 9/100 [Train]: 100%|█████████████████████████████████████████████████████| 10/10 [00:00<00:00, 79.66it/s, loss=2.3233, accuracy=0.0000]
+Epoch 9/100 [Val]: 100%|████████████████████████████████████████████████████████| 3/3 [00:00<00:00, 445.49it/s, loss=2.2254, accuracy=0.0000]
+[2025-05-28 10:16:37,929] INFO: Epoch 9/100 - Time: 0.1s - train_loss: 2.2010, train_accuracy: 0.1500 - val_loss: 3.5893, val_accuracy: 0.0000
+Epoch 10/100 [Train]: 100%|████████████████████████████████████████████████████| 10/10 [00:00<00:00, 80.01it/s, loss=2.2513, accuracy=0.0000]
+Epoch 10/100 [Val]: 100%|███████████████████████████████████████████████████████| 3/3 [00:00<00:00, 451.99it/s, loss=2.2710, accuracy=0.0000]
+[2025-05-28 10:16:38,062] INFO: Epoch 10/100 - Time: 0.1s - train_loss: 2.1889, train_accuracy: 0.2500 - val_loss: 3.3976, val_accuracy: 0.0000
+Epoch 11/100 [Train]: 100%|████████████████████████████████████████████████████| 10/10 [00:00<00:00, 80.86it/s, loss=2.7581, accuracy=0.0000]
+Epoch 11/100 [Val]: 100%|███████████████████████████████████████████████████████| 3/3 [00:00<00:00, 445.73it/s, loss=2.3784, accuracy=0.0000]
+[2025-05-28 10:16:38,193] INFO: Epoch 11/100 - Time: 0.1s - train_loss: 2.2584, train_accuracy: 0.2500 - val_loss: 3.6407, val_accuracy: 0.0000
+[2025-05-28 10:16:38,193] INFO: Early stopping triggered after 11 epochs
+[2025-05-28 10:16:38,193] INFO: Training completed for vanilla_vit
+[2025-05-28 10:16:38,193] INFO: Best metric: 0.0000 at epoch 1
+[2025-05-28 10:16:38,194] INFO:
+Training robust version: vanilla_vit_robust
+[2025-05-28 10:16:38,194] INFO: Starting training for vanilla_vit_robust on cifar10
+[2025-05-28 10:16:38,260] INFO: Created vanilla_vit_robust model with 14,824,906 trainable parameters
+[2025-05-28 10:16:39,397] INFO: Debug mode: Using 20 train and 6 val samples
+[2025-05-28 10:16:39,398] INFO: Created CIFAR-10 loaders: 20 train, 6 val samples
+Epoch 1/100 [Train]:   0%|                                                                                            | 0/10 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizIntcopyforrendu/rendu/src/main.py", line 281, in <module>
+    main()
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizIntcopyforrendu/rendu/src/main.py", line 271, in main
+    train_models(args, config, models_to_process)
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizIntcopyforrendu/rendu/src/main.py", line 175, in train_models
+    robust_model, robust_history = trainer_service.train_model(
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizIntcopyforrendu/rendu/src/services/model_trainer.py", line 80, in train_model
+    history = trainer.train(train_loader, val_loader, checkpoint_dir)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizIntcopyforrendu/rendu/src/trainers/base_trainer.py", line 224, in train
+    train_metrics = self.train_epoch(train_loader, optimizer)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizIntcopyforrendu/rendu/src/trainers/base_trainer.py", line 122, in train_epoch
+    outputs = self.training_step(batch, batch_idx)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizIntcopyforrendu/rendu/src/trainers/classification_trainer.py", line 104, in training_step
+    images = self._apply_robust_transformations(images)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/david-lacour/Documents/transformerVision/githubs/VizIntcopyforrendu/rendu/src/trainers/classification_trainer.py", line 151, in _apply_robust_transformations
+    transformed_img, _ = self.continuous_transform.apply_transforms_unnormalized(
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ContinuousTransforms' object has no attribute 'apply_transforms_unnormalized'
