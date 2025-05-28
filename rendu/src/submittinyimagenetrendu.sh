@@ -7,8 +7,8 @@
 #SBATCH --mem=64G
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5               # Adjust CPU allocation if needed
-#SBATCH --output=interactive_job_cifar10_funky.out    # Output log file
-#SBATCH --error=interactive_job_cifar10_funky.err     # Error log file
+#SBATCH --output=interactive_job_tiny_funky.out    # Output log file
+#SBATCH --error=interactive_job_tiny_funky.err     # Error log file
 
 CONFIG_FILE=$1
 WANDB=$2
