@@ -223,14 +223,14 @@ class ModelEvaluator:
             results[severity] = accuracy
             self.logger.info(f"  Severity {severity}: {accuracy:.4f}")
         
-        # Evaluate OOD performance if requested
+        # Evaluate OOD performance with funky transforms if requested
         if include_ood:
-            self.logger.info("  Evaluating OOD performance...")
+            self.logger.info("  Evaluating OOD performance with funky transforms...")
             ood_accuracy = self._evaluate_ood_data(
                 main_model, healer_model, dataset_name, model_type, normalize
             )
-            ood_accuracies['ood'] = ood_accuracy
-            self.logger.info(f"  OOD: {ood_accuracy:.4f}")
+            ood_accuracies['funky_ood'] = ood_accuracy
+            self.logger.info(f"  Funky OOD: {ood_accuracy:.4f}")
         
         return {
             'accuracies': results,
@@ -492,27 +492,14 @@ class ModelEvaluator:
         print(f"🏆 COMPREHENSIVE RESULTS - {dataset_name}")
         print("="*141)
         
-        # Check if we have OOD results
-        has_ood = any('ood_results' in data and data['ood_results'] for data in results.values())
-        
-        # Print table header
-        header_parts = ["Model Combination", "Description", "Clean"]
-        for sev in severities[1:]:  # Skip 0.0 as it's already included as "Clean"
-            header_parts.append(f"S{sev}")
-        if has_ood:
-            header_parts.append("OOD")
-        
-        # Format header with proper spacing
+        # Print table header for continuous robustness
         header = f"{'Model Combination':<35} {'Description':<50}"
         header += f" {'Clean':>8}"
         for sev in severities[1:]:
             header += f" {f'S{sev}':>8}"
-        if has_ood:
-            header += f" {'OOD':>8}"
         
         print(header)
-        table_width = 141 + (8 if has_ood else 0)
-        print("-" * table_width)
+        print("-" * 141)
         
         # Sort by clean accuracy
         sorted_results = sorted(
@@ -521,18 +508,15 @@ class ModelEvaluator:
             reverse=True
         )
         
-        # Print results
+        # Print continuous robustness results
         for name, data in sorted_results:
             row = f"{name:<35} {data['description']:<50}"
             for sev in severities:
                 acc = data['results'].get(sev, 0)
                 row += f" {acc:>8.4f}"
-            if has_ood:
-                ood_acc = data.get('ood_results', {}).get('ood', 0)
-                row += f" {ood_acc:>8.4f}"
             print(row)
         
-        print("=" * table_width)
+        print("=" * 141)
         
         # Print analysis section
         print("\n" + "="*141)
@@ -559,18 +543,15 @@ class ModelEvaluator:
         if most_robust:
             print(f"🛡️  Most Transform Robust: {most_robust[0]} ({most_robust[2]:.1%} drop)")
         
-        # Find best OOD performance if available
-        if has_ood:
-            best_ood = max(sorted_results, key=lambda x: x[1].get('ood_results', {}).get('ood', 0))
-            best_ood_acc = best_ood[1].get('ood_results', {}).get('ood', 0)
-            print(f"🚀 Best OOD Performance: {best_ood[0]} ({best_ood_acc:.4f})")
+        # Find best continuous robustness performance (separate from OOD)
+        # This will be analyzed later in the OOD section
         
         # Print transformation robustness summary
         print("\n" + "="*141)
         print("📊 TRANSFORMATION ROBUSTNESS SUMMARY")
         print("="*141)
         
-        # Print header for robustness summary
+        # Print header for continuous robustness summary
         header = f"{'Model':<35}"
         for sev in severities:
             if sev == 0.0:
@@ -578,11 +559,8 @@ class ModelEvaluator:
             else:
                 header += f" {f'Sev {sev}':>10}"
         header += f" {'Avg Drop':>10}"
-        if has_ood:
-            header += f" {'OOD':>10}"
         print(header)
-        robustness_width = 141 + (10 if has_ood else 0)
-        print("-" * robustness_width)
+        print("-" * 141)
         
         # Print robustness data
         for name, data in sorted_results:
@@ -601,11 +579,6 @@ class ModelEvaluator:
                 row += f" {avg_drop:>10.4f}"
             else:
                 row += f" {'N/A':>10}"
-            
-            # Add OOD results if available
-            if has_ood:
-                ood_acc = data.get('ood_results', {}).get('ood', 0)
-                row += f" {ood_acc:>10.4f}"
             
             print(row)
         
@@ -676,5 +649,70 @@ class ModelEvaluator:
                     row += f" {'N/A':>10}"
                 
                 print(row)
+        
+        # Add separate OOD evaluation section
+        self._print_ood_evaluation_section(sorted_results)
+        
+        print("\n" + "="*141)
+    
+    def _print_ood_evaluation_section(self, sorted_results):
+        """Print separate OOD evaluation section with funky transforms"""
+        # Check if we have OOD results (including 0.0 values)
+        has_ood = any('ood_results' in data and data['ood_results'] and 'funky_ood' in data['ood_results'] for _, data in sorted_results)
+        
+        if not has_ood:
+            return
+        
+        print("\n" + "="*141)
+        print("🚀 OUT-OF-DISTRIBUTION (FUNKY TRANSFORMS) EVALUATION")
+        print("="*141)
+        print("This section evaluates model performance on extreme, funky transformations")
+        print("including color inversion, pixelation, extreme blur, masking, etc.")
+        print("-"*141)
+        
+        # Print OOD header
+        header = f"{'Model Combination':<35} {'Description':<50} {'Funky OOD':>12}"
+        print(header)
+        print("-" * 141)
+        
+        # Sort by OOD performance
+        ood_sorted_results = sorted(
+            sorted_results,
+            key=lambda x: x[1].get('ood_results', {}).get('funky_ood', 0),
+            reverse=True
+        )
+        
+        # Print OOD results
+        for name, data in ood_sorted_results:
+            ood_acc = data.get('ood_results', {}).get('funky_ood', 0)
+            row = f"{name:<35} {data['description']:<50} {ood_acc:>12.4f}"
+            print(row)
+        
+        print("=" * 141)
+        
+        # Print OOD analysis
+        print("\n📊 OOD ANALYSIS")
+        print("-" * 50)
+        
+        # Best OOD performance
+        best_ood = ood_sorted_results[0] if ood_sorted_results else None
+        if best_ood:
+            best_ood_acc = best_ood[1].get('ood_results', {}).get('funky_ood', 0)
+            print(f"🥇 Best Funky OOD Performance: {best_ood[0]} ({best_ood_acc:.4f})")
+        
+        # Compare OOD vs Clean performance
+        print(f"\n🔍 OOD vs Clean Performance Gap:")
+        for name, data in ood_sorted_results[:5]:  # Top 5 models
+            clean_acc = data['results'].get(0.0, 0)
+            ood_acc = data.get('ood_results', {}).get('funky_ood', 0)
+            gap = clean_acc - ood_acc
+            gap_percent = (gap / clean_acc * 100) if clean_acc > 0 else 0
+            print(f"    {name}: Clean {clean_acc:.4f} → OOD {ood_acc:.4f} (Gap: {gap:.4f}, {gap_percent:.1f}%)")
+        
+        # Rank OOD robustness
+        print(f"\n🏆 OOD Robustness Ranking:")
+        for i, (name, data) in enumerate(ood_sorted_results[:5], 1):
+            ood_acc = data.get('ood_results', {}).get('funky_ood', 0)
+            print(f"    {i}. {name}: {ood_acc:.4f}")
         
         print("\n" + "="*141)
