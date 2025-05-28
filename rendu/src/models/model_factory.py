@@ -3,17 +3,17 @@ Model factory for creating models based on configuration
 """
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Any, Optional
 import torch
 import torch.nn as nn
 import logging
 
-# Add parent directory to path to import existing modules
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+from src.models.base_model import BaseModel, ClassificationModel, TransformationAwareModel
 from src.config.config_loader import ConfigLoader
 
-# Import model implementations from models module
+
 from .vanilla_vit import VanillaViT, VanillaViTRobust
 from .resnet import ResNetBaseline, ResNetPretrained
 from .ttt import TTT, TTT3fc
@@ -53,31 +53,25 @@ class ModelFactory:
             Created model
         """
         dataset_config = self.config.get_dataset_config(dataset_name)
-        
-        # Get model config - handle special cases
+     
         if model_type.startswith('vanilla_vit'):
             config_key = 'vanilla_vit'
         elif model_type.startswith('blended_training'):
             config_key = 'blended_training'
         elif model_type.endswith('_robust'):
-            # For _robust variants, use base model config
             config_key = model_type.replace('_robust', '')
         else:
-            # For other models, try direct lookup first
             config_key = model_type
         
         model_config = self.config.get_model_config(config_key)
         
-        # Get dataset-specific parameters
         num_classes = dataset_config['num_classes']
         img_size = dataset_config['img_size']
         
-        # Prepare model config with dataset-specific parameters
         model_config = model_config.copy()
         model_config['num_classes'] = num_classes
         model_config['img_size'] = img_size
         
-        # Create model based on type
         if model_type in ['vanilla_vit', 'main']:
             return VanillaViT(model_config)
             
@@ -128,16 +122,13 @@ class ModelFactory:
         Returns:
             Loaded model
         """
-        # Load checkpoint
         checkpoint = torch.load(checkpoint_path, map_location=device)
         
-        # Handle different checkpoint formats
         if 'model_state_dict' in checkpoint:
             state_dict = checkpoint['model_state_dict']
         else:
             state_dict = checkpoint
         
-        # Special handling for TTT models
         if model_type in ['ttt', 'ttt3fc', 'ttt_robust', 'ttt3fc_robust']:
             # Check if the saved model has a base_model in the state dict
             # This indicates it was saved with a base model included
@@ -148,7 +139,7 @@ class ModelFactory:
             if has_saved_base_model:
                 # The saved model has a VanillaViT base model
                 # We need to create the appropriate base model first
-                [k for k in state_dict.keys() if k.startswith('base_model.')]
+                base_model_keys = [k for k in state_dict.keys() if k.startswith('base_model.')]
                 
                 # Check if it's a VanillaViT based on the presence of cls_token
                 if 'base_model.cls_token' in state_dict:

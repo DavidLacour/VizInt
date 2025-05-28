@@ -13,6 +13,7 @@ from copy import deepcopy
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+from src.utils.transformer_utils import LayerNorm, TransformerTrunk
 
 
 class TTT(TransformationAwareModel):
@@ -41,8 +42,6 @@ class TTT(TransformationAwareModel):
         num_classes = config['num_classes']
         num_transforms = config.get('num_transform_types', 4)
         super().__init__(config, num_classes, num_transforms)
-        
-        # Extract configuration
         self.img_size = config['img_size']
         self.patch_size = config['patch_size']
         self.embed_dim = config['embed_dim']
@@ -50,7 +49,6 @@ class TTT(TransformationAwareModel):
         self.inner_steps = config.get('inner_steps', 5)
         self.inner_lr = config.get('inner_lr', 0.001)
         
-        # Base model (if provided, otherwise create a simple feature extractor)
         if base_model is not None:
             self.base_model = base_model
             # Freeze base model parameters

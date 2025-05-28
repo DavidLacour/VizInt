@@ -29,7 +29,6 @@ class ClassificationTrainer(BaseTrainer):
         self.robust_training = robust_training
         self.criterion = nn.CrossEntropyLoss()
         
-        # Load transformation module if robust training
         if self.robust_training:
             import sys
             from pathlib import Path
@@ -99,15 +98,11 @@ class ClassificationTrainer(BaseTrainer):
         """Single training step"""
         images, labels = batch
         
-        # Apply robust training transformations if enabled
         if self.robust_training and hasattr(self, 'continuous_transform'):
             images = self._apply_robust_transformations(images)
-        
-        # Forward pass
         outputs = self.model(images)
         loss = self.criterion(outputs, labels)
         
-        # Calculate accuracy
         _, predicted = torch.max(outputs, 1)
         accuracy = (predicted == labels).float().mean()
         
@@ -120,11 +115,9 @@ class ClassificationTrainer(BaseTrainer):
         """Single validation step"""
         images, labels = batch
         
-        # Forward pass
         outputs = self.model(images)
         loss = self.criterion(outputs, labels)
         
-        # Calculate accuracy
         _, predicted = torch.max(outputs, 1)
         accuracy = (predicted == labels).float().mean()
         
@@ -144,9 +137,7 @@ class ClassificationTrainer(BaseTrainer):
             if np.random.rand() > self.apply_probability:
                 transformed_images.append(images[i])
             else:
-                # Randomly choose transformation type
-                transform_type = np.random.choice(self.continuous_transform.transform_types[1:])  # Skip 'no_transform'
-                # Apply transformation with random severity
+                transform_type = np.random.choice(self.continuous_transform.transform_types[1:])  
                 severity = np.random.uniform(0.0, self.transform_severity)
                 transformed_img, _ = self.continuous_transform.apply_transforms_unnormalized(
                     images[i], 

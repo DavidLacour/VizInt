@@ -227,6 +227,7 @@ class Healer(TransformationAwareModel):
                     to_tensor = transforms.ToTensor()
                     pil_img = to_pil(img_cpu.squeeze(0))
                     
+                    #is the better way to deal with gaussian noise ?
                     # Adjust blur size based on noise level
                     blur_radius = max(1, int(min(2.0, noise_std * 4.0)))
                     if blur_radius % 2 == 0:  # Ensure odd number
