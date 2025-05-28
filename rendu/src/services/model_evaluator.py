@@ -2,7 +2,7 @@
 Model evaluator service for comprehensive model evaluation
 """
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -95,7 +95,8 @@ class ModelEvaluator:
             )
             
             results[combo_name] = {
-                'results': combo_results,
+                'results': combo_results['accuracies'],
+                'transform_accuracies': combo_results['transform_accuracies'],
                 'description': description,
                 'main_model': main_model_type,
                 'healer_model': healer_model_type
@@ -188,9 +189,10 @@ class ModelEvaluator:
                                    healer_model: Optional[nn.Module],
                                    dataset_name: str,
                                    severities: List[float],
-                                   model_type: str) -> Dict[float, float]:
+                                   model_type: str) -> Dict[str, Any]:
         """Evaluate a specific model combination"""
         results = {}
+        transform_accuracies = {}
         
         # Get normalization transform
         normalize = self.data_factory.get_normalization_transform(dataset_name)
@@ -205,15 +207,20 @@ class ModelEvaluator:
                     main_model, healer_model, val_loader, model_type
                 )
             else:
-                # OOD data evaluation
-                accuracy = self._evaluate_ood_data(
+                # Robustness data evaluation
+                accuracy, transform_acc = self._evaluate_robustness_data(
                     main_model, healer_model, dataset_name, severity, model_type, normalize
                 )
+                if transform_acc is not None:
+                    transform_accuracies[severity] = transform_acc
             
             results[severity] = accuracy
             self.logger.info(f"  Severity {severity}: {accuracy:.4f}")
         
-        return results
+        return {
+            'accuracies': results,
+            'transform_accuracies': transform_accuracies
+        }
     
     def _evaluate_clean_data(self,
                             main_model: nn.Module,
@@ -251,22 +258,22 @@ class ModelEvaluator:
         
         return correct / total
     
-    def _evaluate_ood_data(self,
+    def _evaluate_robustness_data(self,
                           main_model: nn.Module,
                           healer_model: Optional[nn.Module],
                           dataset_name: str,
                           severity: float,
                           model_type: str,
-                          normalize) -> float:
-        """Evaluate on OOD data with transformations"""
+                          normalize) -> Tuple[float, Optional[float]]:
+        """Evaluate on robustness data with transformations"""
         from src.data.continuous_transforms import ContinuousTransforms
         
         main_model.eval()
         if healer_model:
             healer_model.eval()
         
-        # Create OOD transform
-        ood_transform = ContinuousTransforms(severity=severity)
+        # Create robustness transform
+        transforms_for_robustness = ContinuousTransforms(severity=severity)
         
         # Get validation loader without normalization
         _, val_loader = self.data_factory.create_data_loaders(
@@ -275,6 +282,10 @@ class ModelEvaluator:
         
         correct = 0
         total = 0
+        
+        # Track transformation prediction accuracy
+        transform_correct = 0
+        transform_total = 0
         
         with torch.no_grad():
             for batch in tqdm(val_loader, desc=f"Evaluating severity {severity}", leave=False):
@@ -287,14 +298,18 @@ class ModelEvaluator:
                     images, labels = batch
                     images = images.to(self.device)
                     
-                    # Apply transformations
+                    # Apply transformations and track ground truth
                     batch_size = images.size(0)
                     transformed_images = []
+                    ground_truth_transforms = []
                     
                     for i in range(batch_size):
                         # Apply random transformation
-                        transform_type = np.random.choice(ood_transform.transform_types)
-                        transformed_img = ood_transform.apply_transforms_unnormalized(
+                        transform_type = np.random.choice(transforms_for_robustness.transform_types)
+                        # Convert transform type string to index
+                        transform_idx = transforms_for_robustness.transform_types.index(transform_type)
+                        ground_truth_transforms.append(transform_idx)
+                        transformed_img = transforms_for_robustness.apply_transforms_unnormalized(
                             images[i], transform_type=transform_type, severity=severity
                         )
                         # Normalize after transformation
@@ -302,27 +317,55 @@ class ModelEvaluator:
                         transformed_images.append(transformed_img)
                     
                     images = torch.stack(transformed_images)
+                    ground_truth_transforms = torch.tensor(ground_truth_transforms, dtype=torch.long).to(self.device)
                 
                 labels = labels.to(self.device)
                 
-                # Apply healer if available
+                # Apply healer if available and track its prediction accuracy
                 if healer_model:
                     try:
                         # Get healer predictions
                         predictions, _ = healer_model(images, return_reconstruction=False, return_logits=False)
+                        
+                        # Track healer's transform prediction accuracy
+                        if 'transform_type_logits' in predictions:
+                            predicted_transforms = torch.argmax(predictions['transform_type_logits'], dim=1)
+                            if 'ground_truth_transforms' in locals():
+                                transform_correct += (predicted_transforms == ground_truth_transforms).sum().item()
+                                transform_total += ground_truth_transforms.size(0)
+                        
                         # Apply corrections using the predicted transformations
                         images = healer_model.apply_correction(images, predictions)
                     except Exception as e:
                         self.logger.warning(f"Healer failed to process images: {e}. Skipping healer for this batch.")
                 
-                # Get predictions
-                outputs = self._get_model_outputs(main_model, images, model_type)
+                # Get predictions and track transform predictions for all models
+                if 'ttt' in model_type or 'blended' in model_type:
+                    if 'ttt' in model_type:
+                        outputs, aux_outputs = main_model(images)
+                    else:  # blended
+                        outputs, aux_outputs = main_model(images, return_aux=True)
+                    
+                    # Track transform prediction accuracy for TTT/Blended models
+                    if aux_outputs and 'transform_type' in aux_outputs and 'ground_truth_transforms' in locals():
+                        predicted_transforms = torch.argmax(aux_outputs['transform_type'], dim=1)
+                        transform_correct += (predicted_transforms == ground_truth_transforms).sum().item()
+                        transform_total += ground_truth_transforms.size(0)
+                else:
+                    outputs = self._get_model_outputs(main_model, images, model_type)
+                
                 _, predicted = torch.max(outputs, 1)
                 
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
         
-        return correct / total
+        # Calculate transform prediction accuracy if available
+        transform_accuracy = None
+        if transform_total > 0:
+            transform_accuracy = transform_correct / transform_total
+            self.logger.info(f"  Transform prediction accuracy: {transform_accuracy:.4f}")
+        
+        return correct / total, transform_accuracy
     
     def _get_model_outputs(self, model: nn.Module, images: torch.Tensor, model_type: str) -> torch.Tensor:
         """Get model outputs handling different model types"""
@@ -482,5 +525,44 @@ class ModelEvaluator:
                         
                         print(f"    Severity {sev}: Original: {base_acc:.4f}, "
                               f"Healed: {healer_acc:.4f}, Improvement: {improvement:+.4f}")
+        
+        # Print transformation prediction accuracy section
+        models_with_transform_pred = [(name, data) for name, data in sorted_results 
+                                      if data.get('transform_accuracies')]
+        
+        if models_with_transform_pred:
+            print("\n" + "="*141)
+            print("🎯 TRANSFORMATION PREDICTION ACCURACY")
+            print("="*141)
+            
+            # Print header
+            header = f"{'Model':<35}"
+            for sev in severities[1:]:  # Skip 0.0 as no transforms on clean data
+                header += f" {f'Sev {sev}':>10}"
+            header += f" {'Average':>10}"
+            print(header)
+            print("-"*141)
+            
+            # Print transform prediction accuracies
+            for name, data in models_with_transform_pred:
+                row = f"{name:<35}"
+                transform_accs = []
+                
+                for sev in severities[1:]:
+                    if sev in data['transform_accuracies']:
+                        acc = data['transform_accuracies'][sev]
+                        row += f" {acc:>10.4f}"
+                        transform_accs.append(acc)
+                    else:
+                        row += f" {'N/A':>10}"
+                
+                # Calculate average
+                if transform_accs:
+                    avg_acc = sum(transform_accs) / len(transform_accs)
+                    row += f" {avg_acc:>10.4f}"
+                else:
+                    row += f" {'N/A':>10}"
+                
+                print(row)
         
         print("\n" + "="*141)

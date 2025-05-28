@@ -5,11 +5,11 @@ from PIL import Image
 
 
 class TinyImageNetDataset(Dataset):
-    def __init__(self, root_dir, split='train', transform=None, ood_transform=None):
+    def __init__(self, root_dir, split='train', transform=None, transforms_for_robustness=None):
         self.root_dir = root_dir
         self.split = split
         self.transform = transform
-        self.ood_transform = ood_transform
+        self.transforms_for_robustness = transforms_for_robustness
         self.image_paths = []
         self.labels = []
         self.class_to_idx = {}
@@ -51,11 +51,11 @@ class TinyImageNetDataset(Dataset):
             print(f"Error loading image {img_path}: {e}")
             image = Image.new('RGB', (64, 64), color='black')
         
-        if self.ood_transform:
+        if self.transforms_for_robustness:
             to_tensor = transforms.ToTensor()
             img_tensor = to_tensor(image)
             
-            transformed_tensor, transform_params = self.ood_transform.apply_transforms(
+            transformed_tensor, transform_params = self.transforms_for_robustness.apply_transforms(
                 img_tensor, return_params=True
             )
             

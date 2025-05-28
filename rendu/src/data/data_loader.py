@@ -238,12 +238,12 @@ class DataLoaderFactory:
         
         return transforms.Compose(transform_list)
     
-    def create_ood_loader(self,
+    def create_robustness_loader(self,
                          dataset_name: str,
                          severity: float,
                          split: str = 'val') -> DataLoader:
         """
-        Create OOD (Out-of-Distribution) data loader with transformations
+        Create robustness data loader with transformations
         
         Args:
             dataset_name: Name of dataset
@@ -251,7 +251,7 @@ class DataLoaderFactory:
             split: Data split ('train' or 'val')
             
         Returns:
-            OOD data loader
+            Robustness data loader
         """
         dataset_config = self.config.get_dataset_config(dataset_name)
         
@@ -265,10 +265,10 @@ class DataLoaderFactory:
                 dataset_config, train=False, with_normalization=False, with_augmentation=False
             )
         
-        # Create OOD transform
-        ood_transform = ContinuousTransforms(severity=severity)
+        # Create robustness transform
+        transforms_for_robustness = ContinuousTransforms(severity=severity)
         
-        # Create dataset with OOD transforms
+        # Create dataset with robustness transforms
         if dataset_name.lower() == 'cifar10':
             dataset = datasets.CIFAR10(
                 root=dataset_config['path'],
@@ -281,13 +281,13 @@ class DataLoaderFactory:
                 dataset_config['path'],
                 split,
                 base_transform,
-                ood_transform=ood_transform
+                transforms_for_robustness=transforms_for_robustness
             )
         
         batch_size = self.config.get_batch_size('evaluation')
         
         if dataset_name.lower() == 'tinyimagenet':
-            # Custom collate function for OOD data in batch
+            # Custom collate function for robustness data in batch
             def collate_fn(batch):
                 orig_imgs, trans_imgs, labels, params = zip(*batch)
                 return torch.stack(orig_imgs), torch.stack(trans_imgs), torch.tensor(labels), params
