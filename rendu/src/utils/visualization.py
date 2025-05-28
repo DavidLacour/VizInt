@@ -164,7 +164,8 @@ def create_robustness_heatmap(results: Dict[str, Any],
     
     accuracy_matrix = np.array(accuracy_matrix)
     
-    ax = sns.heatmap(accuracy_matrix, 
+    # Create heatmap
+    sns.heatmap(accuracy_matrix, 
                      xticklabels=[f"S={s}" if s > 0 else "Clean" for s in severities],
                      yticklabels=model_names,
                      cmap='RdYlGn',

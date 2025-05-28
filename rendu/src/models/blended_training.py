@@ -3,15 +3,14 @@ Blended Training model implementation (previously BlendedTTT)
 """
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from typing import Dict, Any, Tuple, Union, Optional
+from typing import Dict, Any, Tuple, Union
 from .base_model import TransformationAwareModel
 import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.utils.transformer_utils import LayerNorm, TransformerTrunk, Mlp
+from src.utils.transformer_utils import LayerNorm, TransformerTrunk
 from src.models.vit_implementation import PatchEmbed
 
 

@@ -3,9 +3,9 @@ Data loader module for handling different datasets
 """
 import sys
 from pathlib import Path
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Dict, Any
 import torch
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 import logging
 import numpy as np

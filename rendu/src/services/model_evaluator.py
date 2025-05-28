@@ -2,8 +2,7 @@
 Model evaluator service for comprehensive model evaluation
 """
 import logging
-from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 import torch
 import torch.nn as nn
 from tqdm import tqdm

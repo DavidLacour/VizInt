@@ -106,7 +106,7 @@ models:
 
 # Training configurations
 training:
-  batch_size: 128
+  batch_size: 250
   learning_rate: 0.001
   weight_decay: 0.05
   optimizer: "AdamW"

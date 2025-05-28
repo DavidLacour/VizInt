@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-import numpy as np
-from einops import rearrange
 
 # Import from our combined utilities file
 from src.utils.transformer_utils import (
@@ -105,7 +103,8 @@ class VisionTransformer(nn.Module):
             embed_dim=embed_dim,
             use_resnet_stem=use_resnet_stem
         )
-        num_patches = self.patch_embed.num_patches
+        
+        # Class token and position embedding
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         
         # Add learnable sinusoidal position embedding 

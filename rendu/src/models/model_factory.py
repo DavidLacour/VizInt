@@ -3,7 +3,7 @@ Model factory for creating models based on configuration
 """
 import sys
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Optional
 import torch
 import torch.nn as nn
 import logging
@@ -11,7 +11,6 @@ import logging
 # Add parent directory to path to import existing modules
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.models.base_model import BaseModel, ClassificationModel, TransformationAwareModel
 from src.config.config_loader import ConfigLoader
 
 # Import model implementations from models module
@@ -149,7 +148,7 @@ class ModelFactory:
             if has_saved_base_model:
                 # The saved model has a VanillaViT base model
                 # We need to create the appropriate base model first
-                base_model_keys = [k for k in state_dict.keys() if k.startswith('base_model.')]
+                [k for k in state_dict.keys() if k.startswith('base_model.')]
                 
                 # Check if it's a VanillaViT based on the presence of cls_token
                 if 'base_model.cls_token' in state_dict:
