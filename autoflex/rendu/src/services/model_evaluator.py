@@ -66,8 +66,10 @@ class ModelEvaluator:
             
             # Skip if models not available or not in requested types
             if model_types:
-                base_type = main_model_type.split('_')[0]
-                if base_type not in model_types:
+                # Check if the main model type is in the requested list
+                # Also check without _robust suffix for robust variants
+                model_type_to_check = main_model_type.replace('_robust', '')
+                if model_type_to_check not in model_types:
                     continue
             
             if main_model_type not in available_models:
@@ -107,22 +109,30 @@ class ModelEvaluator:
                               model_types: Optional[List[str]] = None) -> Dict[str, nn.Module]:
         """Load all available models from checkpoints"""
         available_models = {}
-        checkpoint_dir = self.config.get_checkpoint_dir(dataset_name)
+        # Use debug checkpoint directory if in debug mode
+        checkpoint_dir = self.config.get_checkpoint_dir(dataset_name, use_debug_dir=True)
+        
+        self.logger.info(f"Loading models from checkpoint directory: {checkpoint_dir}")
         
         # Define all possible model types
         all_model_types = [
-            'main', 'main_robust', 'healer', 'ttt', 'ttt_robust',
-            'ttt3fc', 'ttt3fc_robust', 'blended', 'blended_robust',
-            'blended3fc', 'blended3fc_robust', 'baseline', 'pretrained'
+            'vanilla_vit', 'vanilla_vit_robust', 'healer', 'ttt', 'ttt_robust',
+            'ttt3fc', 'ttt3fc_robust', 'blended_training', 'blended_training_3fc', 
+            'resnet', 'resnet_pretrained'
         ]
         
         # Filter by requested types
         if model_types:
             types_to_load = []
             for mt in all_model_types:
-                base_type = mt.split('_')[0]
-                if base_type in model_types:
+                # Check exact match first
+                if mt in model_types:
                     types_to_load.append(mt)
+                # Also check for base type match (e.g., 'ttt' matches 'ttt_robust')
+                elif mt.replace('_robust', '') in model_types:
+                    types_to_load.append(mt)
+            self.logger.debug(f"Requested model types: {model_types}")
+            self.logger.debug(f"Types to load: {types_to_load}")
         else:
             types_to_load = all_model_types
         
@@ -130,18 +140,23 @@ class ModelEvaluator:
         base_model = None
         base_model_robust = None
         
-        for model_type in ['main', 'main_robust']:
+        for model_type in ['vanilla_vit', 'vanilla_vit_robust']:
             if model_type in types_to_load:
                 checkpoint_path = checkpoint_dir / f"bestmodel_{model_type}" / "best_model.pt"
+                self.logger.debug(f"Looking for {model_type} at {checkpoint_path}")
                 if checkpoint_path.exists():
-                    model = self.model_factory.load_model_from_checkpoint(
-                        checkpoint_path, model_type, dataset_name, device=self.device
-                    )
-                    available_models[model_type] = model
-                    if model_type == 'main':
-                        base_model = model
-                    else:
-                        base_model_robust = model
+                    try:
+                        model = self.model_factory.load_model_from_checkpoint(
+                            checkpoint_path, model_type, dataset_name, device=self.device
+                        )
+                        available_models[model_type] = model
+                        self.logger.info(f"Loaded {model_type} model")
+                        if model_type == 'vanilla_vit':
+                            base_model = model
+                        else:
+                            base_model_robust = model
+                    except Exception as e:
+                        self.logger.error(f"Failed to load {model_type}: {e}")
         
         # Load other models
         for model_type in types_to_load:
@@ -220,8 +235,13 @@ class ModelEvaluator:
                 
                 # Apply healer if available
                 if healer_model:
-                    healer_predictions = healer_model(images)
-                    images = healer_model.apply_correction(images, healer_predictions)
+                    try:
+                        # Get healer predictions
+                        predictions, _ = healer_model(images, return_reconstruction=False, return_logits=False)
+                        # Apply corrections using the predicted transformations
+                        images = healer_model.apply_correction(images, predictions)
+                    except Exception as e:
+                        self.logger.warning(f"Healer failed to process images: {e}. Skipping healer for this batch.")
                 
                 # Get predictions
                 outputs = self._get_model_outputs(main_model, images, model_type)
@@ -275,7 +295,7 @@ class ModelEvaluator:
                     for i in range(batch_size):
                         # Apply random transformation
                         transform_type = np.random.choice(ood_transform.transform_types)
-                        transformed_img, _ = ood_transform.apply_transforms_unnormalized(
+                        transformed_img = ood_transform.apply_transforms_unnormalized(
                             images[i], transform_type=transform_type, severity=severity
                         )
                         # Normalize after transformation
@@ -288,8 +308,13 @@ class ModelEvaluator:
                 
                 # Apply healer if available
                 if healer_model:
-                    healer_predictions = healer_model(images)
-                    images = healer_model.apply_correction(images, healer_predictions)
+                    try:
+                        # Get healer predictions
+                        predictions, _ = healer_model(images, return_reconstruction=False, return_logits=False)
+                        # Apply corrections using the predicted transformations
+                        images = healer_model.apply_correction(images, predictions)
+                    except Exception as e:
+                        self.logger.warning(f"Healer failed to process images: {e}. Skipping healer for this batch.")
                 
                 # Get predictions
                 outputs = self._get_model_outputs(main_model, images, model_type)
@@ -303,9 +328,13 @@ class ModelEvaluator:
     def _get_model_outputs(self, model: nn.Module, images: torch.Tensor, model_type: str) -> torch.Tensor:
         """Get model outputs handling different model types"""
         # Handle different model output formats
-        if 'ttt' in model_type or 'blended' in model_type:
-            # These models return tuple (class_logits, aux_outputs)
+        if 'ttt' in model_type:
+            # TTT models return tuple (class_logits, aux_outputs)
             outputs, _ = model(images)
+            return outputs
+        elif 'blended' in model_type:
+            # Blended models need return_aux=True to return tuple
+            outputs, _ = model(images, return_aux=True)
             return outputs
         else:
             # Standard models return just logits
@@ -317,24 +346,36 @@ class ModelEvaluator:
             self.logger.warning("No results to print")
             return
         
+        # Get dataset name from config
+        dataset_config = self.config.get('dataset', {})
+        dataset_name = dataset_config.get('name', 'Unknown').upper()
+        if dataset_name == 'TINYIMAGENET':
+            dataset_name = 'TinyImagenet200'
+        elif dataset_name == 'CIFAR10':
+            dataset_name = 'CIFAR-10'
+        
         # Get severities
         first_result = next(iter(results.values()))
         severities = sorted(first_result['results'].keys())
         
         # Print header
-        print("\n" + "="*100)
-        print("EVALUATION RESULTS")
-        print("="*100)
+        print("\n" + "="*141)
+        print(f"🏆 COMPREHENSIVE RESULTS - {dataset_name}")
+        print("="*141)
         
         # Print table header
-        header = f"{'Model':<30} {'Description':<40}"
-        for sev in severities:
-            if sev == 0.0:
-                header += f" {'Clean':>8}"
-            else:
-                header += f" {f'S{sev}':>8}"
+        header_parts = ["Model Combination", "Description", "Clean"]
+        for sev in severities[1:]:  # Skip 0.0 as it's already included as "Clean"
+            header_parts.append(f"S{sev}")
+        
+        # Format header with proper spacing
+        header = f"{'Model Combination':<35} {'Description':<50}"
+        header += f" {'Clean':>8}"
+        for sev in severities[1:]:
+            header += f" {f'S{sev}':>8}"
+        
         print(header)
-        print("-"*100)
+        print("-"*141)
         
         # Sort by clean accuracy
         sorted_results = sorted(
@@ -345,10 +386,102 @@ class ModelEvaluator:
         
         # Print results
         for name, data in sorted_results:
-            row = f"{name:<30} {data['description']:<40}"
+            row = f"{name:<35} {data['description']:<50}"
             for sev in severities:
                 acc = data['results'].get(sev, 0)
                 row += f" {acc:>8.4f}"
             print(row)
         
-        print("="*100)
+        print("="*141)
+        
+        # Print analysis section
+        print("\n" + "="*141)
+        print("📊 ANALYSIS")
+        print("="*141)
+        
+        # Find best clean data performance
+        best_clean = max(sorted_results, key=lambda x: x[1]['results'].get(0.0, 0))
+        print(f"🥇 Best Clean Data Performance: {best_clean[0]} ({best_clean[1]['results'][0.0]:.4f})")
+        
+        # Find most robust model (smallest drop from clean to worst severity)
+        most_robust = None
+        smallest_drop = float('inf')
+        
+        for name, data in sorted_results:
+            clean_acc = data['results'].get(0.0, 0)
+            worst_acc = data['results'].get(max(severities), 0)
+            drop = clean_acc - worst_acc
+            
+            if drop < smallest_drop and clean_acc > 0.1:  # Ignore models with very low clean accuracy
+                smallest_drop = drop
+                most_robust = (name, data, drop)
+        
+        if most_robust:
+            print(f"🛡️  Most Transform Robust: {most_robust[0]} ({most_robust[2]:.1%} drop)")
+        
+        # Print transformation robustness summary
+        print("\n" + "="*141)
+        print("📊 TRANSFORMATION ROBUSTNESS SUMMARY")
+        print("="*141)
+        
+        # Print header for robustness summary
+        header = f"{'Model':<35}"
+        for sev in severities:
+            if sev == 0.0:
+                header += f" {'Sev 0.0':>10}"
+            else:
+                header += f" {f'Sev {sev}':>10}"
+        header += f" {'Avg Drop':>10}"
+        print(header)
+        print("-"*141)
+        
+        # Print robustness data
+        for name, data in sorted_results:
+            row = f"{name:<35}"
+            clean_acc = data['results'].get(0.0, 0)
+            
+            for sev in severities:
+                acc = data['results'].get(sev, 0)
+                row += f" {acc:>10.4f}"
+            
+            # Calculate average drop
+            if clean_acc > 0:
+                drops = [(clean_acc - data['results'].get(sev, 0)) / clean_acc 
+                        for sev in severities[1:]]
+                avg_drop = sum(drops) / len(drops) if drops else 0
+                row += f" {avg_drop:>10.4f}"
+            else:
+                row += f" {'N/A':>10}"
+            
+            print(row)
+        
+        # Print healer evaluation if applicable
+        healer_results = [(name, data) for name, data in sorted_results 
+                         if 'Healer' in name and '+' in name]
+        
+        if healer_results:
+            print("\n" + "="*141)
+            print("🔍 HEALER GUIDANCE EVALUATION")
+            print("="*141)
+            
+            for healer_name, healer_data in healer_results:
+                # Find corresponding non-healer model
+                base_model_name = healer_name.replace('Healer+', '').replace('_Robust', '')
+                base_results = None
+                
+                for name, data in sorted_results:
+                    if name == base_model_name or name == base_model_name + '_Robust':
+                        base_results = data
+                        break
+                
+                if base_results:
+                    print(f"\n🔍 Evaluating {healer_name}...")
+                    for sev in severities[1:]:
+                        base_acc = base_results['results'].get(sev, 0)
+                        healer_acc = healer_data['results'].get(sev, 0)
+                        improvement = healer_acc - base_acc
+                        
+                        print(f"    Severity {sev}: Original: {base_acc:.4f}, "
+                              f"Healed: {healer_acc:.4f}, Improvement: {improvement:+.4f}")
+        
+        print("\n" + "="*141)

@@ -4,9 +4,10 @@ Trainer for TTT (Test-Time Training) models
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torchvision.transforms as transforms
 import numpy as np
 from typing import Dict, Any, Optional
-from src.trainers.base_trainer import BaseTrainer
+from trainers.base_trainer import BaseTrainer
 
 
 class TTTTrainer(BaseTrainer):
@@ -36,15 +37,11 @@ class TTTTrainer(BaseTrainer):
         # Get dataset config to determine normalization
         dataset_name = config.get('dataset_name', 'tinyimagenet')
         if dataset_name == 'cifar10':
-            self.normalize = torch.nn.Sequential(
-                torch.nn.Normalize(mean=[0.4914, 0.4822, 0.4465], 
-                                 std=[0.2023, 0.1994, 0.2010])
-            )
+            self.normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], 
+                                                std=[0.2023, 0.1994, 0.2010])
         else:
-            self.normalize = torch.nn.Sequential(
-                torch.nn.Normalize(mean=[0.485, 0.456, 0.406], 
-                                 std=[0.229, 0.224, 0.225])
-            )
+            self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                                std=[0.229, 0.224, 0.225])
         
         self.continuous_transform = ContinuousTransforms(severity=0.5)
         
@@ -100,13 +97,14 @@ class TTTTrainer(BaseTrainer):
         transform_labels = torch.tensor(transform_labels, device=self.device)
         
         # Forward pass
-        _, transform_logits = self.model(transformed_images)
+        logits, aux_outputs = self.model(transformed_images)
+        transform_logits = aux_outputs['transform_predictions']
         
-        # Compute loss
-        loss = self.criterion(transform_logits, transform_labels)
+        # Compute loss - use only the transformation prediction part
+        loss = self.criterion(transform_logits[:, :self.model.num_transforms], transform_labels)
         
         # Calculate accuracy
-        _, predicted = torch.max(transform_logits, 1)
+        _, predicted = torch.max(transform_logits[:, :self.model.num_transforms], 1)
         accuracy = (predicted == transform_labels).float().mean()
         
         return {
@@ -146,13 +144,14 @@ class TTTTrainer(BaseTrainer):
         transform_labels = torch.tensor(transform_labels, device=self.device)
         
         # Forward pass
-        _, transform_logits = self.model(transformed_images)
+        logits, aux_outputs = self.model(transformed_images)
+        transform_logits = aux_outputs['transform_predictions']
         
-        # Compute loss
-        loss = self.criterion(transform_logits, transform_labels)
+        # Compute loss - use only the transformation prediction part
+        loss = self.criterion(transform_logits[:, :self.model.num_transforms], transform_labels)
         
         # Calculate accuracy
-        _, predicted = torch.max(transform_logits, 1)
+        _, predicted = torch.max(transform_logits[:, :self.model.num_transforms], 1)
         accuracy = (predicted == transform_labels).float().mean()
         
         return {

@@ -86,7 +86,7 @@ class ModelTrainer:
     
     def _load_base_model(self, dataset_name: str, robust: bool = False) -> nn.Module:
         """Load base model for TTT-based models"""
-        model_type = 'main_robust' if robust else 'main'
+        model_type = 'vanilla_vit_robust' if robust else 'vanilla_vit'
         checkpoint_dir = self.config.get_checkpoint_dir(dataset_name)
         checkpoint_path = checkpoint_dir / f"bestmodel_{model_type}" / "best_model.pt"
         
@@ -150,21 +150,22 @@ class ModelTrainer:
         """Create specialized trainers for specific model types"""
         # Import specialized trainers as needed
         if model_type == 'healer':
-            from src.trainers.healer_trainer import HealerTrainer
-            return HealerTrainer(
+            # Healer uses classification trainer
+            from trainers.classification_trainer import ClassificationTrainer
+            return ClassificationTrainer(
                 model=model,
                 config={'training': config},
                 device=str(self.device)
             )
         elif model_type in ['ttt', 'ttt3fc']:
-            from src.trainers.ttt_trainer import TTTTrainer
+            from trainers.ttt_trainer import TTTTrainer
             return TTTTrainer(
                 model=model,
                 config={'training': config},
                 device=str(self.device)
             )
-        elif model_type in ['blended', 'blended3fc']:
-            from src.trainers.blended_trainer import BlendedTrainer
+        elif model_type in ['blended_training', 'blended_training_3fc']:
+            from trainers.blended_trainer import BlendedTrainer
             return BlendedTrainer(
                 model=model,
                 config={'training': config},

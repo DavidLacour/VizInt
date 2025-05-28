@@ -21,6 +21,11 @@ def create_evaluation_plots(results: Dict[str, Any],
     """
     save_dir.mkdir(parents=True, exist_ok=True)
     
+    # Skip if no results
+    if not results:
+        print("No results available for visualization")
+        return
+    
     # Set style
     plt.style.use('seaborn-v0_8-darkgrid')
     sns.set_palette("husl")
@@ -73,13 +78,13 @@ def create_accuracy_vs_severity_plot(results: Dict[str, Any],
     plt.grid(True, alpha=0.3)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
     
-    # Add annotations for best and worst performers
+    # Add annotations for best and worst performers if results exist
     clean_performances = [(name, data['results'].get(0.0, 0)) for name, data in results.items()]
-    best_clean = max(clean_performances, key=lambda x: x[1])
-    
-    plt.text(0.02, 0.95, f"Best Clean: {best_clean[0]} ({best_clean[1]:.3f})", 
-             transform=plt.gca().transAxes, fontsize=10, 
-             bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.5))
+    if clean_performances:
+        best_clean = max(clean_performances, key=lambda x: x[1])
+        plt.text(0.02, 0.95, f"Best Clean: {best_clean[0]} ({best_clean[1]:.3f})", 
+                 transform=plt.gca().transAxes, fontsize=10, 
+                 bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.5))
     
     plt.tight_layout()
     save_path = save_dir / "accuracy_vs_severity.png"

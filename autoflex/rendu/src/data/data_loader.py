@@ -97,8 +97,14 @@ class DataLoaderFactory:
         
         # Create data loaders
         batch_size = self.config.get_batch_size('training')
-        num_workers = self.config.get('general.num_workers', 4)
-        pin_memory = self.config.get('general.pin_memory', True)
+        
+        # Handle debug mode settings
+        if self.config.is_debug_mode():
+            num_workers = self.config.get('debug.num_workers', 0)
+            pin_memory = False
+        else:
+            num_workers = self.config.get('general.num_workers', 4)
+            pin_memory = self.config.get('general.pin_memory', True)
         
         train_loader = DataLoader(
             train_dataset,
@@ -164,8 +170,14 @@ class DataLoaderFactory:
         
         # Create data loaders
         batch_size = self.config.get_batch_size('training')
-        num_workers = self.config.get('general.num_workers', 4)
-        pin_memory = self.config.get('general.pin_memory', True)
+        
+        # Handle debug mode settings
+        if self.config.is_debug_mode():
+            num_workers = self.config.get('debug.num_workers', 0)
+            pin_memory = False
+        else:
+            num_workers = self.config.get('general.num_workers', 4)
+            pin_memory = self.config.get('general.pin_memory', True)
         
         train_loader = DataLoader(
             train_dataset,

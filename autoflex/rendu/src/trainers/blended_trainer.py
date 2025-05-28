@@ -1,16 +1,17 @@
 """
-Trainer for BlendedTTT models
+Trainer for BlendedTraining models
 """
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torchvision.transforms as transforms
 import numpy as np
 from typing import Dict, Any, Optional
-from src.trainers.base_trainer import BaseTrainer
+from trainers.base_trainer import BaseTrainer
 
 
 class BlendedTrainer(BaseTrainer):
-    """Trainer for BlendedTTT and BlendedTTT3fc models"""
+    """Trainer for BlendedTraining and BlendedTraining3fc models"""
     
     def __init__(self, 
                  model: nn.Module,
@@ -28,8 +29,9 @@ class BlendedTrainer(BaseTrainer):
         self.criterion = nn.CrossEntropyLoss()
         self.aux_criterion = nn.CrossEntropyLoss()
         
-        # Get auxiliary loss weight
-        self.aux_loss_weight = config.get('training', {}).get('aux_loss_weight', 0.5)
+        # Blended loss weights: 0.95 for classification, 0.05 for transformation
+        self.class_loss_weight = 0.95
+        self.transform_loss_weight = 0.05
         
         # Import transformation module
         import sys
@@ -40,14 +42,11 @@ class BlendedTrainer(BaseTrainer):
         # Get dataset config to determine normalization
         dataset_name = config.get('dataset_name', 'tinyimagenet')
         if dataset_name == 'cifar10':
-            self.normalize = torch.nn.Sequential(
-                torch.nn.Normalize(mean=[0.4914, 0.4822, 0.4465], 
-                                 std=[0.2023, 0.1994, 0.2010])
-            )
+            self.normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], 
+                                                std=[0.2023, 0.1994, 0.2010])
         else:
-            self.normalize = torch.nn.Sequential(
-                torch.nn.Normalize(mean=[0.485, 0.456, 0.406], 
-                                 std=[0.229, 0.224, 0.225])
+            self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                                std=[0.229, 0.224, 0.225])
             )
         
         self.continuous_transform = ContinuousTransforms(severity=0.5)
@@ -72,7 +71,7 @@ class BlendedTrainer(BaseTrainer):
         )
     
     def training_step(self, batch: Any, batch_idx: int) -> Dict[str, torch.Tensor]:
-        """Single training step for BlendedTTT"""
+        """Single training step for BlendedTraining"""
         images, labels = batch
         batch_size = images.size(0)
         
@@ -87,11 +86,10 @@ class BlendedTrainer(BaseTrainer):
             
             # Apply transformation with random severity
             severity = np.random.uniform(0.0, 1.0)
-            transformed_img, _ = self.continuous_transform.apply_transforms_unnormalized(
+            transformed_img = self.continuous_transform.apply_transforms_unnormalized(
                 images[i], 
                 transform_type=transform_type,
-                severity=severity,
-                return_params=True
+                severity=severity
             )
             
             # Normalize after transformation
@@ -103,40 +101,40 @@ class BlendedTrainer(BaseTrainer):
         transformed_images = torch.stack(transformed_images)
         transform_labels = torch.tensor(transform_labels, device=self.device)
         
-        # Forward pass
-        class_logits, aux_outputs = self.model(transformed_images)
+        # Forward pass - model returns tuple in training mode
+        class_logits, aux_outputs = self.model(transformed_images, return_aux=True)
         
         # Classification loss
         cls_loss = self.criterion(class_logits, labels)
         
-        # Auxiliary loss (transformation prediction)
-        aux_loss = self.aux_criterion(aux_outputs['transform_type_logits'], transform_labels)
+        # Transformation prediction loss
+        transform_loss = self.aux_criterion(aux_outputs['transform_type'], transform_labels)
         
-        # Combined loss
-        loss = cls_loss + self.aux_loss_weight * aux_loss
+        # Combined loss: 0.95 * classification + 0.05 * transformation
+        loss = self.class_loss_weight * cls_loss + self.transform_loss_weight * transform_loss
         
         # Calculate accuracies
         _, predicted = torch.max(class_logits, 1)
         cls_accuracy = (predicted == labels).float().mean()
         
-        _, aux_predicted = torch.max(aux_outputs['transform_type_logits'], 1)
-        aux_accuracy = (aux_predicted == transform_labels).float().mean()
+        _, transform_predicted = torch.max(aux_outputs['transform_type'], 1)
+        transform_accuracy = (transform_predicted == transform_labels).float().mean()
         
         return {
             'loss': loss,
             'cls_loss': cls_loss,
-            'aux_loss': aux_loss,
+            'transform_loss': transform_loss,
             'accuracy': cls_accuracy,
-            'aux_accuracy': aux_accuracy
+            'transform_accuracy': transform_accuracy
         }
     
     def validation_step(self, batch: Any, batch_idx: int) -> Dict[str, torch.Tensor]:
-        """Single validation step for BlendedTTT"""
+        """Single validation step for BlendedTraining"""
         images, labels = batch
         
         # For validation, use clean images
-        # Forward pass
-        class_logits, _ = self.model(images)
+        # Forward pass - model returns only logits in eval mode by default
+        class_logits = self.model(images)
         
         # Compute loss
         loss = self.criterion(class_logits, labels)
