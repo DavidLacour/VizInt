@@ -14,6 +14,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.utils.transformer_utils import LayerNorm, TransformerTrunk
 from src.models.vit_implementation import PatchEmbed
+from src.models.healer_transforms import HealerTransforms
 
 
 class Healer(TransformationAwareModel):
@@ -197,88 +198,8 @@ class Healer(TransformationAwareModel):
         Returns:
             corrected_images: Tensor of corrected images [B, C, H, W]
         """
-        device = transformed_images.device
-        batch_size = transformed_images.shape[0]
-        
-        # Get the predicted transform types
-        transform_type_logits = predictions['transform_type_logits']
-        transform_types = torch.argmax(transform_type_logits, dim=1)  # [B]
-        
-        # Initialize corrected images as a clone of transformed images
-        corrected_images = transformed_images.clone()
-        
-        # Process each image in the batch
-        for i in range(batch_size):
-            img = transformed_images[i].unsqueeze(0)  # [1, C, H, W]
-            t_type = transform_types[i].item()
-            
-            # No transform (type 0) - keep the image as is
-            if t_type == 0:
-                continue
-                
-            # Gaussian noise (type 1) - apply denoising
-            elif t_type == 1:
-                noise_std = predictions['noise_std'][i].item()
-                # Simple denoising by smoothing
-                if noise_std > 0.01:
-                    # Apply a small blur to reduce noise
-                    img_cpu = img.cpu()
-                    to_pil = transforms.ToPILImage()
-                    to_tensor = transforms.ToTensor()
-                    pil_img = to_pil(img_cpu.squeeze(0))
-                    
-                    #is the better way to deal with gaussian noise ?
-                    # Adjust blur size based on noise level
-                    blur_radius = max(1, int(min(2.0, noise_std * 4.0)))
-                    if blur_radius % 2 == 0:  # Ensure odd number
-                        blur_radius += 1
-                    denoised_img = transforms.functional.gaussian_blur(pil_img, blur_radius)
-                    corrected_img = to_tensor(denoised_img).unsqueeze(0).to(device)
-                    corrected_images[i] = corrected_img.squeeze(0)
-            
-            # Rotation (type 2) - apply inverse rotation
-            elif t_type == 2:
-                angle = predictions['rotation_angle'][i].item()
-                # Apply inverse rotation (negative angle)
-                img_cpu = img.cpu()
-                to_pil = transforms.ToPILImage()
-                to_tensor = transforms.ToTensor()
-                pil_img = to_pil(img_cpu.squeeze(0))
-                
-                # Apply inverse rotation
-                rotated_img = transforms.functional.rotate(pil_img, -angle)
-                corrected_img = to_tensor(rotated_img).unsqueeze(0).to(device)
-                corrected_images[i] = corrected_img.squeeze(0)
-            
-            # Affine transform (type 3) - apply inverse affine transform
-            elif t_type == 3:
-                translate_x = predictions['translate_x'][i].item()
-                translate_y = predictions['translate_y'][i].item()
-                shear_x = predictions['shear_x'][i].item()
-                shear_y = predictions['shear_y'][i].item()
-                
-                # Convert to CPU for PIL operations
-                img_cpu = img.cpu()
-                to_pil = transforms.ToPILImage()
-                to_tensor = transforms.ToTensor()
-                pil_img = to_pil(img_cpu.squeeze(0))
-                
-                # Get image size for translation calculation
-                width, height = pil_img.size
-                translate_pixels = (-translate_x * width, -translate_y * height)  # Negative for inverse
-                
-                # Apply inverse affine transformation
-                affine_img = transforms.functional.affine(
-                    pil_img, 
-                    angle=0.0,
-                    translate=translate_pixels,
-                    scale=1.0,
-                    shear=[-shear_x, -shear_y]  # Negative for inverse
-                )
-                corrected_img = to_tensor(affine_img).unsqueeze(0).to(device)
-                corrected_images[i] = corrected_img.squeeze(0)
-        
-        return corrected_images
+        # Use the static method from HealerTransforms
+        return HealerTransforms.apply_batch_correction(transformed_images, predictions)
     
     
     def forward(self, x: torch.Tensor, 
