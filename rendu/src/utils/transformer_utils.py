@@ -18,8 +18,6 @@ import torch.nn.functional as F
 from einops import rearrange
 from typing import Optional
 
-# Do not import from transformer_layers (that would cause circular imports)
-
 
 def build_2d_sincos_posemb(h, w, embed_dim=1024, temperature=10000.):
     """Build 2D sinusoidal position embeddings."""
@@ -58,7 +56,6 @@ class LayerNorm(nn.Module):
         else:
             self.register_buffer("bias", torch.zeros(normalized_shape))
 
-        # Normalized shape must be a tuple for F.layer_norm
         self.normalized_shape = (normalized_shape,)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

@@ -27,10 +27,9 @@ class ResNetBaseline(ClassificationModel):
         
         self.img_size = config['img_size']
         
-        # Create ResNet18 model
+        # use ResNet18 from torchvision
         self.model = models.resnet18(pretrained=False, num_classes=num_classes)
         
-        # Adapt for smaller images
         if self.img_size == 32:  # CIFAR-10
             # Replace first conv layer for 32x32 images
             self.model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
@@ -50,7 +49,6 @@ class ResNetBaseline(ClassificationModel):
         Returns:
             Feature tensor of shape (B, 512) for ResNet18
         """
-        # Forward through all layers except the final FC
         x = self.model.conv1(x)
         x = self.model.bn1(x)
         x = self.model.relu(x)
@@ -101,7 +99,6 @@ class ResNetPretrained(ClassificationModel):
         # Load pretrained ResNet18
         self.model = models.resnet18(pretrained=True)
         
-        # Adapt for smaller images
         if self.img_size == 32:  # CIFAR-10
             # Save the pretrained weights of conv1
             pretrained_conv1 = self.model.conv1.weight.data.clone()
@@ -142,7 +139,6 @@ class ResNetPretrained(ClassificationModel):
         Returns:
             Feature tensor of shape (B, 512) for ResNet18
         """
-        # Forward through all layers except the final FC
         x = self.model.conv1(x)
         x = self.model.bn1(x)
         x = self.model.relu(x)

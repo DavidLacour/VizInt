@@ -34,28 +34,23 @@ class BaseTrainer(ABC):
         self.device = device
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         
-        # Training state
         self.current_epoch = 0
         self.global_step = 0
         self.best_metric = None
         self.early_stop_counter = 0
-        
-        # Setup from config
+     
         self._setup_from_config()
         
     def _setup_from_config(self):
         """Setup trainer from configuration"""
         train_config = self.config.get('training', {})
         
-        # Early stopping
         self.early_stopping_enabled = train_config.get('early_stopping', {}).get('enabled', True)
         self.early_stopping_patience = train_config.get('early_stopping', {}).get('patience', 5)
-        
-        # Learning rate and optimization
+     
         self.learning_rate = train_config.get('learning_rate', 0.001)
         self.weight_decay = train_config.get('weight_decay', 0.0)
         
-        # Training parameters
         self.max_epochs = train_config.get('epochs', 100)
         self.gradient_clip_val = train_config.get('gradient_clip_val', None)
         
@@ -114,35 +109,27 @@ class BaseTrainer(ABC):
         pbar = tqdm(train_loader, desc=f"Epoch {self.current_epoch + 1}/{self.max_epochs} [Train]")
         
         for batch_idx, batch in enumerate(pbar):
-            # Move batch to device
             batch = self._batch_to_device(batch)
             
-            # Forward pass
             optimizer.zero_grad()
             outputs = self.training_step(batch, batch_idx)
-            
-            # Backward pass
+      
             loss = outputs['loss']
             loss.backward()
-            
-            # Gradient clipping
+        
             if self.gradient_clip_val is not None:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip_val)
             
             optimizer.step()
             
-            # Update metrics
             for key, value in outputs.items():
                 if key not in epoch_metrics:
                     epoch_metrics[key] = 0.0
                 epoch_metrics[key] += value.item()
-            
-            # Update progress bar
             pbar.set_postfix({k: f"{v:.4f}" for k, v in outputs.items()})
             
             self.global_step += 1
         
-        # Average metrics
         num_batches = len(train_loader)
         for key in epoch_metrics:
             epoch_metrics[key] /= num_batches
@@ -166,22 +153,17 @@ class BaseTrainer(ABC):
             pbar = tqdm(val_loader, desc=f"Epoch {self.current_epoch + 1}/{self.max_epochs} [Val]")
             
             for batch_idx, batch in enumerate(pbar):
-                # Move batch to device
                 batch = self._batch_to_device(batch)
                 
-                # Forward pass
                 outputs = self.validation_step(batch, batch_idx)
                 
-                # Update metrics
                 for key, value in outputs.items():
                     if key not in epoch_metrics:
                         epoch_metrics[key] = 0.0
                     epoch_metrics[key] += value.item()
                 
-                # Update progress bar
                 pbar.set_postfix({k: f"{v:.4f}" for k, v in outputs.items()})
         
-        # Average metrics
         num_batches = len(val_loader)
         for key in epoch_metrics:
             epoch_metrics[key] /= num_batches
@@ -203,11 +185,9 @@ class BaseTrainer(ABC):
         Returns:
             Training history
         """
-        # Create optimizer and scheduler
         optimizer = self.create_optimizer()
         scheduler = self.create_scheduler(optimizer)
         
-        # Training history
         history = {
             'train': {},
             'val': {},
@@ -215,29 +195,24 @@ class BaseTrainer(ABC):
             'best_metric': None
         }
         
-        # Training loop
         for epoch in range(self.max_epochs):
             self.current_epoch = epoch
             epoch_start_time = time.time()
             
-            # Train epoch
+          
             train_metrics = self.train_epoch(train_loader, optimizer)
             
-            # Validate
             val_metrics = self.validate(val_loader)
             
-            # Update learning rate
             if scheduler is not None:
                 if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                     scheduler.step(val_metrics.get('loss', val_metrics.get('accuracy', 0)))
                 else:
                     scheduler.step()
             
-            # Log metrics
             epoch_time = time.time() - epoch_start_time
             self._log_epoch_metrics(epoch, train_metrics, val_metrics, epoch_time)
-            
-            # Update history
+    
             for key, value in train_metrics.items():
                 if key not in history['train']:
                     history['train'][key] = []
@@ -247,16 +222,14 @@ class BaseTrainer(ABC):
                 if key not in history['val']:
                     history['val'][key] = []
                 history['val'][key].append(value)
-            
-            # Check for improvement and save checkpoint
+           
             improved = self._check_improvement(val_metrics)
             
             if improved and checkpoint_dir is not None:
                 self._save_checkpoint(checkpoint_dir, epoch, optimizer, val_metrics)
                 history['best_epoch'] = epoch
                 history['best_metric'] = self.best_metric
-            
-            # Early stopping
+          
             if self.early_stopping_enabled:
                 if not improved:
                     self.early_stop_counter += 1
@@ -280,7 +253,6 @@ class BaseTrainer(ABC):
     
     def _check_improvement(self, metrics: Dict[str, float]) -> bool:
         """Check if metrics improved"""
-        # Override this method for custom improvement checking
         metric_name = 'accuracy' if 'accuracy' in metrics else 'loss'
         current_metric = metrics[metric_name]
         
@@ -290,7 +262,7 @@ class BaseTrainer(ABC):
         
         if metric_name == 'accuracy':
             improved = current_metric > self.best_metric
-        else:  # loss
+        else:  
             improved = current_metric < self.best_metric
             
         if improved:
@@ -323,11 +295,9 @@ class BaseTrainer(ABC):
         log_str = f"Epoch {epoch + 1}/{self.max_epochs} - "
         log_str += f"Time: {epoch_time:.1f}s - "
         
-        # Train metrics
         train_str = ", ".join([f"train_{k}: {v:.4f}" for k, v in train_metrics.items()])
         log_str += train_str + " - "
         
-        # Val metrics
         val_str = ", ".join([f"val_{k}: {v:.4f}" for k, v in val_metrics.items()])
         log_str += val_str
         

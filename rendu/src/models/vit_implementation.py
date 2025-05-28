@@ -96,10 +96,8 @@ class VisionTransformer(nn.Module):
         self.num_features = embed_dim
         self.global_pool = global_pool
         
-        # Set seeds for reproducibility
         set_seed()
         
-        # Patch embedding
         self.patch_embed = PatchEmbed(
             img_size=img_size, 
             patch_size=patch_size, 
@@ -108,8 +106,6 @@ class VisionTransformer(nn.Module):
             use_resnet_stem=use_resnet_stem
         )
         num_patches = self.patch_embed.num_patches
-        
-        # Class token and position embedding
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         
         # Add learnable sinusoidal position embedding 
@@ -123,12 +119,9 @@ class VisionTransformer(nn.Module):
                     embed_dim=embed_dim
                 )
             ], dim=1),
-            requires_grad=True  # Make the embeddings learnable
+            requires_grad=True
         )
-        
-        # Optional ResNet-style stem is handled in the PatchEmbed class
-            
-        # Transformer encoder
+       
         self.norm_pre = LayerNorm(embed_dim, bias=use_bias)
         self.transformer = TransformerTrunk(
             dim=embed_dim,
@@ -138,39 +131,28 @@ class VisionTransformer(nn.Module):
             use_bias=use_bias
         )
         
-        # Classification head
         self.norm = LayerNorm(embed_dim, bias=use_bias)
         self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
         
         self.init_weights()
         
     def init_weights(self):
-        # Initialize cls token
         nn.init.normal_(self.cls_token, std=0.02)
         
-        # Initialize patch embedding
         nn.init.normal_(self.patch_embed.proj[-1].weight, std=0.02)
-        
-        # Initialize classification head
         if isinstance(self.head, nn.Linear):
             nn.init.zeros_(self.head.bias)
             nn.init.xavier_uniform_(self.head.weight)
             
     def forward_features(self, x):
         B = x.shape[0]
-        
-        # Patch embedding
         x = self.patch_embed(x)
-        
-        # Prepend class token
+     
         cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
         
-        # Add position embedding (for both cls token and patches)
+       
         x = x + self.pos_embed.expand(B, -1, -1)
-        
-        # Apply transformer directly - no need for additional blocks
-        # since TransformerTrunk already contains the Block instances
         x = self.norm_pre(x)
         x = self.transformer(x)
         x = self.norm(x)
@@ -179,9 +161,9 @@ class VisionTransformer(nn.Module):
     
     def forward_head(self, x):
         if self.global_pool == 'token':
-            x = x[:, 0]  # Use cls token
+            x = x[:, 0] 
         elif self.global_pool == 'avg':
-            x = x[:, 1:].mean(dim=1)  # Global avg pool without cls token
+            x = x[:, 1:].mean(dim=1)  
         
         x = self.head(x)
         return x
@@ -192,7 +174,6 @@ class VisionTransformer(nn.Module):
         return x
 
 
-# Example usage
 def create_vit_model(
     img_size=224,
     patch_size=16, 
@@ -205,7 +186,6 @@ def create_vit_model(
     use_resnet_stem=True
 ):
     """Create a ViT model with the specified parameters."""
-    # Set seed for reproducibility
     set_seed()
     
     model = VisionTransformer(
@@ -221,17 +201,3 @@ def create_vit_model(
     )
     
     return model
-
-
-if __name__ == "__main__":
-    # Set seed for entire script
-    set_seed()
-    
-    # Create model
-    model = create_vit_model()
-    
-    # Test with a random input
-    x = torch.randn(2, 3, 224, 224)
-    output = model(x)
-    
-    print(f"Model output shape: {output.shape}")

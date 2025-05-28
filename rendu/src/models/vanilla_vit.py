@@ -8,7 +8,6 @@ from .base_model import ClassificationModel
 import sys
 from pathlib import Path
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.utils.transformer_utils import LayerNorm, TransformerTrunk, build_2d_sincos_posemb
@@ -41,7 +40,6 @@ class VanillaViT(ClassificationModel):
         num_classes = config['num_classes']
         super().__init__(config, num_classes)
         
-        # Extract configuration
         self.img_size = config['img_size']
         self.patch_size = config['patch_size']
         self.embed_dim = config['embed_dim']
@@ -50,8 +48,7 @@ class VanillaViT(ClassificationModel):
         self.mlp_ratio = config['mlp_ratio']
         self.use_resnet_stem = config.get('use_resnet_stem', True)
         self.dropout = config.get('dropout', 0.1)
-        
-        # Patch embedding
+       
         self.patch_embed = PatchEmbed(
             img_size=self.img_size,
             patch_size=self.patch_size,
@@ -62,17 +59,14 @@ class VanillaViT(ClassificationModel):
         
         self.num_patches = self.patch_embed.num_patches
         
-        # CLS token
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.embed_dim))
         nn.init.normal_(self.cls_token, std=0.02)
         
-        # Position embeddings
         self.pos_embed = nn.Parameter(
             torch.zeros(1, 1 + self.num_patches, self.embed_dim)
         )
         nn.init.normal_(self.pos_embed, std=0.02)
-        
-        # Transformer trunk
+      
         self.trunk = TransformerTrunk(
             dim=self.embed_dim,
             depth=self.depth,
@@ -81,25 +75,18 @@ class VanillaViT(ClassificationModel):
             use_bias=False
         )
         
-        # Layer normalization
         self.norm = LayerNorm(self.embed_dim, bias=False)
         
-        # Classification head
         self.head = nn.Linear(self.embed_dim, self.num_classes)
         
-        # Dropout
         self.dropout_layer = nn.Dropout(self.dropout)
-        
-        # Initialize weights
         self._init_weights()
         
     def _init_weights(self):
         """Initialize model weights"""
-        # Initialize patch embedding
         w = self.patch_embed.proj[0].weight.data if self.use_resnet_stem else self.patch_embed.proj.weight.data
         nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
-        
-        # Initialize classification head
+    
         nn.init.normal_(self.head.weight, std=0.02)
         nn.init.zeros_(self.head.bias)
         
@@ -122,16 +109,12 @@ class VanillaViT(ClassificationModel):
         cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
         
-        # Add position embeddings
         x = x + self.pos_embed
         
-        # Apply transformer
         x = self.trunk(x)
         
-        # Apply layer norm
         x = self.norm(x)
         
-        # Extract CLS token representation
         features = x[:, 0]
         
         return features
@@ -146,13 +129,10 @@ class VanillaViT(ClassificationModel):
         Returns:
             Logits tensor of shape (B, num_classes)
         """
-        # Extract features
         features = self.extract_features(x)
         
-        # Apply dropout
         features = self.dropout_layer(features)
         
-        # Classification head
         logits = self.head(features)
         
         return logits

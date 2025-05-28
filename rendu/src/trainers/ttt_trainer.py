@@ -28,13 +28,11 @@ class TTTTrainer(BaseTrainer):
         super().__init__(model, config, device)
         self.criterion = nn.CrossEntropyLoss()
         
-        # Import transformation module
         import sys
         from pathlib import Path
         sys.path.append(str(Path(__file__).parent.parent.parent))
         from src.data.continuous_transforms import ContinuousTransforms
         
-        # Get dataset config to determine normalization
         dataset_name = config.get('dataset_name', 'tinyimagenet')
         if dataset_name == 'cifar10':
             self.normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], 
@@ -47,7 +45,6 @@ class TTTTrainer(BaseTrainer):
         
     def create_optimizer(self) -> torch.optim.Optimizer:
         """Create optimizer for TTT training"""
-        # TTT models typically use lower learning rate
         lr = self.config.get('training', {}).get('learning_rate', 0.0001)
         return optim.AdamW(
             self.model.parameters(),
@@ -74,11 +71,9 @@ class TTTTrainer(BaseTrainer):
         transform_labels = []
         
         for i in range(batch_size):
-            # Randomly choose transformation type
             transform_type = np.random.choice(self.continuous_transform.transform_types)
             transform_type_idx = self.continuous_transform.transform_types.index(transform_type)
             
-            # Apply transformation with random severity
             severity = np.random.uniform(0.0, 1.0)
             transformed_img, _ = self.continuous_transform.apply_transforms_unnormalized(
                 images[i], 
@@ -87,7 +82,6 @@ class TTTTrainer(BaseTrainer):
                 return_params=True
             )
             
-            # Normalize after transformation
             transformed_img = self.normalize(transformed_img)
             
             transformed_images.append(transformed_img)
@@ -96,7 +90,6 @@ class TTTTrainer(BaseTrainer):
         transformed_images = torch.stack(transformed_images)
         transform_labels = torch.tensor(transform_labels, device=self.device)
         
-        # Forward pass
         logits, aux_outputs = self.model(transformed_images)
         transform_logits = aux_outputs['transform_predictions']
         
@@ -134,7 +127,6 @@ class TTTTrainer(BaseTrainer):
                 return_params=True
             )
             
-            # Normalize after transformation
             transformed_img = self.normalize(transformed_img)
             
             transformed_images.append(transformed_img)
@@ -143,14 +135,12 @@ class TTTTrainer(BaseTrainer):
         transformed_images = torch.stack(transformed_images)
         transform_labels = torch.tensor(transform_labels, device=self.device)
         
-        # Forward pass
+    
         logits, aux_outputs = self.model(transformed_images)
         transform_logits = aux_outputs['transform_predictions']
         
-        # Compute loss - use only the transformation prediction part
         loss = self.criterion(transform_logits[:, :self.model.num_transforms], transform_labels)
         
-        # Calculate accuracy
         _, predicted = torch.max(transform_logits[:, :self.model.num_transforms], 1)
         accuracy = (predicted == transform_labels).float().mean()
         

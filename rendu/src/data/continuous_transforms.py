@@ -13,7 +13,7 @@ class ContinuousTransforms:
     def __init__(self, severity=1.0):
         self.severity = severity
         self.transform_types = ['no_transform', 'gaussian_noise', 'rotation', 'affine']
-        self.transform_probs = [0.3, 1.0, 1.0, 1.0]  # Adjusted weights
+        self.transform_probs = [0.3, 1.0, 1.0, 1.0]  # TODO config
         
     def apply_transforms(self, img, transform_type=None, severity=None, return_params=False):
         """
@@ -29,21 +29,18 @@ class ContinuousTransforms:
             transformed_img: The transformed image
             transform_params: Dictionary of transformation parameters (if return_params=True)
         """
-        # Keep track of the original device
         device = img.device
         
         if severity is None:
             severity = self.severity
             
         if transform_type is None:
-            # Choose a transform type based on probabilities
             transform_type = random.choices(
                 self.transform_types, 
                 weights=self.transform_probs, 
                 k=1
             )[0]
         
-        # Initialize parameters with default values
         transform_params = {
             'transform_type': transform_type,
             'severity': severity,
@@ -55,9 +52,7 @@ class ContinuousTransforms:
             'shear_y': 0.0
         }
         
-        # OPTIMIZED: Apply transforms on the original device when possible
         if transform_type == 'gaussian_noise':
-            # Gaussian noise can be applied directly on GPU
             std = severity * MAX_STD_GAUSSIAN_NOISE
             noise = torch.randn_like(img, device=device) * std
             transformed_img = img + noise
@@ -69,17 +64,16 @@ class ContinuousTransforms:
             max_angle = MAX_ROTATION * severity
             angle = random.uniform(-max_angle, max_angle)
             
-            # Note: We must use CPU for PIL operations
+            # we must use CPU for PIL operations ?
             img_cpu = img.cpu()
             to_pil = transforms.ToPILImage()
             to_tensor = transforms.ToTensor()
             pil_img = to_pil(img_cpu)
             rotated_img = transforms.functional.rotate(pil_img, angle)
-            transformed_img = to_tensor(rotated_img).to(device)  # Transfer back to original device
+            transformed_img = to_tensor(rotated_img).to(device)  
             transform_params['rotation_angle'] = angle
             
         elif transform_type == 'affine':
-            # Affine transformation also needs PIL
             max_translate = MAX_TRANSLATION_AFFINE * severity
             max_shear = MAX_SHEAR_ANGLE * severity
             
@@ -88,17 +82,15 @@ class ContinuousTransforms:
             shear_x = random.uniform(-max_shear, max_shear)
             shear_y = random.uniform(-max_shear, max_shear)
             
-            # Note: We must use CPU for PIL operations
+            # CPU for PIL
             img_cpu = img.cpu()
             to_pil = transforms.ToPILImage()
             to_tensor = transforms.ToTensor()
             pil_img = to_pil(img_cpu)
             
-            # Get image size for translation calculation
             width, height = pil_img.size
             translate_pixels = (translate_x * width, translate_y * height)
             
-            # Apply affine transformation
             affine_img = transforms.functional.affine(
                 pil_img, 
                 angle=0.0,
@@ -106,14 +98,14 @@ class ContinuousTransforms:
                 scale=1.0,
                 shear=[shear_x, shear_y]
             )
-            transformed_img = to_tensor(affine_img).to(device)  # Transfer back to original device
+            transformed_img = to_tensor(affine_img).to(device)  
             
             transform_params['translate_x'] = translate_x
             transform_params['translate_y'] = translate_y
             transform_params['shear_x'] = shear_x
             transform_params['shear_y'] = shear_y
         
-        else:  # 'no_transform' case
+        else: 
             transformed_img = img.clone()
         
         if return_params:
@@ -135,21 +127,18 @@ class ContinuousTransforms:
             transformed_img: The transformed image (without clamping)
             transform_params: Dictionary of transformation parameters (if return_params=True)
         """
-        # Keep track of the original device
         device = img.device
         
         if severity is None:
             severity = self.severity
             
         if transform_type is None:
-            # Choose a transform type based on probabilities
             transform_type = random.choices(
                 self.transform_types, 
                 weights=self.transform_probs, 
                 k=1
             )[0]
         
-        # Initialize parameters with default values
         transform_params = {
             'transform_type': transform_type,
             'severity': severity,
@@ -161,31 +150,26 @@ class ContinuousTransforms:
             'shear_y': 0.0
         }
         
-        # OPTIMIZED: Apply transforms on the original device when possible
         if transform_type == 'gaussian_noise':
-            # Gaussian noise can be applied directly on GPU - NO CLAMPING
             std = severity * MAX_STD_GAUSSIAN_NOISE
             noise = torch.randn_like(img, device=device) * std
             transformed_img = img + noise
-            # NO CLAMPING - values can go outside [0,1] range
+            # NO CLAMPING - values can go outside [0,1] range ?
             transform_params['noise_std'] = std
             
         elif transform_type == 'rotation':
-            # For rotation, we still need PIL, so transfer to CPU temporarily
             max_angle = MAX_ROTATION * severity
             angle = random.uniform(-max_angle, max_angle)
             
-            # Note: We must use CPU for PIL operations
             img_cpu = img.cpu()
             to_pil = transforms.ToPILImage()
             to_tensor = transforms.ToTensor()
             pil_img = to_pil(img_cpu)
             rotated_img = transforms.functional.rotate(pil_img, angle)
-            transformed_img = to_tensor(rotated_img).to(device)  # Transfer back to original device
+            transformed_img = to_tensor(rotated_img).to(device)  
             transform_params['rotation_angle'] = angle
             
         elif transform_type == 'affine':
-            # Affine transformation also needs PIL
             max_translate = MAX_TRANSLATION_AFFINE * severity
             max_shear = MAX_SHEAR_ANGLE * severity
             
@@ -194,17 +178,14 @@ class ContinuousTransforms:
             shear_x = random.uniform(-max_shear, max_shear)
             shear_y = random.uniform(-max_shear, max_shear)
             
-            # Note: We must use CPU for PIL operations
             img_cpu = img.cpu()
             to_pil = transforms.ToPILImage()
             to_tensor = transforms.ToTensor()
             pil_img = to_pil(img_cpu)
             
-            # Get image size for translation calculation
             width, height = pil_img.size
             translate_pixels = (translate_x * width, translate_y * height)
             
-            # Apply affine transformation
             affine_img = transforms.functional.affine(
                 pil_img, 
                 angle=0.0,
@@ -212,14 +193,14 @@ class ContinuousTransforms:
                 scale=1.0,
                 shear=[shear_x, shear_y]
             )
-            transformed_img = to_tensor(affine_img).to(device)  # Transfer back to original device
+            transformed_img = to_tensor(affine_img).to(device)
             
             transform_params['translate_x'] = translate_x
             transform_params['translate_y'] = translate_y
             transform_params['shear_x'] = shear_x
             transform_params['shear_y'] = shear_y
         
-        else:  # 'no_transform' case
+        else: 
             transformed_img = img.clone()
         
         if return_params:

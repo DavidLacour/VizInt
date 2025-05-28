@@ -10,7 +10,6 @@ from torchvision import datasets, transforms
 import logging
 import numpy as np
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.config.config_loader import ConfigLoader
@@ -60,7 +59,6 @@ class DataLoaderFactory:
                                with_normalization: bool,
                                with_augmentation: bool) -> Tuple[DataLoader, DataLoader]:
         """Create CIFAR-10 data loaders"""
-        # Get transforms
         transform_train = self._get_cifar10_transform(
             dataset_config, 
             train=True, 
@@ -73,8 +71,7 @@ class DataLoaderFactory:
             with_normalization=with_normalization,
             with_augmentation=False
         )
-        
-        # Create datasets
+      
         train_dataset = datasets.CIFAR10(
             root=dataset_config['path'],
             train=True,
@@ -89,17 +86,14 @@ class DataLoaderFactory:
             transform=transform_val
         )
         
-        # Apply debug mode if enabled
         if self.config.is_debug_mode():
             num_samples = self.config.get('debug.num_samples', 30)
             train_dataset = Subset(train_dataset, range(min(num_samples, len(train_dataset))))
             val_dataset = Subset(val_dataset, range(min(num_samples // 3, len(val_dataset))))
             self.logger.info(f"Debug mode: Using {len(train_dataset)} train and {len(val_dataset)} val samples")
         
-        # Create data loaders
         batch_size = self.config.get_batch_size('training')
         
-        # Handle debug mode settings
         if self.config.is_debug_mode():
             num_workers = self.config.get('debug.num_workers', 0)
             pin_memory = False
@@ -133,7 +127,6 @@ class DataLoaderFactory:
                                     with_normalization: bool,
                                     with_augmentation: bool) -> Tuple[DataLoader, DataLoader]:
         """Create TinyImageNet data loaders"""
-        # Get transforms
         transform_train = self._get_tinyimagenet_transform(
             dataset_config, 
             train=True, 
@@ -147,7 +140,6 @@ class DataLoaderFactory:
             with_augmentation=False
         )
         
-        # Create datasets
         train_dataset = TinyImageNetDataset(
             dataset_config['path'],
             "train",
@@ -160,7 +152,6 @@ class DataLoaderFactory:
             transform_val
         )
         
-        # Apply debug mode if enabled
         if self.config.is_debug_mode():
             num_samples = self.config.get('debug.num_samples', 30)
             train_indices = np.random.choice(len(train_dataset), min(num_samples, len(train_dataset)), replace=False)
@@ -169,10 +160,8 @@ class DataLoaderFactory:
             val_dataset = Subset(val_dataset, val_indices)
             self.logger.info(f"Debug mode: Using {len(train_dataset)} train and {len(val_dataset)} val samples")
         
-        # Create data loaders
         batch_size = self.config.get_batch_size('training')
         
-        # Handle debug mode settings
         if self.config.is_debug_mode():
             num_workers = self.config.get('debug.num_workers', 0)
             pin_memory = False
@@ -209,17 +198,12 @@ class DataLoaderFactory:
         """Get CIFAR-10 transforms"""
         transform_list = []
         
-        # Data augmentation for training
         if train and with_augmentation:
-            transform_list.extend([
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(p=0.5),
+            transform_list.extend([ # no transform for the study
             ])
         
-        # Convert to tensor
         transform_list.append(transforms.ToTensor())
         
-        # Normalization
         if with_normalization:
             transform_list.append(
                 transforms.Normalize(
@@ -238,18 +222,12 @@ class DataLoaderFactory:
         """Get TinyImageNet transforms"""
         transform_list = []
         
-        # Data augmentation for training
         if train and with_augmentation:
-            transform_list.extend([
-                transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomRotation(degrees=10),
-                transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transform_list.extend([# no transform for the study
             ])
         
-        # Convert to tensor
         transform_list.append(transforms.ToTensor())
         
-        # Normalization
         if with_normalization:
             transform_list.append(
                 transforms.Normalize(
@@ -277,7 +255,7 @@ class DataLoaderFactory:
         """
         dataset_config = self.config.get_dataset_config(dataset_name)
         
-        # Create base transform without normalization
+
         if dataset_name.lower() == 'cifar10':
             base_transform = self._get_cifar10_transform(
                 dataset_config, train=False, with_normalization=False, with_augmentation=False
@@ -306,11 +284,10 @@ class DataLoaderFactory:
                 ood_transform=ood_transform
             )
         
-        # Create data loader
         batch_size = self.config.get_batch_size('evaluation')
         
         if dataset_name.lower() == 'tinyimagenet':
-            # Custom collate function for OOD data
+            # Custom collate function for OOD data in batch
             def collate_fn(batch):
                 orig_imgs, trans_imgs, labels, params = zip(*batch)
                 return torch.stack(orig_imgs), torch.stack(trans_imgs), torch.tensor(labels), params
