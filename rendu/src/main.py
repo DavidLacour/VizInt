@@ -21,7 +21,7 @@ from trainers.classification_trainer import ClassificationTrainer
 from services.model_trainer import ModelTrainer
 from services.model_evaluator import ModelEvaluator
 from utils.visualization import create_evaluation_plots
-from transformer_utils import set_seed
+from utils.transformer_utils import set_seed
 
 
 def setup_logging(config: ConfigLoader):
