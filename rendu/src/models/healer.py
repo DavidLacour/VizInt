@@ -3,8 +3,7 @@ Unified Healer model implementation
 """
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from typing import Dict, Any, Tuple, Union
+from typing import Dict, Any
 from .base_model import TransformationAwareModel
 import sys
 from pathlib import Path
@@ -13,7 +12,7 @@ from torchvision import transforms
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.utils.transformer_utils import LayerNorm, TransformerTrunk, Mlp
+from src.utils.transformer_utils import LayerNorm, TransformerTrunk
 from src.models.vit_implementation import PatchEmbed
 
 

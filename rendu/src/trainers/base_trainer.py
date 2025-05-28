@@ -4,7 +4,7 @@ Base trainer class for all training procedures
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from typing import Dict, Any, Optional, Tuple, Callable
+from typing import Dict, Any, Optional
 from pathlib import Path
 import logging
 from tqdm import tqdm

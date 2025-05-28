@@ -9,7 +9,6 @@ import argparse
 import torch
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent))
@@ -17,7 +16,6 @@ sys.path.append(str(Path(__file__).parent))
 from config.config_loader import ConfigLoader
 from models.model_factory import ModelFactory
 from data.data_loader import DataLoaderFactory
-from trainers.classification_trainer import ClassificationTrainer
 from services.model_trainer import ModelTrainer
 from services.model_evaluator import ModelEvaluator
 from utils.visualization import create_evaluation_plots

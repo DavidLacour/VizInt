@@ -11,7 +11,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.utils.transformer_utils import LayerNorm, TransformerTrunk, build_2d_sincos_posemb
+from src.utils.transformer_utils import LayerNorm, TransformerTrunk
 from src.models.vit_implementation import PatchEmbed
 
 
