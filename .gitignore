@@ -29,3 +29,6 @@ checkpoint*/
 bestmodel*/
 tinyModels/checkpoint*/
 tinyModels/bestmodel*/
+
+#pychce 
+*.pyc

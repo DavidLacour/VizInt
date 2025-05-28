@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=cifar10_rendu       # Change as needed
+#SBATCH --job-name=tiny_rendu       # Change as needed
 #SBATCH --time=24:00:00
 #SBATCH --account=cs-503
 #SBATCH --qos=cs-503
