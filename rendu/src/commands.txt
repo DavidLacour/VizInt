@@ -1,4 +1,24 @@
-main.py --dataset cifar10 --debug
+# Default commands to run experiments
+
+# Debug mode (small dataset, quick test)
+python main.py --dataset cifar10 --debug
 python main.py --dataset tinyimagenet --debug
 
+# Full training and evaluation (all models including wrapped models)
+python main.py --dataset cifar10 --mode both
+python main.py --dataset tinyimagenet --mode both
+
+# Train only specific wrapped models
+python main.py --dataset cifar10 --models blended_resnet18 ttt_resnet18 healer_resnet18
+python main.py --dataset tinyimagenet --models blended_resnet18 ttt_resnet18 healer_resnet18
+
+# Evaluate only specific models
+python main.py --dataset cifar10 --mode evaluate --models blended_resnet18 ttt_resnet18
+
+# Python environment
 ~/.pyenv/versions/myenv/bin/python
+
+# Available model types (now includes wrapped models):
+# - vanilla_vit, healer, ttt, ttt3fc, blended_training, blended_training_3fc
+# - resnet, resnet_pretrained  
+# - blended_resnet18, ttt_resnet18, healer_resnet18 (NEW WRAPPED MODELS)

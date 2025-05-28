@@ -103,6 +103,19 @@ models:
     mlp_ratio: 4.0
     patch_size: 4
     num_denoising_steps: 3
+    
+  blended_resnet18:
+    model_type: "resnet18"
+    aux_loss_weight: 0.5
+    
+  ttt_resnet18:
+    model_type: "resnet18"
+    inner_steps: 5
+    inner_lr: 0.001
+    
+  healer_resnet18:
+    model_type: "resnet18"
+    num_denoising_steps: 3
 
 # Training configurations
 training:
@@ -221,6 +234,21 @@ model_combinations:
     main_model: "resnet_pretrained"
     healer_model: null
     description: "ResNet18 (ImageNet pretrained)"
+    
+  - name: "BlendedResNet18"
+    main_model: "blended_resnet18"
+    healer_model: null
+    description: "Blended wrapper with ResNet18 backbone"
+    
+  - name: "TTTResNet18"
+    main_model: "ttt_resnet18"
+    healer_model: null
+    description: "TTT wrapper with ResNet18 backbone"
+    
+  - name: "HealerResNet18"
+    main_model: "healer_resnet18"
+    healer_model: null
+    description: "Healer wrapper with ResNet18 backbone"
 
 # Logging settings
 logging:

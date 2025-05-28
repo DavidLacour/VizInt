@@ -83,7 +83,7 @@ def parse_arguments():
 def get_models_to_process(args, config):
     """Get list of models to process based on arguments"""
     all_models = ['vanilla_vit', 'healer', 'ttt', 'ttt3fc', 'blended_training', 'blended_training_3fc', 
-                  'resnet', 'resnet_pretrained']
+                  'resnet', 'resnet_pretrained', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18']
     
     # Map old names to new names for backward compatibility
     name_mapping = {
