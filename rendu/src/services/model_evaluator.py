@@ -37,7 +37,8 @@ class ModelEvaluator:
     def evaluate_all_combinations(self,
                                  dataset_name: str,
                                  severities: List[float],
-                                 model_types: Optional[List[str]] = None) -> Dict[str, Any]:
+                                 model_types: Optional[List[str]] = None,
+                                 include_ood: bool = True) -> Dict[str, Any]:
         """
         Evaluate all model combinations
         
@@ -45,6 +46,7 @@ class ModelEvaluator:
             dataset_name: Name of dataset
             severities: List of severity levels
             model_types: Specific model types to evaluate (None for all)
+            include_ood: Whether to include OOD evaluation
             
         Returns:
             Dictionary of evaluation results
@@ -91,12 +93,14 @@ class ModelEvaluator:
                 healer_model=healer_model,
                 dataset_name=dataset_name,
                 severities=severities,
-                model_type=main_model_type
+                model_type=main_model_type,
+                include_ood=include_ood
             )
             
             results[combo_name] = {
                 'results': combo_results['accuracies'],
                 'transform_accuracies': combo_results['transform_accuracies'],
+                'ood_results': combo_results.get('ood_accuracies', {}),
                 'description': description,
                 'main_model': main_model_type,
                 'healer_model': healer_model_type
@@ -189,10 +193,12 @@ class ModelEvaluator:
                                    healer_model: Optional[nn.Module],
                                    dataset_name: str,
                                    severities: List[float],
-                                   model_type: str) -> Dict[str, Any]:
+                                   model_type: str,
+                                   include_ood: bool = True) -> Dict[str, Any]:
         """Evaluate a specific model combination"""
         results = {}
         transform_accuracies = {}
+        ood_accuracies = {}
         
         # Get normalization transform
         normalize = self.data_factory.get_normalization_transform(dataset_name)
@@ -217,9 +223,19 @@ class ModelEvaluator:
             results[severity] = accuracy
             self.logger.info(f"  Severity {severity}: {accuracy:.4f}")
         
+        # Evaluate OOD performance if requested
+        if include_ood:
+            self.logger.info("  Evaluating OOD performance...")
+            ood_accuracy = self._evaluate_ood_data(
+                main_model, healer_model, dataset_name, model_type, normalize
+            )
+            ood_accuracies['ood'] = ood_accuracy
+            self.logger.info(f"  OOD: {ood_accuracy:.4f}")
+        
         return {
             'accuracies': results,
-            'transform_accuracies': transform_accuracies
+            'transform_accuracies': transform_accuracies,
+            'ood_accuracies': ood_accuracies
         }
     
     def _evaluate_clean_data(self,
@@ -367,6 +383,77 @@ class ModelEvaluator:
         
         return correct / total, transform_accuracy
     
+    def _evaluate_ood_data(self,
+                          main_model: nn.Module,
+                          healer_model: Optional[nn.Module],
+                          dataset_name: str,
+                          model_type: str,
+                          normalize) -> float:
+        """Evaluate on OOD data with extreme transformations"""
+        from data.ood_transforms import OODTransforms
+        
+        main_model.eval()
+        if healer_model:
+            healer_model.eval()
+        
+        # Create OOD transforms with high severity
+        ood_transforms = OODTransforms(severity=1.0)
+        
+        # Get validation loader without normalization
+        _, val_loader = self.data_factory.create_data_loaders(
+            dataset_name, with_normalization=False, with_augmentation=False
+        )
+        
+        correct = 0
+        total = 0
+        
+        with torch.no_grad():
+            for batch in tqdm(val_loader, desc="Evaluating OOD data", leave=False):
+                if dataset_name == 'tinyimagenet' and len(batch) == 4:
+                    # Handle OOD loader format
+                    orig_images, _, labels, _ = batch
+                    images = orig_images.to(self.device)
+                else:
+                    # Standard format
+                    images, labels = batch
+                    images = images.to(self.device)
+                
+                labels = labels.to(self.device)
+                
+                # Apply random OOD transformations to each image
+                batch_size = images.size(0)
+                ood_images = []
+                
+                for i in range(batch_size):
+                    # Apply random funky transform
+                    transformed_img = ood_transforms.apply_random_ood_transform(
+                        images[i], severity=1.0
+                    )
+                    # Normalize after transformation
+                    transformed_img = normalize(transformed_img)
+                    ood_images.append(transformed_img)
+                
+                images = torch.stack(ood_images)
+                
+                # Apply healer if available
+                if healer_model:
+                    try:
+                        # Get healer predictions
+                        predictions, _ = healer_model(images, return_reconstruction=False, return_logits=False)
+                        # Apply corrections using the predicted transformations
+                        images = healer_model.apply_correction(images, predictions)
+                    except Exception as e:
+                        self.logger.warning(f"Healer failed to process OOD images: {e}. Skipping healer for this batch.")
+                
+                # Get predictions
+                outputs = self._get_model_outputs(main_model, images, model_type)
+                _, predicted = torch.max(outputs, 1)
+                
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        
+        return correct / total
+    
     def _get_model_outputs(self, model: nn.Module, images: torch.Tensor, model_type: str) -> torch.Tensor:
         """Get model outputs handling different model types"""
         # Handle different model output formats
@@ -405,19 +492,27 @@ class ModelEvaluator:
         print(f"🏆 COMPREHENSIVE RESULTS - {dataset_name}")
         print("="*141)
         
+        # Check if we have OOD results
+        has_ood = any('ood_results' in data and data['ood_results'] for data in results.values())
+        
         # Print table header
         header_parts = ["Model Combination", "Description", "Clean"]
         for sev in severities[1:]:  # Skip 0.0 as it's already included as "Clean"
             header_parts.append(f"S{sev}")
+        if has_ood:
+            header_parts.append("OOD")
         
         # Format header with proper spacing
         header = f"{'Model Combination':<35} {'Description':<50}"
         header += f" {'Clean':>8}"
         for sev in severities[1:]:
             header += f" {f'S{sev}':>8}"
+        if has_ood:
+            header += f" {'OOD':>8}"
         
         print(header)
-        print("-"*141)
+        table_width = 141 + (8 if has_ood else 0)
+        print("-" * table_width)
         
         # Sort by clean accuracy
         sorted_results = sorted(
@@ -432,9 +527,12 @@ class ModelEvaluator:
             for sev in severities:
                 acc = data['results'].get(sev, 0)
                 row += f" {acc:>8.4f}"
+            if has_ood:
+                ood_acc = data.get('ood_results', {}).get('ood', 0)
+                row += f" {ood_acc:>8.4f}"
             print(row)
         
-        print("="*141)
+        print("=" * table_width)
         
         # Print analysis section
         print("\n" + "="*141)
@@ -461,6 +559,12 @@ class ModelEvaluator:
         if most_robust:
             print(f"🛡️  Most Transform Robust: {most_robust[0]} ({most_robust[2]:.1%} drop)")
         
+        # Find best OOD performance if available
+        if has_ood:
+            best_ood = max(sorted_results, key=lambda x: x[1].get('ood_results', {}).get('ood', 0))
+            best_ood_acc = best_ood[1].get('ood_results', {}).get('ood', 0)
+            print(f"🚀 Best OOD Performance: {best_ood[0]} ({best_ood_acc:.4f})")
+        
         # Print transformation robustness summary
         print("\n" + "="*141)
         print("📊 TRANSFORMATION ROBUSTNESS SUMMARY")
@@ -474,8 +578,11 @@ class ModelEvaluator:
             else:
                 header += f" {f'Sev {sev}':>10}"
         header += f" {'Avg Drop':>10}"
+        if has_ood:
+            header += f" {'OOD':>10}"
         print(header)
-        print("-"*141)
+        robustness_width = 141 + (10 if has_ood else 0)
+        print("-" * robustness_width)
         
         # Print robustness data
         for name, data in sorted_results:
@@ -494,6 +601,11 @@ class ModelEvaluator:
                 row += f" {avg_drop:>10.4f}"
             else:
                 row += f" {'N/A':>10}"
+            
+            # Add OOD results if available
+            if has_ood:
+                ood_acc = data.get('ood_results', {}).get('ood', 0)
+                row += f" {ood_acc:>10.4f}"
             
             print(row)
         

@@ -205,7 +205,8 @@ def evaluate_models(args, config, models_to_evaluate):
     results = evaluator.evaluate_all_combinations(
         dataset_name=args.dataset,
         severities=severities,
-        model_types=models_to_evaluate
+        model_types=models_to_evaluate,
+        include_ood=True
     )
     
     # Print results
