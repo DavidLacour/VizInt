@@ -1,0 +1,4 @@
+main.py --dataset cifar10 --debug
+python main.py --dataset tinyimagenet --debug
+
+~/.pyenv/versions/myenv/bin/python
