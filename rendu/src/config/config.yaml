@@ -179,6 +179,21 @@ model_combinations:
     main_model: "pretrained"
     healer_model: null
     description: "ResNet18 (ImageNet pretrained)"
+    
+  - name: "BlendedResNet18"
+    main_model: "blended_resnet18"
+    healer_model: null
+    description: "Blended wrapper with ResNet18 backbone"
+    
+  - name: "TTTResNet18"
+    main_model: "ttt_resnet18"
+    healer_model: null
+    description: "TTT wrapper with ResNet18 backbone"
+    
+  - name: "HealerResNet18"
+    main_model: "healer_resnet18"
+    healer_model: null
+    description: "Healer wrapper with ResNet18 backbone"
 
 # Logging settings
 logging:

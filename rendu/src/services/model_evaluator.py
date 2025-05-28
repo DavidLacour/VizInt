@@ -8,9 +8,9 @@ import torch.nn as nn
 from tqdm import tqdm
 import numpy as np
 
-from src.config.config_loader import ConfigLoader
-from src.models.model_factory import ModelFactory
-from src.data.data_loader import DataLoaderFactory
+from config.config_loader import ConfigLoader
+from models.model_factory import ModelFactory
+from data.data_loader import DataLoaderFactory
 
 
 class ModelEvaluator:
@@ -117,8 +117,8 @@ class ModelEvaluator:
         # Define all possible model types
         all_model_types = [
             'vanilla_vit', 'vanilla_vit_robust', 'healer', 'ttt', 'ttt_robust',
-            'ttt3fc', 'ttt3fc_robust', 'blended_training', 'blended_training_3fc', 
-            'resnet', 'resnet_pretrained'
+            'ttt3fc', 'blended_training', 'blended_training_3fc', 
+            'resnet', 'resnet_pretrained', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18'
         ]
         
         # Filter by requested types
@@ -168,7 +168,7 @@ class ModelEvaluator:
                 # Determine base model for TTT variants
                 if model_type in ['ttt', 'ttt3fc']:
                     bm = base_model
-                elif model_type in ['ttt_robust', 'ttt3fc_robust']:
+                elif model_type in ['ttt_robust']:
                     bm = base_model_robust
                 else:
                     bm = None

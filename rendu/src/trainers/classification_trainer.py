@@ -101,9 +101,18 @@ class ClassificationTrainer(BaseTrainer):
         if self.robust_training and hasattr(self, 'continuous_transform'):
             images = self._apply_robust_transformations(images)
         outputs = self.model(images)
-        loss = self.criterion(outputs, labels)
         
-        _, predicted = torch.max(outputs, 1)
+        # Handle models that return tuples (like TTTWrapper)
+        if isinstance(outputs, tuple):
+            logits = outputs[0]
+            aux_outputs = outputs[1] if len(outputs) > 1 else {}
+        else:
+            logits = outputs
+            aux_outputs = {}
+        
+        loss = self.criterion(logits, labels)
+        
+        _, predicted = torch.max(logits, 1)
         accuracy = (predicted == labels).float().mean()
         
         return {
@@ -116,9 +125,18 @@ class ClassificationTrainer(BaseTrainer):
         images, labels = batch
         
         outputs = self.model(images)
-        loss = self.criterion(outputs, labels)
         
-        _, predicted = torch.max(outputs, 1)
+        # Handle models that return tuples (like TTTWrapper)
+        if isinstance(outputs, tuple):
+            logits = outputs[0]
+            aux_outputs = outputs[1] if len(outputs) > 1 else {}
+        else:
+            logits = outputs
+            aux_outputs = {}
+        
+        loss = self.criterion(logits, labels)
+        
+        _, predicted = torch.max(logits, 1)
         accuracy = (predicted == labels).float().mean()
         
         return {

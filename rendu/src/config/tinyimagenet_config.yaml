@@ -215,11 +215,6 @@ model_combinations:
     healer_model: null
     description: "TTT3fc (Test-Time Training with 3FC)"
     
-  - name: "TTT3fc_Robust"
-    main_model: "ttt3fc_robust"
-    healer_model: null
-    description: "TTT3fc (robust compatible)"
-    
   - name: "BlendedTraining3fc"
     main_model: "blended_training_3fc"
     healer_model: null
