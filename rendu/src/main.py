@@ -76,7 +76,11 @@ def parse_arguments():
 def get_models_to_process(args, config):
     """Get list of models to process based on arguments"""
     all_models = ['vanilla_vit', 'healer', 'ttt', 'ttt3fc', 'blended_training', 'blended_training_3fc', 
-                  'resnet', 'resnet_pretrained', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18']
+                  'resnet', 'resnet_pretrained', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18',
+                  'unet_corrector', 'transformer_corrector', 'hybrid_corrector',
+                  'unet_resnet18', 'unet_resnet50', 'unet_vit',
+                  'transformer_resnet18', 'transformer_resnet50', 'transformer_vit',
+                  'hybrid_resnet18', 'hybrid_resnet50', 'hybrid_vit']
     
     name_mapping = {
         'main': 'vanilla_vit',
@@ -102,6 +106,73 @@ def get_models_to_process(args, config):
     return enabled_models
 
 
+def train_corrector(corrector_name, dataset_name, config, model_factory, data_factory, checkpoint_dir):
+    """Train a corrector model"""
+    logger = logging.getLogger('train_corrector')
+    
+    # Get corrector type
+    if 'unet' in corrector_name:
+        corrector_type = 'unet'
+    elif 'transformer' in corrector_name:
+        corrector_type = 'transformer'
+    elif 'hybrid' in corrector_name:
+        corrector_type = 'hybrid'
+    else:
+        raise ValueError(f"Unknown corrector type: {corrector_name}")
+    
+    # Create corrector training config
+    corrector_config = config.get_dataset_config(dataset_name).copy()
+    corrector_config.update({
+        'model_type': corrector_type,
+        'loss_type': 'combined',  # Use combined L1 + L2 + perceptual loss
+        'transform_types': ['gaussian_noise', 'rotation', 'affine'],
+        'severity_range': [0.1, 0.8],
+        'l1_weight': 1.0,
+        'l2_weight': 0.5,
+        'perceptual_weight': 0.1,
+        'learning_rate': 1e-4,
+        'num_epochs': 50,
+        'weight_decay': 1e-5
+    })
+    
+    # Update with any corrector-specific config
+    if corrector_type == 'transformer':
+        corrector_config.update({
+            'corrector_patch_size': 8,
+            'corrector_embed_dim': 768,
+            'corrector_depth': 12,
+            'corrector_head_dim': 64
+        })
+    elif corrector_type == 'hybrid':
+        corrector_config.update({
+            'corrector_embed_dim': 384,
+            'corrector_depth': 6,
+            'use_transformer': True,
+            'use_cnn': True
+        })
+    
+    # Create model
+    model = model_factory.create_model(corrector_name, dataset_name)
+    
+    # Create trainer
+    from trainers.corrector_trainer import CorrectorTrainer
+    trainer = CorrectorTrainer(corrector_config)
+    
+    # Get data loaders (only clean images for corrector training)
+    train_loader, val_loader = data_factory.create_data_loaders(dataset_name)
+    
+    # Create save directory
+    save_dir = checkpoint_dir / f"bestmodel_{corrector_name}"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Train
+    logger.info(f"Starting {corrector_type} corrector training...")
+    history = trainer.train(model, train_loader, val_loader, save_dir)
+    
+    logger.info(f"Corrector training completed. Best model saved to {save_dir}")
+    return history
+
+
 def train_models(args, config, models_to_train):
     """Train all specified models"""
     logger = logging.getLogger('train_models')
@@ -112,11 +183,41 @@ def train_models(args, config, models_to_train):
     checkpoint_dir = config.get_checkpoint_dir(args.dataset)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     
+    # Check if we need corrector training
+    corrector_models = ['unet_corrector', 'transformer_corrector', 'hybrid_corrector']
+    corrector_wrapper_models = [m for m in models_to_train if any(c in m for c in ['unet_', 'transformer_', 'hybrid_']) and m not in corrector_models]
+    pure_correctors = [m for m in models_to_train if m in corrector_models]
+    
+    # Train pure correctors first
+    if pure_correctors:
+        from trainers.corrector_trainer import CorrectorTrainer
+        logger.info(f"Training corrector models: {pure_correctors}")
+        
+        for corrector_name in pure_correctors:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Training {corrector_name} corrector on {args.dataset}")
+            logger.info(f"{'='*60}")
+            
+            # Check if corrector already exists
+            corrector_dir = checkpoint_dir / f"bestmodel_{corrector_name}"
+            corrector_checkpoint = corrector_dir / "best_model.pt"
+            
+            if corrector_checkpoint.exists() and not args.force_retrain:
+                logger.info(f"Corrector already exists at {corrector_checkpoint}, skipping training")
+                continue
+            
+            # Train corrector
+            train_corrector(corrector_name, args.dataset, config, model_factory, data_factory, checkpoint_dir)
+    
     trainer_service = ModelTrainer(config, model_factory, data_factory)
     
     trained_models = {}
     
     for model_name in models_to_train:
+        # Skip pure correctors as they're trained separately
+        if model_name in corrector_models:
+            continue
+            
         logger.info(f"\n{'='*60}")
         logger.info(f"Training {model_name} model on {args.dataset}")
         logger.info(f"{'='*60}")

@@ -19,6 +19,9 @@ from .blended_training import BlendedTraining
 from .blended_training_3fc import BlendedTraining3fc
 from .healer import Healer
 from .wrappers import BlendedWrapper, TTTWrapper, HealerWrapper
+from .pretrained_correctors import PretrainedUNetCorrector, ImageToImageTransformer, HybridCorrector
+from .corrector_wrappers import (UNetCorrectorWrapper, TransformerCorrectorWrapper, 
+                                HybridCorrectorWrapper, create_corrector_wrapper)
 
 
 class ModelFactory:
@@ -151,6 +154,53 @@ class ModelFactory:
             # Get feature dimension from ResNet50 (2048 for resnet50)
             feature_dim = 2048
             return HealerWrapper(backbone, model_config, feature_dim)
+            
+        # Corrector models for standalone training
+        elif model_type == 'unet_corrector':
+            return PretrainedUNetCorrector(model_config)
+            
+        elif model_type == 'transformer_corrector':
+            return ImageToImageTransformer(model_config)
+            
+        elif model_type == 'hybrid_corrector':
+            return HybridCorrector(model_config)
+            
+        # Corrector + classifier combinations
+        elif model_type == 'unet_resnet18':
+            backbone = ResNetBaseline(model_config)
+            return UNetCorrectorWrapper(backbone, model_config)
+            
+        elif model_type == 'unet_resnet50':
+            backbone = ResNetPretrained(model_config)
+            return UNetCorrectorWrapper(backbone, model_config)
+            
+        elif model_type == 'unet_vit':
+            backbone = VanillaViT(model_config)
+            return UNetCorrectorWrapper(backbone, model_config)
+            
+        elif model_type == 'transformer_resnet18':
+            backbone = ResNetBaseline(model_config)
+            return TransformerCorrectorWrapper(backbone, model_config)
+            
+        elif model_type == 'transformer_resnet50':
+            backbone = ResNetPretrained(model_config)
+            return TransformerCorrectorWrapper(backbone, model_config)
+            
+        elif model_type == 'transformer_vit':
+            backbone = VanillaViT(model_config)
+            return TransformerCorrectorWrapper(backbone, model_config)
+            
+        elif model_type == 'hybrid_resnet18':
+            backbone = ResNetBaseline(model_config)
+            return HybridCorrectorWrapper(backbone, model_config)
+            
+        elif model_type == 'hybrid_resnet50':
+            backbone = ResNetPretrained(model_config)
+            return HybridCorrectorWrapper(backbone, model_config)
+            
+        elif model_type == 'hybrid_vit':
+            backbone = VanillaViT(model_config)
+            return HybridCorrectorWrapper(backbone, model_config)
             
         else:
             raise ValueError(f"Unknown model type: {model_type}")

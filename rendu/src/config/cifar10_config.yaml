@@ -116,6 +116,106 @@ models:
   healer_resnet18:
     model_type: "resnet18"
     num_denoising_steps: 3
+    
+  # Corrector models
+  unet_corrector:
+    in_channels: 3
+    out_channels: 3
+    base_features: 64
+    use_residual: true
+    
+  transformer_corrector:
+    patch_size: 8
+    in_channels: 3
+    out_channels: 3
+    embed_dim: 768
+    depth: 12
+    head_dim: 64
+    mlp_ratio: 4.0
+    use_residual: true
+    
+  hybrid_corrector:
+    patch_size: 8
+    in_channels: 3
+    out_channels: 3
+    embed_dim: 384
+    depth: 6
+    head_dim: 64
+    mlp_ratio: 4.0
+    use_residual: true
+    use_transformer: true
+    use_cnn: true
+    fusion_weight: 0.5
+    
+  # Corrector + classifier combinations
+  unet_resnet18:
+    corrector_type: unet
+    use_residual: true
+    freeze_corrector: true
+    
+  unet_resnet50:
+    corrector_type: unet
+    use_residual: true
+    freeze_corrector: true
+    
+  unet_vit:
+    corrector_type: unet
+    use_residual: true
+    freeze_corrector: true
+    
+  transformer_resnet18:
+    corrector_type: transformer
+    corrector_patch_size: 8
+    corrector_embed_dim: 768
+    corrector_depth: 12
+    corrector_head_dim: 64
+    use_residual: true
+    freeze_corrector: true
+    
+  transformer_resnet50:
+    corrector_type: transformer
+    corrector_patch_size: 8
+    corrector_embed_dim: 768
+    corrector_depth: 12
+    corrector_head_dim: 64
+    use_residual: true
+    freeze_corrector: true
+    
+  transformer_vit:
+    corrector_type: transformer
+    corrector_patch_size: 8
+    corrector_embed_dim: 768
+    corrector_depth: 12
+    corrector_head_dim: 64
+    use_residual: true
+    freeze_corrector: true
+    
+  hybrid_resnet18:
+    corrector_type: hybrid
+    corrector_embed_dim: 384
+    corrector_depth: 6
+    use_transformer: true
+    use_cnn: true
+    use_residual: true
+    freeze_corrector: true
+    
+  hybrid_resnet50:
+    corrector_type: hybrid
+    corrector_embed_dim: 384
+    corrector_depth: 6
+    use_transformer: true
+    use_cnn: true
+    use_residual: true
+    freeze_corrector: true
+    
+  hybrid_vit:
+    corrector_type: hybrid
+    corrector_embed_dim: 384
+    corrector_depth: 6
+    use_transformer: true
+    use_cnn: true
+    use_residual: true
+    freeze_corrector: true
 
 # Training configurations
 training:
