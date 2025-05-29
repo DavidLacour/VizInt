@@ -104,7 +104,7 @@ class ModelTrainer:
         """Create appropriate data loaders for model type"""
         # Determine if normalization is needed
         # For healer and transformation-aware models, we might need unnormalized data
-        if model_type in ['healer', 'ttt', 'ttt3fc', 'blended', 'blended3fc']:
+        if model_type in ['healer', 'ttt', 'ttt3fc', 'blended', 'blended3fc', 'blended_resnet18', 'blended_resnet50']:
             # These models handle normalization internally
             with_normalization = False
         else:
@@ -124,7 +124,7 @@ class ModelTrainer:
         # Get model-specific training config
         if model_type in ['ttt', 'ttt_robust', 'ttt3fc', 'ttt3fc_robust']:
             training_config = self.config.get('training.ttt', {})
-        elif model_type in ['blended', 'blended_robust', 'blended3fc', 'blended3fc_robust']:
+        elif model_type in ['blended', 'blended_robust', 'blended3fc', 'blended3fc_robust', 'blended_resnet18', 'blended_resnet50']:
             training_config = self.config.get('training.blended', {})
         else:
             training_config = self.config.get('training', {})
@@ -134,7 +134,7 @@ class ModelTrainer:
         merged_config = {**general_config, **training_config}
         
         # Create trainer based on model type
-        if model_type in ['healer', 'ttt', 'ttt3fc', 'blended', 'blended3fc']:
+        if model_type in ['healer', 'ttt', 'ttt3fc', 'blended', 'blended3fc', 'blended_resnet18', 'blended_resnet50']:
             # These models need special trainers
             return self._create_specialized_trainer(model_type, model, merged_config)
         else:
@@ -164,7 +164,7 @@ class ModelTrainer:
                 config={'training': config},
                 device=str(self.device)
             )
-        elif model_type in ['blended_training', 'blended_training_3fc']:
+        elif model_type in ['blended', 'blended3fc', 'blended_resnet18', 'blended_resnet50']:
             from trainers.blended_trainer import BlendedTrainer
             return BlendedTrainer(
                 model=model,
