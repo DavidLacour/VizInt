@@ -42,37 +42,30 @@ def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="Unified training and evaluation script")
     
-    # Dataset and experiment
     parser.add_argument('--dataset', type=str, choices=['cifar10', 'tinyimagenet'], 
                       default='cifar10', help='Dataset to use')
     parser.add_argument('--config', type=str, default=None,
                       help='Path to configuration file (auto-selects based on dataset if not provided)')
-    
-    # Mode
+  
     parser.add_argument('--mode', type=str, choices=['train', 'evaluate', 'both'],
                       default='both', help='Mode of operation')
-    
-    # Model selection
+   
     parser.add_argument('--models', type=str, nargs='+',
                       default=['all'], help='Models to train/evaluate')
     parser.add_argument('--skip_models', type=str, nargs='+',
                       help='Models to skip')
-    
-    # Training options
+  
     parser.add_argument('--robust', action='store_true',
                       help='Train robust models')
     parser.add_argument('--force_retrain', action='store_true',
                       help='Force retraining even if checkpoints exist')
     
-    # Evaluation options
     parser.add_argument('--severities', type=float, nargs='+',
                       help='Override severities for evaluation')
     
-    # Debug mode
     parser.add_argument('--debug', action='store_true',
                       help='Enable debug mode with small dataset')
     
-    # Other options
     parser.add_argument('--device', type=str, choices=['cuda', 'cpu', 'auto'],
                       help='Override device setting')
     parser.add_argument('--seed', type=int, help='Override random seed')
@@ -85,7 +78,6 @@ def get_models_to_process(args, config):
     all_models = ['vanilla_vit', 'healer', 'ttt', 'ttt3fc', 'blended_training', 'blended_training_3fc', 
                   'resnet', 'resnet_pretrained', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18']
     
-    # Map old names to new names for backward compatibility
     name_mapping = {
         'main': 'vanilla_vit',
         'blended': 'blended_training',
@@ -97,18 +89,14 @@ def get_models_to_process(args, config):
     if 'all' in args.models:
         models = all_models
     else:
-        # Map any old names to new names
         models = [name_mapping.get(m, m) for m in args.models]
     
-    # Remove skipped models
     if args.skip_models:
         skip_models = [name_mapping.get(m, m) for m in args.skip_models]
         models = [m for m in models if m not in skip_models]
     
-    # Filter based on config
     enabled_models = []
     for model in models:
-        # All models are enabled by default
         enabled_models.append(model)
     
     return enabled_models
@@ -118,27 +106,22 @@ def train_models(args, config, models_to_train):
     """Train all specified models"""
     logger = logging.getLogger('train_models')
     
-    # Create factories
     model_factory = ModelFactory(config)
     data_factory = DataLoaderFactory(config)
     
-    # Get checkpoint directory
     checkpoint_dir = config.get_checkpoint_dir(args.dataset)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     
-    # Create model trainer service
     trainer_service = ModelTrainer(config, model_factory, data_factory)
     
-    # Track trained models
     trained_models = {}
     
-    # Train each model
     for model_name in models_to_train:
         logger.info(f"\n{'='*60}")
         logger.info(f"Training {model_name} model on {args.dataset}")
         logger.info(f"{'='*60}")
         
-        # Check if model already exists
+        # Check if model already exists and load it and don't if it already exists
         model_dir = checkpoint_dir / f"bestmodel_{model_name}"
         checkpoint_path = model_dir / "best_model.pt"
         
@@ -146,8 +129,6 @@ def train_models(args, config, models_to_train):
             logger.info(f"Model already exists at {checkpoint_path}, skipping training")
             continue
         
-        # Train model
-        # Train regular version
         model, history = trainer_service.train_model(
             model_type=model_name,
             dataset_name=args.dataset,
@@ -225,17 +206,14 @@ def evaluate_models(args, config, models_to_evaluate):
 
 def main():
     """Main entry point"""
-    # Parse arguments
     args = parse_arguments()
     
-    # Auto-select config file if not provided
     if args.config is None:
         if args.dataset == 'cifar10':
             args.config = 'config/cifar10_config.yaml'
         else:
             args.config = 'config/tinyimagenet_config.yaml'
     
-    # Load configuration
     config = ConfigLoader(args.config)
     
     # Override config with command line arguments
@@ -246,22 +224,18 @@ def main():
     if args.seed:
         config.update({'general': {'seed': args.seed}})
     
-    # Setup logging
     setup_logging(config)
     logger = logging.getLogger('main')
-    
-    # Set random seed
+   
     seed = config.get('general.seed', 42)
     set_seed(seed)
     logger.info(f"Set random seed to {seed}")
-    
-    # Log configuration
+  
     logger.info(f"Dataset: {args.dataset}")
     logger.info(f"Mode: {args.mode}")
     logger.info(f"Device: {config.get_device()}")
     logger.info(f"Debug mode: {config.is_debug_mode()}")
     
-    # Get models to process
     models_to_process = get_models_to_process(args, config)
     logger.info(f"Models to process: {models_to_process}")
     

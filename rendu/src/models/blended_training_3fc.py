@@ -8,11 +8,8 @@ from .base_model import TransformationAwareModel
 import sys
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
-from src.utils.transformer_utils import LayerNorm, TransformerTrunk
-from src.models.vit_implementation import PatchEmbed
+from utils.transformer_utils import LayerNorm, TransformerTrunk
+from models.vit_implementation import PatchEmbed
 
 
 class BlendedTraining3fc(TransformationAwareModel):

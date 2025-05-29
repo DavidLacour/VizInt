@@ -8,10 +8,8 @@ import torch
 import torch.nn as nn
 import logging
 
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
-from src.models.base_model import BaseModel, ClassificationModel, TransformationAwareModel
-from src.config.config_loader import ConfigLoader
+from models.base_model import BaseModel, ClassificationModel, TransformationAwareModel
+from config.config_loader import ConfigLoader
 
 
 from .vanilla_vit import VanillaViT, VanillaViTRobust
