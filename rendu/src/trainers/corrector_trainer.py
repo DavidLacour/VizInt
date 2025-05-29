@@ -315,6 +315,8 @@ class CorrectorTrainer:
         }
         
         best_val_loss = float('inf')
+        patience = 10
+        patience_counter = 0
         
         for epoch in range(self.num_epochs):
             self.logger.info(f"Epoch {epoch + 1}/{self.num_epochs}")
@@ -328,17 +330,28 @@ class CorrectorTrainer:
                 val_losses = self.validate_epoch(model, val_loader)
                 history['val_losses'].append(val_losses)
                 
-                # Save best model
-                if save_dir and val_losses['total'] < best_val_loss:
+                # Early stopping and best model saving
+                if val_losses['total'] < best_val_loss:
                     best_val_loss = val_losses['total']
-                    save_path = save_dir / f"best_{self.model_type}_corrector.pth"
-                    model.save_checkpoint(save_path, epoch, optimizer, val_losses)
+                    patience_counter = 0
+                    if save_dir:
+                        save_path = save_dir / f"best_{self.model_type}_corrector.pth"
+                        model.save_checkpoint(save_path, epoch, optimizer, val_losses)
+                        self.logger.info(f"Saved checkpoint to {save_path}")
+                else:
+                    patience_counter += 1
                 
                 self.logger.info(
                     f"Train Loss: {train_losses['total']:.4f}, "
                     f"Val Loss: {val_losses['total']:.4f}, "
-                    f"PSNR: {val_losses['psnr']:.2f}dB"
+                    f"PSNR: {val_losses['psnr']:.2f}dB, "
+                    f"Patience: {patience_counter}/{patience}"
                 )
+                
+                # Early stopping
+                if patience_counter >= patience:
+                    self.logger.info(f"Early stopping triggered after {epoch + 1} epochs")
+                    break
             else:
                 self.logger.info(f"Train Loss: {train_losses['total']:.4f}")
             
