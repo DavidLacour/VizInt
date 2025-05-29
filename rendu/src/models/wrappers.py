@@ -424,15 +424,17 @@ class HealerWrapper(nn.Module):
             if head.bias is not None:
                 nn.init.zeros_(head.bias)
     
-    def heal_input(self, x: torch.Tensor) -> torch.Tensor:
+    def heal_input(self, x: torch.Tensor, return_transform_predictions: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
         """
         Apply healer preprocessing to input using ResNet18 to predict and correct transforms
         
         Args:
             x: Input tensor of shape (B, C, H, W)
+            return_transform_predictions: Whether to return transform predictions
             
         Returns:
-            Healed input tensor
+            If return_transform_predictions=False: Healed input tensor
+            If return_transform_predictions=True: Tuple of (healed_input, transform_predictions)
         """
         device = x.device
         batch_size = x.shape[0]
@@ -467,6 +469,15 @@ class HealerWrapper(nn.Module):
                 healed_x[i:i+1], noise_std=noise_std, device=device
             )
         
+        if return_transform_predictions:
+            transform_predictions = {
+                'transform_type_logits': transform_type_logits,
+                'rotation_params': rotation_params,
+                'noise_params': noise_params,
+                'affine_params': affine_params
+            }
+            return healed_x, transform_predictions
+        
         return healed_x
     
     def extract_features(self, x: torch.Tensor) -> torch.Tensor:
@@ -479,8 +490,8 @@ class HealerWrapper(nn.Module):
         Returns:
             Feature tensor of shape (B, feature_dim)
         """
-        # First heal the input
-        healed_x = self.heal_input(x)
+        # First heal the input (without returning predictions)
+        healed_x = self.heal_input(x, return_transform_predictions=False)
         
         # Extract features using backbone
         if hasattr(self.backbone, 'extract_features'):
@@ -494,20 +505,42 @@ class HealerWrapper(nn.Module):
         
         return features
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, return_aux: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
         """
         Forward pass through healer + backbone + classifier
         
         Args:
             x: Input tensor of shape (B, C, H, W)
+            return_aux: Whether to return auxiliary outputs (transform predictions)
             
         Returns:
-            Classification logits of shape (B, num_classes)
+            If return_aux=False: Classification logits of shape (B, num_classes)
+            If return_aux=True: Tuple of (logits, auxiliary_outputs)
         """
-        # Extract features (includes healing)
-        features = self.extract_features(x)
+        # Get healed input and transform predictions
+        healed_x, transform_predictions = self.heal_input(x, return_transform_predictions=True)
+        
+        # Extract features using backbone
+        if hasattr(self.backbone, 'extract_features'):
+            features = self.backbone.extract_features(healed_x)
+        else:
+            features = self.backbone(healed_x)
+        
+        # Ensure features are 2D [B, feature_dim]
+        if features.dim() > 2:
+            features = F.adaptive_avg_pool2d(features, 1).flatten(1)
         
         # Classify
         logits = self.classifier(features)
+        
+        if return_aux:
+            aux_outputs = {
+                'transform_type': transform_predictions['transform_type_logits'],
+                'rotation': transform_predictions['rotation_params'],
+                'noise_level': transform_predictions['noise_params'],
+                'affine_params': transform_predictions['affine_params'],
+                'features': features
+            }
+            return logits, aux_outputs
         
         return logits

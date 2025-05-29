@@ -367,6 +367,15 @@ class ModelEvaluator:
                         predicted_transforms = torch.argmax(aux_outputs['transform_type'], dim=1)
                         transform_correct += (predicted_transforms == ground_truth_transforms).sum().item()
                         transform_total += ground_truth_transforms.size(0)
+                elif 'healer_resnet18' in model_type:
+                    # HealerWrapper models support returning auxiliary outputs
+                    outputs, aux_outputs = main_model(images, return_aux=True)
+                    
+                    # Track transform prediction accuracy for HealerResNet18
+                    if aux_outputs and 'transform_type' in aux_outputs and 'ground_truth_transforms' in locals():
+                        predicted_transforms = torch.argmax(aux_outputs['transform_type'], dim=1)
+                        transform_correct += (predicted_transforms == ground_truth_transforms).sum().item()
+                        transform_total += ground_truth_transforms.size(0)
                 else:
                     outputs = self._get_model_outputs(main_model, images, model_type)
                 
@@ -465,6 +474,10 @@ class ModelEvaluator:
             # Blended models need return_aux=True to return tuple
             outputs, _ = model(images, return_aux=True)
             return outputs
+        elif 'healer_resnet18' in model_type:
+            # HealerWrapper models can return aux outputs with return_aux=True
+            # For now, just get the logits
+            return model(images)
         else:
             # Standard models return just logits
             return model(images)
