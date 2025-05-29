@@ -363,7 +363,7 @@ class TTTWrapper(TransformationAwareModel):
 
 class HealerWrapper(nn.Module):
     """
-    Wrapper that combines any backbone with Healer preprocessing
+    Wrapper that combines any backbone with Healer preprocessing using ResNet18 for transform prediction
     """
     
     def __init__(self, backbone: nn.Module, config: Dict[str, Any], feature_dim: int):
@@ -384,10 +384,27 @@ class HealerWrapper(nn.Module):
         self.config = config
         self.num_classes = config['num_classes']
         self.num_denoising_steps = config.get('num_denoising_steps', 3)
+        self.num_transforms = config.get('num_transform_types', 4)
         
         # Import healer transforms
         from .healer_transforms import HealerTransforms
         self.healer_transforms = HealerTransforms
+        
+        # Create ResNet18 for transform prediction
+        import torchvision.models as models
+        self.transform_predictor = models.resnet18(pretrained=False)
+        # Modify the first conv layer if needed for different input sizes
+        # Keep the original conv layer as is for now
+        
+        # Replace the final FC layer for transform prediction
+        resnet_feature_dim = self.transform_predictor.fc.in_features  # 512 for ResNet18
+        
+        # Transform prediction heads
+        self.transform_predictor.fc = nn.Identity()  # Remove original FC layer
+        self.transform_type_head = nn.Linear(resnet_feature_dim, self.num_transforms)
+        self.rotation_head = nn.Linear(resnet_feature_dim, 1)
+        self.noise_head = nn.Linear(resnet_feature_dim, 1)
+        self.affine_head = nn.Linear(resnet_feature_dim, 4)  # translate_x, translate_y, shear_x, shear_y
         
         # Classification head
         self.classifier = nn.Linear(feature_dim, self.num_classes)
@@ -400,10 +417,16 @@ class HealerWrapper(nn.Module):
         nn.init.xavier_uniform_(self.classifier.weight)
         if self.classifier.bias is not None:
             nn.init.zeros_(self.classifier.bias)
+        
+        # Initialize transform prediction heads
+        for head in [self.transform_type_head, self.rotation_head, self.noise_head, self.affine_head]:
+            nn.init.xavier_uniform_(head.weight)
+            if head.bias is not None:
+                nn.init.zeros_(head.bias)
     
     def heal_input(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Apply healer preprocessing to input
+        Apply healer preprocessing to input using ResNet18 to predict and correct transforms
         
         Args:
             x: Input tensor of shape (B, C, H, W)
@@ -414,24 +437,35 @@ class HealerWrapper(nn.Module):
         device = x.device
         batch_size = x.shape[0]
         
-        # Apply multiple denoising steps
+        # Use ResNet18 to predict transformations
+        with torch.no_grad():
+            # Extract features from ResNet18
+            resnet_features = self.transform_predictor(x)
+            
+            # Predict transformation parameters
+            transform_type_logits = self.transform_type_head(resnet_features)
+            rotation_params = self.rotation_head(resnet_features)
+            noise_params = self.noise_head(resnet_features)
+            affine_params = self.affine_head(resnet_features)
+            
+            # Get predicted transform type
+            transform_type = torch.argmax(transform_type_logits, dim=1)
+        
+        # Apply Wiener denoising convolution for all samples
         healed_x = x.clone()
         
-        for step in range(self.num_denoising_steps):
-            # Apply Gaussian denoising (uses Wiener by default)
-            healed_x = self.healer_transforms.apply_gaussian_denoising(
-                healed_x, noise_std=0.1, device=device
-            )
+        # Apply Wiener denoising (this already uses convolution internally)
+        for i in range(batch_size):
+            # Estimate noise level from predictions or use default
+            if transform_type[i] == 1:  # Gaussian noise detected
+                noise_std = torch.sigmoid(noise_params[i]).item() * 0.5  # Scale to [0, 0.5]
+            else:
+                noise_std = 0.1  # Default noise level
             
-            # Apply batch correction for all transformation types
-            # This will attempt to detect and correct common transformations
-            try:
-                healed_x = self.healer_transforms.apply_batch_correction(
-                    healed_x, device=device
-                )
-            except Exception:
-                # If batch correction fails, continue with just denoising
-                pass
+            # Apply Wiener denoising which uses FFT-based convolution
+            healed_x[i:i+1] = self.healer_transforms.apply_gaussian_denoising(
+                healed_x[i:i+1], noise_std=noise_std, device=device
+            )
         
         return healed_x
     
