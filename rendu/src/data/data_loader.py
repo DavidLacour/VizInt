@@ -10,11 +10,9 @@ from torchvision import datasets, transforms
 import logging
 import numpy as np
 
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
-from src.config.config_loader import ConfigLoader
-from src.data.tiny_imagenet_dataset import TinyImageNetDataset
-from src.data.continuous_transforms import ContinuousTransforms
+from config.config_loader import ConfigLoader
+from data.tiny_imagenet_dataset import TinyImageNetDataset
+from data.continuous_transforms import ContinuousTransforms
 
 
 class DataLoaderFactory:
