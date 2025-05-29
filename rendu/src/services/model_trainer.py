@@ -150,23 +150,13 @@ class ModelTrainer:
         """Create specialized trainers for specific model types"""
         # Import specialized trainers as needed
         if model_type == 'healer':
-            # Check if we should use the new multi-task trainer
-            use_multitask = config.get('healer', {}).get('use_multitask_training', False)
-            if use_multitask:
-                from trainers.healer_trainer import HealerTrainer
-                return HealerTrainer(
-                    model=model,
-                    config={'training': config},
-                    device=str(self.device)
-                )
-            else:
-                # Legacy: Healer uses classification trainer
-                from trainers.classification_trainer import ClassificationTrainer
-                return ClassificationTrainer(
-                    model=model,
-                    config={'training': config},
-                    device=str(self.device)
-                )
+            # Healer should always use HealerTrainer for transformation prediction
+            from trainers.healer_trainer import HealerTrainer
+            return HealerTrainer(
+                model=model,
+                config={'training': config},
+                device=str(self.device)
+            )
         elif model_type in ['ttt', 'ttt3fc', 'ttt_resnet18', 'ttt_resnet50']:
             from trainers.ttt_trainer import TTTTrainer
             return TTTTrainer(

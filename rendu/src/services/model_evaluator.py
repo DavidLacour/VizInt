@@ -214,11 +214,11 @@ class ModelEvaluator:
                 )
             else:
                 # Robustness data evaluation
-                accuracy, transform_acc = self._evaluate_robustness_data(
+                accuracy, transform_metrics = self._evaluate_robustness_data(
                     main_model, healer_model, dataset_name, severity, model_type, normalize
                 )
-                if transform_acc is not None:
-                    transform_accuracies[severity] = transform_acc
+                if transform_metrics is not None:
+                    transform_accuracies[severity] = transform_metrics
             
             results[severity] = accuracy
             self.logger.info(f"  Severity {severity}: {accuracy:.4f}")
@@ -303,6 +303,17 @@ class ModelEvaluator:
         transform_correct = 0
         transform_total = 0
         
+        # Track per-transform-type accuracy
+        transform_type_correct = {i: 0 for i in range(5)}  # 0: none, 1: noise, 2: rotation, 3: translate, 4: scale
+        transform_type_total = {i: 0 for i in range(5)}
+        
+        # Track parameter prediction errors (for regression heads)
+        param_errors = {
+            'rotation': [],
+            'noise': [],
+            'translation': []
+        }
+        
         with torch.no_grad():
             for batch in tqdm(val_loader, desc=f"Evaluating severity {severity}", leave=False):
                 if dataset_name == 'tinyimagenet' and len(batch) == 4:
@@ -349,6 +360,14 @@ class ModelEvaluator:
                             if 'ground_truth_transforms' in locals():
                                 transform_correct += (predicted_transforms == ground_truth_transforms).sum().item()
                                 transform_total += ground_truth_transforms.size(0)
+                                
+                                # Track per-transform-type accuracy
+                                for i in range(len(ground_truth_transforms)):
+                                    true_type = ground_truth_transforms[i].item()
+                                    pred_type = predicted_transforms[i].item()
+                                    transform_type_total[true_type] = transform_type_total.get(true_type, 0) + 1
+                                    if true_type == pred_type:
+                                        transform_type_correct[true_type] = transform_type_correct.get(true_type, 0) + 1
                         
                         # Apply corrections using the predicted transformations
                         images = healer_model.apply_correction(images, predictions)
@@ -367,6 +386,14 @@ class ModelEvaluator:
                         predicted_transforms = torch.argmax(aux_outputs['transform_type'], dim=1)
                         transform_correct += (predicted_transforms == ground_truth_transforms).sum().item()
                         transform_total += ground_truth_transforms.size(0)
+                        
+                        # Track per-transform-type accuracy
+                        for i in range(len(ground_truth_transforms)):
+                            true_type = ground_truth_transforms[i].item()
+                            pred_type = predicted_transforms[i].item()
+                            transform_type_total[true_type] = transform_type_total.get(true_type, 0) + 1
+                            if true_type == pred_type:
+                                transform_type_correct[true_type] = transform_type_correct.get(true_type, 0) + 1
                 elif 'healer_resnet18' in model_type:
                     # HealerWrapper models support returning auxiliary outputs
                     outputs, aux_outputs = main_model(images, return_aux=True)
@@ -376,6 +403,14 @@ class ModelEvaluator:
                         predicted_transforms = torch.argmax(aux_outputs['transform_type'], dim=1)
                         transform_correct += (predicted_transforms == ground_truth_transforms).sum().item()
                         transform_total += ground_truth_transforms.size(0)
+                        
+                        # Track per-transform-type accuracy
+                        for i in range(len(ground_truth_transforms)):
+                            true_type = ground_truth_transforms[i].item()
+                            pred_type = predicted_transforms[i].item()
+                            transform_type_total[true_type] = transform_type_total.get(true_type, 0) + 1
+                            if true_type == pred_type:
+                                transform_type_correct[true_type] = transform_type_correct.get(true_type, 0) + 1
                 else:
                     outputs = self._get_model_outputs(main_model, images, model_type)
                 
@@ -386,11 +421,27 @@ class ModelEvaluator:
         
         # Calculate transform prediction accuracy if available
         transform_accuracy = None
+        per_type_accuracy = {}
+        
         if transform_total > 0:
             transform_accuracy = transform_correct / transform_total
             self.logger.info(f"  Transform prediction accuracy: {transform_accuracy:.4f}")
+            
+            # Calculate per-transform-type accuracy
+            transform_names = ['none', 'gaussian_noise', 'rotate', 'translate', 'scale']
+            for i, name in enumerate(transform_names):
+                if i in transform_type_total and transform_type_total[i] > 0:
+                    acc = transform_type_correct[i] / transform_type_total[i]
+                    per_type_accuracy[name] = acc
+                    self.logger.info(f"    {name}: {acc:.4f} ({transform_type_correct[i]}/{transform_type_total[i]})")
         
-        return correct / total, transform_accuracy
+        # Return overall accuracy and detailed transform metrics
+        transform_metrics = {
+            'overall': transform_accuracy,
+            'per_type': per_type_accuracy
+        } if transform_accuracy is not None else None
+        
+        return correct / total, transform_metrics
     
     def _evaluate_ood_data(self,
                           main_model: nn.Module,
@@ -648,7 +699,12 @@ class ModelEvaluator:
                 
                 for sev in severities[1:]:
                     if sev in data['transform_accuracies']:
-                        acc = data['transform_accuracies'][sev]
+                        metrics = data['transform_accuracies'][sev]
+                        # Handle both old format (float) and new format (dict)
+                        if isinstance(metrics, dict):
+                            acc = metrics.get('overall', 0)
+                        else:
+                            acc = metrics
                         row += f" {acc:>10.4f}"
                         transform_accs.append(acc)
                     else:
@@ -662,6 +718,51 @@ class ModelEvaluator:
                     row += f" {'N/A':>10}"
                 
                 print(row)
+            
+            # Print detailed per-transform-type accuracy
+            print("\n" + "="*141)
+            print("📊 DETAILED TRANSFORM TYPE PREDICTION ACCURACY")
+            print("="*141)
+            
+            for name, data in models_with_transform_pred:
+                has_detailed = False
+                for sev in severities[1:]:
+                    if sev in data['transform_accuracies'] and isinstance(data['transform_accuracies'][sev], dict):
+                        if 'per_type' in data['transform_accuracies'][sev] and data['transform_accuracies'][sev]['per_type']:
+                            has_detailed = True
+                            break
+                
+                if has_detailed:
+                    print(f"\n{name}:")
+                    print("-" * 80)
+                    
+                    # Collect all transform types
+                    all_types = set()
+                    for sev in severities[1:]:
+                        if sev in data['transform_accuracies'] and isinstance(data['transform_accuracies'][sev], dict):
+                            if 'per_type' in data['transform_accuracies'][sev]:
+                                all_types.update(data['transform_accuracies'][sev]['per_type'].keys())
+                    
+                    # Print header
+                    header = f"  {'Transform Type':<20}"
+                    for sev in severities[1:]:
+                        header += f" {f'Sev {sev}':>12}"
+                    print(header)
+                    print("  " + "-" * 78)
+                    
+                    # Print per-type accuracies
+                    for transform_type in sorted(all_types):
+                        row = f"  {transform_type:<20}"
+                        for sev in severities[1:]:
+                            if (sev in data['transform_accuracies'] and 
+                                isinstance(data['transform_accuracies'][sev], dict) and
+                                'per_type' in data['transform_accuracies'][sev] and
+                                transform_type in data['transform_accuracies'][sev]['per_type']):
+                                acc = data['transform_accuracies'][sev]['per_type'][transform_type]
+                                row += f" {acc:>12.4f}"
+                            else:
+                                row += f" {'N/A':>12}"
+                        print(row)
         
         # Add separate OOD evaluation section
         self._print_ood_evaluation_section(sorted_results)
