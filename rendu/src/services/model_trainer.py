@@ -134,7 +134,7 @@ class ModelTrainer:
         merged_config = {**general_config, **training_config}
         
         # Create trainer based on model type
-        if model_type in ['healer', 'ttt', 'ttt3fc', 'blended', 'blended3fc', 'blended_resnet18', 'blended_resnet50']:
+        if model_type in ['healer', 'ttt', 'ttt3fc', 'ttt_resnet18', 'ttt_resnet50', 'blended', 'blended3fc', 'blended_resnet18', 'blended_resnet50']:
             # These models need special trainers
             return self._create_specialized_trainer(model_type, model, merged_config)
         else:
@@ -157,7 +157,7 @@ class ModelTrainer:
                 config={'training': config},
                 device=str(self.device)
             )
-        elif model_type in ['ttt', 'ttt3fc']:
+        elif model_type in ['ttt', 'ttt3fc', 'ttt_resnet18', 'ttt_resnet50']:
             from trainers.ttt_trainer import TTTTrainer
             return TTTTrainer(
                 model=model,

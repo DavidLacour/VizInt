@@ -351,6 +351,7 @@ class TTTWrapper(TransformationAwareModel):
         transform_preds = self.transform_predictor(adapted_features)
         
         aux_outputs = {
+            'transform_predictions': transform_preds,
             'transform_type': transform_preds[:, :self.num_transforms],
             'transform_params': transform_preds[:, self.num_transforms:],
             'features': adapted_features,
