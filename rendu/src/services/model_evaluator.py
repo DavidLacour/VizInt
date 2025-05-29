@@ -274,6 +274,31 @@ class ModelEvaluator:
         
         return correct / total
     
+    def _compute_param_errors(self, predictions, ground_truth_transforms, ground_truth_params, param_errors):
+        """Helper to compute parameter prediction errors"""
+        # For simplicity, let's track overall MAE for each parameter type
+        if 'rotation_angle' in predictions:
+            for i, true_type in enumerate(ground_truth_transforms):
+                if true_type.item() == 2:  # rotation
+                    # Find how many rotations we've seen so far
+                    rotation_count = sum(1 for j in range(i) if ground_truth_transforms[j].item() == 2)
+                    if rotation_count < len(ground_truth_params['rotation']):
+                        pred_val = predictions['rotation_angle'][i].item()
+                        true_val = ground_truth_params['rotation'][rotation_count]
+                        param_errors['rotation'].append(abs(pred_val - true_val))
+        
+        if 'noise_std' in predictions:
+            for i, true_type in enumerate(ground_truth_transforms):
+                if true_type.item() == 1:  # gaussian_noise
+                    noise_count = sum(1 for j in range(i) if ground_truth_transforms[j].item() == 1)
+                    if noise_count < len(ground_truth_params['noise']):
+                        pred_val = predictions['noise_std'][i].item()
+                        true_val = ground_truth_params['noise'][noise_count]
+                        param_errors['noise'].append(abs(pred_val - true_val))
+        
+        # Similar for translation if needed
+        return param_errors
+    
     def _evaluate_robustness_data(self,
                           main_model: nn.Module,
                           healer_model: Optional[nn.Module],
@@ -311,7 +336,16 @@ class ModelEvaluator:
         param_errors = {
             'rotation': [],
             'noise': [],
-            'translation': []
+            'translate_x': [],
+            'translate_y': []
+        }
+        
+        # Store ground truth parameters for tracking
+        ground_truth_params = {
+            'rotation': [],
+            'noise': [],
+            'translate_x': [],
+            'translate_y': []
         }
         
         with torch.no_grad():
@@ -336,9 +370,21 @@ class ModelEvaluator:
                         # Convert transform type string to index
                         transform_idx = transforms_for_robustness.transform_types.index(transform_type)
                         ground_truth_transforms.append(transform_idx)
-                        transformed_img = transforms_for_robustness.apply_transforms_unnormalized(
-                            images[i], transform_type=transform_type, severity=severity
+                        
+                        # Apply transformation and get parameters
+                        transformed_img, params = transforms_for_robustness.apply_transforms_unnormalized(
+                            images[i], transform_type=transform_type, severity=severity, return_params=True
                         )
+                        
+                        # Store ground truth parameters
+                        if transform_type == 'rotate' and 'angle' in params:
+                            ground_truth_params['rotation'].append(params['angle'])
+                        elif transform_type == 'gaussian_noise' and 'noise_std' in params:
+                            ground_truth_params['noise'].append(params['noise_std'])
+                        elif transform_type == 'translate':
+                            ground_truth_params['translate_x'].append(params.get('translate_x', 0.0))
+                            ground_truth_params['translate_y'].append(params.get('translate_y', 0.0))
+                        
                         # Normalize after transformation
                         transformed_img = normalize(transformed_img)
                         transformed_images.append(transformed_img)
@@ -368,6 +414,11 @@ class ModelEvaluator:
                                     transform_type_total[true_type] = transform_type_total.get(true_type, 0) + 1
                                     if true_type == pred_type:
                                         transform_type_correct[true_type] = transform_type_correct.get(true_type, 0) + 1
+                                
+                                # Track parameter prediction errors for this batch
+                                batch_param_errors = self._compute_param_errors(
+                                    predictions, ground_truth_transforms, ground_truth_params, param_errors
+                                )
                         
                         # Apply corrections using the predicted transformations
                         images = healer_model.apply_correction(images, predictions)
@@ -394,6 +445,10 @@ class ModelEvaluator:
                             transform_type_total[true_type] = transform_type_total.get(true_type, 0) + 1
                             if true_type == pred_type:
                                 transform_type_correct[true_type] = transform_type_correct.get(true_type, 0) + 1
+                        
+                        # Track parameter errors for TTT/Blended
+                        if aux_outputs and 'ground_truth_params' in locals():
+                            self._compute_param_errors(aux_outputs, ground_truth_transforms, ground_truth_params, param_errors)
                 elif 'healer_resnet18' in model_type:
                     # HealerWrapper models support returning auxiliary outputs
                     outputs, aux_outputs = main_model(images, return_aux=True)
@@ -411,6 +466,10 @@ class ModelEvaluator:
                             transform_type_total[true_type] = transform_type_total.get(true_type, 0) + 1
                             if true_type == pred_type:
                                 transform_type_correct[true_type] = transform_type_correct.get(true_type, 0) + 1
+                        
+                        # Track parameter errors for HealerResNet18
+                        if aux_outputs and 'ground_truth_params' in locals():
+                            self._compute_param_errors(aux_outputs, ground_truth_transforms, ground_truth_params, param_errors)
                 else:
                     outputs = self._get_model_outputs(main_model, images, model_type)
                 
@@ -422,6 +481,7 @@ class ModelEvaluator:
         # Calculate transform prediction accuracy if available
         transform_accuracy = None
         per_type_accuracy = {}
+        param_mae = {}
         
         if transform_total > 0:
             transform_accuracy = transform_correct / transform_total
@@ -434,11 +494,20 @@ class ModelEvaluator:
                     acc = transform_type_correct[i] / transform_type_total[i]
                     per_type_accuracy[name] = acc
                     self.logger.info(f"    {name}: {acc:.4f} ({transform_type_correct[i]}/{transform_type_total[i]})")
+            
+            # Calculate parameter prediction MAE
+            self.logger.info("  Parameter prediction errors (MAE):")
+            for param_name, errors in param_errors.items():
+                if len(errors) > 0:
+                    mae = sum(errors) / len(errors)
+                    param_mae[param_name] = mae
+                    self.logger.info(f"    {param_name}: {mae:.4f}")
         
         # Return overall accuracy and detailed transform metrics
         transform_metrics = {
             'overall': transform_accuracy,
-            'per_type': per_type_accuracy
+            'per_type': per_type_accuracy,
+            'param_mae': param_mae
         } if transform_accuracy is not None else None
         
         return correct / total, transform_metrics
@@ -762,6 +831,66 @@ class ModelEvaluator:
                                 row += f" {acc:>12.4f}"
                             else:
                                 row += f" {'N/A':>12}"
+                        print(row)
+            
+            # Print parameter prediction accuracy
+            print("\n" + "="*141)
+            print("📏 PARAMETER PREDICTION ACCURACY (Mean Absolute Error)")
+            print("="*141)
+            
+            for name, data in models_with_transform_pred:
+                has_param_data = False
+                for sev in severities[1:]:
+                    if (sev in data['transform_accuracies'] and 
+                        isinstance(data['transform_accuracies'][sev], dict) and
+                        'param_mae' in data['transform_accuracies'][sev] and 
+                        data['transform_accuracies'][sev]['param_mae']):
+                        has_param_data = True
+                        break
+                
+                if has_param_data:
+                    print(f"\n{name}:")
+                    print("-" * 80)
+                    
+                    # Collect all parameter types
+                    all_params = set()
+                    for sev in severities[1:]:
+                        if (sev in data['transform_accuracies'] and 
+                            isinstance(data['transform_accuracies'][sev], dict) and
+                            'param_mae' in data['transform_accuracies'][sev]):
+                            all_params.update(data['transform_accuracies'][sev]['param_mae'].keys())
+                    
+                    # Print header
+                    header = f"  {'Parameter':<20}"
+                    for sev in severities[1:]:
+                        header += f" {f'Sev {sev}':>12}"
+                    header += f" {'Average':>12}"
+                    print(header)
+                    print("  " + "-" * 90)
+                    
+                    # Print MAE for each parameter
+                    for param in sorted(all_params):
+                        row = f"  {param:<20}"
+                        param_maes = []
+                        
+                        for sev in severities[1:]:
+                            if (sev in data['transform_accuracies'] and 
+                                isinstance(data['transform_accuracies'][sev], dict) and
+                                'param_mae' in data['transform_accuracies'][sev] and
+                                param in data['transform_accuracies'][sev]['param_mae']):
+                                mae = data['transform_accuracies'][sev]['param_mae'][param]
+                                row += f" {mae:>12.4f}"
+                                param_maes.append(mae)
+                            else:
+                                row += f" {'N/A':>12}"
+                        
+                        # Calculate average
+                        if param_maes:
+                            avg_mae = sum(param_maes) / len(param_maes)
+                            row += f" {avg_mae:>12.4f}"
+                        else:
+                            row += f" {'N/A':>12}"
+                        
                         print(row)
         
         # Add separate OOD evaluation section

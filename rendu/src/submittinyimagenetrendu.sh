@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=tiny_funky       # Change as needed
+#SBATCH --job-name=tiny_funky3       # Change as needed
 #SBATCH --time=24:00:00
 #SBATCH --account=cs-503
 #SBATCH --qos=cs-503
@@ -7,8 +7,8 @@
 #SBATCH --mem=64G
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=5               # Adjust CPU allocation if needed
-#SBATCH --output=interactive_job_tiny_funky.out    # Output log file
-#SBATCH --error=interactive_job_tiny_funky.err     # Error log file
+#SBATCH --output=interactive_job_tiny_funky3.out    # Output log file
+#SBATCH --error=interactive_job_tiny_funky3.err     # Error log file
 
 CONFIG_FILE=$1
 WANDB=$2
