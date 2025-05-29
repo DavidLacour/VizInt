@@ -14,7 +14,7 @@ debug:
   batch_size: 2
   num_samples: 20  # Number of samples to use in debug mode
   epochs: 1
-  checkpoint_dir: "../../../debugmodelrendu/cifar10"
+  checkpoint_dir: "../../../debugmodelrendu/cifar102"
   num_workers: 0  # Disable multiprocessing in debug mode
 
 # Dataset configuration
@@ -169,8 +169,8 @@ evaluation:
 
 # Checkpoint and visualization settings
 paths:
-  checkpoint_dir: "../../../cifar10checkpointsrendufunky"
-  visualization_dir: "../../../visualizationsrenduunky/cifar10"
+  checkpoint_dir: "../../../cifar10checkpointsrendufunky2"
+  visualization_dir: "../../../visualizationsrenduunky2/cifar10"
   log_dir: "./logs/cifar10"
 
 # Model combinations to evaluate
