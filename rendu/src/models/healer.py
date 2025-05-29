@@ -93,8 +93,7 @@ class Healer(TransformationAwareModel):
         # Remove the complex healing network and output projection
         # We'll use direct inverse transformations instead
         
-        # Classification head (for consistency with training framework)
-        self.classification_head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else None
+        # No classification head needed - Healer only predicts transformations
         
         # Initialize weights
         self._init_weights()
@@ -106,12 +105,6 @@ class Healer(TransformationAwareModel):
             nn.init.normal_(head.weight, std=0.02)
             if head.bias is not None:
                 nn.init.zeros_(head.bias)
-        
-        # Initialize classification head if present
-        if self.classification_head is not None:
-            nn.init.normal_(self.classification_head.weight, std=0.02)
-            if self.classification_head.bias is not None:
-                nn.init.zeros_(self.classification_head.bias)
     
     def extract_features(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -199,7 +192,8 @@ class Healer(TransformationAwareModel):
     
     def forward(self, x: torch.Tensor, 
                 return_reconstruction: bool = False,
-                return_logits: bool = True) -> Any:
+                return_logits: bool = True,
+                training_mode: bool = False) -> Any:
         """
         Forward pass of the healer model
         
@@ -207,20 +201,33 @@ class Healer(TransformationAwareModel):
             x: Input tensor of shape (B, C, H, W)
             return_reconstruction: Whether to return reconstructed image
             return_logits: Whether to return classification logits
+            training_mode: Whether in multi-task training mode
             
         Returns:
+            If training_mode is True: returns dict with both class and transform predictions
             If return_logits is True and classification_head exists: returns logits
             Otherwise: returns tuple of (predictions, None) for compatibility
         """
         # Extract features
         features = self.extract_features(x)
         
-        # For classification mode (training)
-        if return_logits and self.classification_head is not None:
-            # Use CLS token for classification
-            cls_features = features[:, 0]
-            logits = self.classification_head(cls_features)
-            return logits
+        # Training mode - return transformation predictions for training
+        if training_mode:
+            # Get transformation predictions
+            transform_preds = self.predict_transformations(features)
+            
+            # Return transformation predictions only
+            outputs = {
+                'transform_type_logits': transform_preds['transform_type_logits'],
+                'rotation_angle': transform_preds['rotation_angle'],
+                'noise_std': transform_preds['noise_std'],
+                'translate_x': transform_preds['translate_x'],
+                'translate_y': transform_preds['translate_y'],
+                'shear_x': transform_preds['shear_x'],
+                'shear_y': transform_preds['shear_y']
+            }
+            
+            return outputs
         
         # For healing mode (inference/evaluation)
         # Predict transformations
