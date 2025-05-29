@@ -8,6 +8,7 @@ import torchvision.transforms as transforms
 import numpy as np
 from typing import Dict, Any, Optional
 from trainers.base_trainer import BaseTrainer
+from data.continuous_transforms import ContinuousTransforms
 
 
 class TTTTrainer(BaseTrainer):
@@ -27,11 +28,6 @@ class TTTTrainer(BaseTrainer):
         """
         super().__init__(model, config, device)
         self.criterion = nn.CrossEntropyLoss()
-        
-        import sys
-        from pathlib import Path
-        sys.path.append(str(Path(__file__).parent.parent.parent))
-        from src.data.continuous_transforms import ContinuousTransforms
         
         dataset_name = config.get('dataset_name', 'tinyimagenet')
         if dataset_name == 'cifar10':

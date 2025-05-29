@@ -29,7 +29,7 @@ class BlendedTrainer(BaseTrainer):
         self.criterion = nn.CrossEntropyLoss()
         self.aux_criterion = nn.CrossEntropyLoss()
         
-        # Blended loss weights: 0.95 for classification, 0.05 for transformation use sigmoid before
+        # Blended loss weights: 0.95 for classification, 0.05 for transformation use sigmoid before for same magnitude
         self.class_loss_weight = 0.95
         self.transform_loss_weight = 0.05
 

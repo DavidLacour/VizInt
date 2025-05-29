@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from typing import Dict, Any, Optional
-from src.trainers.base_trainer import BaseTrainer
-
+from trainers.base_trainer import BaseTrainer
+from data.continuous_transforms import ContinuousTransforms
 
 class ClassificationTrainer(BaseTrainer):
     """Trainer for standard classification models"""
@@ -30,10 +30,7 @@ class ClassificationTrainer(BaseTrainer):
         self.criterion = nn.CrossEntropyLoss()
         
         if self.robust_training:
-            import sys
-            from pathlib import Path
-            sys.path.append(str(Path(__file__).parent.parent.parent))
-            from src.data.continuous_transforms import ContinuousTransforms
+          
             
             robust_config = config.get('training', {}).get('robust', {})
             self.transform_severity = robust_config.get('severity', 0.5)
@@ -102,13 +99,10 @@ class ClassificationTrainer(BaseTrainer):
             images = self._apply_robust_transformations(images)
         outputs = self.model(images)
         
-        # Handle models that return tuples (like TTTWrapper)
-        if isinstance(outputs, tuple):
-            logits = outputs[0]
-            aux_outputs = outputs[1] if len(outputs) > 1 else {}
-        else:
-            logits = outputs
-            aux_outputs = {}
+        #crash if the trainer is not used for classification model only 
+        assert(not isinstance(outputs, tuple))
+       
+        logits = outputs
         
         loss = self.criterion(logits, labels)
         
