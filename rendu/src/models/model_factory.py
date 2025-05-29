@@ -119,23 +119,7 @@ class ModelFactory:
             feature_dim = 512
             return TTTWrapper(backbone, model_config, feature_dim)
             
-        elif model_type == 'blended_resnet50':
-            # Create ResNet50 backbone
-            backbone_config = model_config.copy()
-            backbone_config['model_type'] = 'resnet50'
-            backbone = ResNetPretrained(backbone_config)
-            # Get feature dimension from ResNet50 (2048 for resnet50)
-            feature_dim = 2048
-            return BlendedWrapper(backbone, model_config, feature_dim)
-            
-        elif model_type == 'ttt_resnet50':
-            # Create ResNet50 backbone
-            backbone_config = model_config.copy()
-            backbone_config['model_type'] = 'resnet50'
-            backbone = ResNetPretrained(backbone_config)
-            # Get feature dimension from ResNet50 (2048 for resnet50)
-            feature_dim = 2048
-            return TTTWrapper(backbone, model_config, feature_dim)
+        
             
         elif model_type == 'healer_resnet18':
             # Create ResNet18 backbone
@@ -146,14 +130,6 @@ class ModelFactory:
             feature_dim = 512
             return HealerWrapper(backbone, model_config, feature_dim)
             
-        elif model_type == 'healer_resnet50':
-            # Create ResNet50 backbone
-            backbone_config = model_config.copy()
-            backbone_config['model_type'] = 'resnet50'
-            backbone = ResNetPretrained(backbone_config)
-            # Get feature dimension from ResNet50 (2048 for resnet50)
-            feature_dim = 2048
-            return HealerWrapper(backbone, model_config, feature_dim)
             
         # Corrector models for standalone training
         elif model_type == 'unet_corrector':
@@ -170,9 +146,6 @@ class ModelFactory:
             backbone = ResNetBaseline(model_config)
             return UNetCorrectorWrapper(backbone, model_config)
             
-        elif model_type == 'unet_resnet50':
-            backbone = ResNetPretrained(model_config)
-            return UNetCorrectorWrapper(backbone, model_config)
             
         elif model_type == 'unet_vit':
             backbone = VanillaViT(model_config)
@@ -182,9 +155,6 @@ class ModelFactory:
             backbone = ResNetBaseline(model_config)
             return TransformerCorrectorWrapper(backbone, model_config)
             
-        elif model_type == 'transformer_resnet50':
-            backbone = ResNetPretrained(model_config)
-            return TransformerCorrectorWrapper(backbone, model_config)
             
         elif model_type == 'transformer_vit':
             backbone = VanillaViT(model_config)
@@ -194,9 +164,6 @@ class ModelFactory:
             backbone = ResNetBaseline(model_config)
             return HybridCorrectorWrapper(backbone, model_config)
             
-        elif model_type == 'hybrid_resnet50':
-            backbone = ResNetPretrained(model_config)
-            return HybridCorrectorWrapper(backbone, model_config)
             
         elif model_type == 'hybrid_vit':
             backbone = VanillaViT(model_config)
@@ -268,7 +235,7 @@ class ModelFactory:
                 # The model was saved without base model, so we need to provide one
                 self.logger.info(f"Creating {model_type} with external base model")
                 model = self.create_model(model_type, dataset_name, base_model)
-        elif model_type in ['blended_resnet18', 'ttt_resnet18', 'blended_resnet50', 'ttt_resnet50', 'healer_resnet18', 'healer_resnet50']:
+        elif model_type in ['blended_resnet18', 'ttt_resnet18', 'healer_resnet18']:
             # Handle wrapped models
             self.logger.info(f"Loading wrapped model {model_type}")
             model = self.create_model(model_type, dataset_name)

@@ -78,9 +78,9 @@ def get_models_to_process(args, config):
     all_models = ['vanilla_vit', 'healer', 'ttt', 'ttt3fc', 'blended_training', 'blended_training_3fc', 
                   'resnet', 'resnet_pretrained', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18',
                   'unet_corrector', 'transformer_corrector', 'hybrid_corrector',
-                  'unet_resnet18', 'unet_resnet50', 'unet_vit',
-                  'transformer_resnet18', 'transformer_resnet50', 'transformer_vit',
-                  'hybrid_resnet18', 'hybrid_resnet50', 'hybrid_vit']
+                  'unet_resnet18', 'unet_vit',
+                  'transformer_resnet18', 'transformer_vit',
+                  'hybrid_resnet18', 'hybrid_vit']
     
     name_mapping = {
         'main': 'vanilla_vit',
@@ -161,8 +161,17 @@ def train_corrector(corrector_name, dataset_name, config, model_factory, data_fa
     # Get data loaders (only clean images for corrector training)
     train_loader, val_loader = data_factory.create_data_loaders(dataset_name)
     
-    # Create save directory
-    save_dir = checkpoint_dir / f"bestmodel_{corrector_name}"
+    # Use debug checkpoint directory if in debug mode
+    if config.is_debug_mode():
+        debug_checkpoint_dir = Path(config.get('debug.checkpoint_dir', '../../../debugmodelrendu/cifar10'))
+        if not debug_checkpoint_dir.is_absolute():
+            debug_checkpoint_dir = Path(__file__).parent.parent / debug_checkpoint_dir
+        debug_checkpoint_dir = debug_checkpoint_dir.resolve()
+        save_dir = debug_checkpoint_dir / f"bestmodel_{corrector_name}"
+        logger.info(f"Debug mode: Using debug checkpoint directory {debug_checkpoint_dir}")
+    else:
+        save_dir = checkpoint_dir / f"bestmodel_{corrector_name}"
+    
     save_dir.mkdir(parents=True, exist_ok=True)
     
     # Train

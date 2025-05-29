@@ -153,15 +153,19 @@ models:
     use_residual: true
     freeze_corrector: true
     
-  unet_resnet50:
-    corrector_type: unet
-    use_residual: true
-    freeze_corrector: true
     
   unet_vit:
     corrector_type: unet
     use_residual: true
     freeze_corrector: true
+    # VanillaViT backbone parameters
+    embed_dim: 384
+    depth: 8
+    head_dim: 64
+    mlp_ratio: 4.0
+    use_resnet_stem: true
+    patch_size: 4
+    dropout: 0.1
     
   transformer_resnet18:
     corrector_type: transformer
@@ -172,14 +176,6 @@ models:
     use_residual: true
     freeze_corrector: true
     
-  transformer_resnet50:
-    corrector_type: transformer
-    corrector_patch_size: 8
-    corrector_embed_dim: 768
-    corrector_depth: 12
-    corrector_head_dim: 64
-    use_residual: true
-    freeze_corrector: true
     
   transformer_vit:
     corrector_type: transformer
@@ -189,6 +185,14 @@ models:
     corrector_head_dim: 64
     use_residual: true
     freeze_corrector: true
+    # VanillaViT backbone parameters
+    embed_dim: 384
+    depth: 8
+    head_dim: 64
+    mlp_ratio: 4.0
+    use_resnet_stem: true
+    patch_size: 4
+    dropout: 0.1
     
   hybrid_resnet18:
     corrector_type: hybrid
@@ -199,14 +203,6 @@ models:
     use_residual: true
     freeze_corrector: true
     
-  hybrid_resnet50:
-    corrector_type: hybrid
-    corrector_embed_dim: 384
-    corrector_depth: 6
-    use_transformer: true
-    use_cnn: true
-    use_residual: true
-    freeze_corrector: true
     
   hybrid_vit:
     corrector_type: hybrid
@@ -216,6 +212,14 @@ models:
     use_cnn: true
     use_residual: true
     freeze_corrector: true
+    # VanillaViT backbone parameters
+    embed_dim: 384
+    depth: 8
+    head_dim: 64
+    mlp_ratio: 4.0
+    use_resnet_stem: true
+    patch_size: 4
+    dropout: 0.1
 
 # Training configurations
 training:
@@ -344,6 +348,37 @@ model_combinations:
     main_model: "healer_resnet18"
     healer_model: null
     description: "Healer wrapper with ResNet18 backbone"
+    
+  # New Corrector Models
+  - name: "UNet+ResNet18"
+    main_model: "unet_resnet18"
+    healer_model: null
+    description: "UNet corrector + ResNet18 classifier"
+    
+  - name: "UNet+ViT"
+    main_model: "unet_vit"
+    healer_model: null
+    description: "UNet corrector + Vision Transformer"
+    
+  - name: "Transformer+ResNet18"
+    main_model: "transformer_resnet18"
+    healer_model: null
+    description: "Transformer corrector + ResNet18 classifier"
+    
+  - name: "Transformer+ViT"
+    main_model: "transformer_vit"
+    healer_model: null
+    description: "Transformer corrector + Vision Transformer"
+    
+  - name: "Hybrid+ResNet18"
+    main_model: "hybrid_resnet18"
+    healer_model: null
+    description: "Hybrid corrector + ResNet18 classifier"
+    
+  - name: "Hybrid+ViT"
+    main_model: "hybrid_vit"
+    healer_model: null
+    description: "Hybrid corrector + Vision Transformer"
 
 # Logging settings
 logging:
