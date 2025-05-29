@@ -122,7 +122,10 @@ class ModelEvaluator:
         all_model_types = [
             'vanilla_vit', 'vanilla_vit_robust', 'healer', 'ttt', 'ttt_robust',
             'ttt3fc', 'blended_training', 'blended_training_3fc', 
-            'resnet', 'resnet_pretrained', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18'
+            'resnet', 'resnet_pretrained', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18',
+            'unet_corrector', 'transformer_corrector', 'hybrid_corrector',
+            'unet_resnet18', 'unet_vit', 'transformer_resnet18', 'transformer_vit',
+            'hybrid_resnet18', 'hybrid_vit'
         ]
         
         # Filter by requested types
@@ -167,7 +170,15 @@ class ModelEvaluator:
             if model_type in available_models:
                 continue
                 
-            checkpoint_path = checkpoint_dir / f"bestmodel_{model_type}" / "best_model.pt"
+            # Handle different checkpoint filename patterns
+            if model_type in ['unet_corrector', 'transformer_corrector', 'hybrid_corrector']:
+                # Pure corrector models use different naming: best_{type}_corrector.pth
+                corrector_type = model_type.replace('_corrector', '')
+                checkpoint_path = checkpoint_dir / f"bestmodel_{model_type}" / f"best_{corrector_type}_corrector.pth"
+            else:
+                # Standard models use: best_model.pt
+                checkpoint_path = checkpoint_dir / f"bestmodel_{model_type}" / "best_model.pt"
+            
             if checkpoint_path.exists():
                 # Determine base model for TTT variants
                 if model_type in ['ttt', 'ttt3fc']:
@@ -185,6 +196,8 @@ class ModelEvaluator:
                     self.logger.info(f"Loaded {model_type} model")
                 except Exception as e:
                     self.logger.error(f"Failed to load {model_type}: {e}")
+            else:
+                self.logger.debug(f"Checkpoint not found for {model_type} at {checkpoint_path}")
         
         return available_models
     

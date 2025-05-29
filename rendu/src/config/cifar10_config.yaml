@@ -273,8 +273,8 @@ evaluation:
 
 # Checkpoint and visualization settings
 paths:
-  checkpoint_dir: "../../../cifar10checkpointsrendufunky3"
-  visualization_dir: "../../../visualizationsrenduunky3/cifar10"
+  checkpoint_dir: "../../../cifar10checkpointsrendufunky4"
+  visualization_dir: "../../../visualizationsrenduunky4/cifar10"
   log_dir: "./logs/cifar10"
 
 # Model combinations to evaluate

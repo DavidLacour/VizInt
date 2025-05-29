@@ -16,7 +16,7 @@ python main.py --dataset tinyimagenet --models blended_resnet18 ttt_resnet18 hea
 python main.py --dataset cifar10 --mode evaluate --models blended_resnet18 ttt_resnet18
 
 # Python environment
-~/.pyenv/versions/myenv/bin/python
+~/.pyenv/versions/myenv/bin/python  --dataset cifar10 --debug
 
 # Available model types (now includes wrapped models):
 # - vanilla_vit, healer, ttt, ttt3fc, blended_training, blended_training_3fc
