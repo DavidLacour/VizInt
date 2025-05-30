@@ -2,7 +2,7 @@
 
 This repository contains a comprehensive framework for training and evaluating robust vision models on CIFAR-10 and TinyImageNet datasets. The framework includes various model architectures, robustness techniques, and visualization tools.
 
-The defauls command shoud create folders in the directories above the VizInt git repo folders train everything and evaluate everything. 
+The defauls commands shoud create folders in the directories above the VizInt git repo folders train everything and evaluate everything. 
 It could take more than one day with a gaming laptop GPU. 
 
 python main.py --dataset cifar10 
