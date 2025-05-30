@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
 from typing import Dict, List, Tuple
+from torchvision import transforms
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -48,35 +49,61 @@ def load_sample_images(config_path: str = 'config/cifar10_config.yaml',
 
 def apply_transformations(images: torch.Tensor, 
                          transform_type: str,
-                         severity: float = 0.5) -> Tuple[torch.Tensor, Dict[str, float]]:
-    """Apply continuous transformations to images"""
-    transforms = ContinuousTransforms(severity=severity)
+                         severity: float = 0.5) -> Tuple[torch.Tensor, List[Dict[str, float]]]:
+    """Apply transformations with fixed parameters for perfect corrections"""
     transformed_images = []
-    all_params = []
+    params_list = []
     
-    for img in images:
-        transformed, params = transforms.apply_transforms(
-            img, 
-            transform_type=transform_type, 
-            severity=severity, 
-            return_params=True
-        )
-        transformed_images.append(transformed)
-        all_params.append(params)
-    
-    # Average parameters for visualization
-    avg_params = {}
+    # Use fixed parameters like in static healer demo
     if transform_type == 'gaussian_noise':
-        avg_params['noise_std'] = sum(p['noise_std'] for p in all_params) / len(all_params)
+        noise_std = 0.2  # Fixed like static demo
+        for img in images:
+            noise = torch.randn_like(img) * noise_std
+            transformed = torch.clamp(img + noise, 0, 1)
+            transformed_images.append(transformed)
+            params_list.append({'noise_std': noise_std})
+            
     elif transform_type == 'rotation':
-        avg_params['rotation_angle'] = sum(p['rotation_angle'] for p in all_params) / len(all_params)
+        angle = 30.0  # Fixed 30 degrees like static demo
+        for img in images:
+            img_cpu = img.cpu()
+            pil_img = transforms.ToPILImage()(img_cpu)
+            rotated_img = transforms.functional.rotate(pil_img, angle)
+            transformed = transforms.ToTensor()(rotated_img).to(img.device)
+            transformed_images.append(transformed)
+            params_list.append({'rotation_angle': angle})
+            
     elif transform_type == 'affine':
-        avg_params['translate_x'] = sum(p['translate_x'] for p in all_params) / len(all_params)
-        avg_params['translate_y'] = sum(p['translate_y'] for p in all_params) / len(all_params)
-        avg_params['shear_x'] = sum(p['shear_x'] for p in all_params) / len(all_params)
-        avg_params['shear_y'] = sum(p['shear_y'] for p in all_params) / len(all_params)
+        # Fixed parameters like static demo
+        translate_x, translate_y = 0.1, -0.1
+        shear_x, shear_y = 15.0, -10.0
+        
+        for img in images:
+            img_cpu = img.cpu()
+            pil_img = transforms.ToPILImage()(img_cpu)
+            width, height = pil_img.size
+            
+            affine_img = transforms.functional.affine(
+                pil_img,
+                angle=0.0,
+                translate=(translate_x * width, translate_y * height),
+                scale=1.0,
+                shear=[shear_x, shear_y]
+            )
+            transformed = transforms.ToTensor()(affine_img).to(img.device)
+            transformed_images.append(transformed)
+            params_list.append({
+                'translate_x': translate_x,
+                'translate_y': translate_y,
+                'shear_x': shear_x,
+                'shear_y': shear_y
+            })
+    else:
+        # No transformation
+        transformed_images = list(images)
+        params_list = [{}] * len(images)
     
-    return torch.stack(transformed_images), avg_params
+    return torch.stack(transformed_images), params_list
 
 
 def visualize_healer_corrections(images: torch.Tensor,
@@ -85,10 +112,10 @@ def visualize_healer_corrections(images: torch.Tensor,
                                save_path: Path = None):
     """Visualize Healer corrections for different transformations"""
     
-    # Apply transformations
-    transformed_images, params = apply_transformations(images, transform_type, severity)
+    # Apply transformations with fixed parameters
+    transformed_images, params_list = apply_transformations(images, transform_type, severity)
     
-    # Create mock predictions for Healer with correct batch size
+    # Create mock predictions for Healer with exact parameters
     batch_size = images.shape[0]
     
     # Map transform types
@@ -100,9 +127,12 @@ def visualize_healer_corrections(images: torch.Tensor,
     }
     t_type = type_map.get(transform_type, 0)
     
-    # Create predictions for the batch
+    # Create predictions for the batch with exact parameters from first image
     transform_logits = torch.zeros(batch_size, 4)
     transform_logits[:, t_type] = 10.0  # High confidence
+    
+    # Use exact parameters from the transformation
+    params = params_list[0] if params_list else {}
     
     predictions = {
         'transform_type_logits': transform_logits,
@@ -116,6 +146,9 @@ def visualize_healer_corrections(images: torch.Tensor,
     
     # Apply Healer corrections
     corrected_images = HealerTransforms.apply_batch_correction(transformed_images, predictions)
+    
+    # Ensure corrected images are in valid range
+    corrected_images = torch.clamp(corrected_images, 0, 1)
     
     # Create visualization for single image
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
@@ -224,9 +257,10 @@ def visualize_severity_levels(image: torch.Tensor,
     
     # Process each severity level
     for col, severity in enumerate(severities):
-        # Apply transformation
-        transformed, params = apply_transformations(image.unsqueeze(0), transform_type, severity)
+        # Apply transformation - severity is ignored since we use fixed params
+        transformed, params_list = apply_transformations(image.unsqueeze(0), transform_type, severity)
         transformed = transformed.squeeze(0)
+        params = params_list[0] if params_list else {}
         
         # Create predictions for single image
         type_map = {
