@@ -30,12 +30,19 @@ def load_sample_images(config_path: str = 'config/cifar10_config.yaml',
                       num_images: int = 4) -> Tuple[torch.Tensor, List[int]]:
     """Load sample images from CIFAR-10 or TinyImageNet"""
     config = ConfigLoader(config_path)
+    # Temporarily override batch size in config
+    config.config['training']['batch_size'] = num_images
     data_factory = DataLoaderFactory(config)
     
     dataset_name = 'cifar10' if 'cifar10' in config_path else 'tinyimagenet'
-    _, val_loader = data_factory.get_dataloaders(dataset_name, batch_size=num_images)
+    _, val_loader = data_factory.create_data_loaders(dataset_name, with_augmentation=False)
     
-    for batch_idx, (images, labels) in enumerate(val_loader):
+    for batch in val_loader:
+        if dataset_name == 'tinyimagenet' and len(batch) == 4:
+            # Handle TinyImageNet OOD loader format
+            images, _, labels, _ = batch
+        else:
+            images, labels = batch
         return images, labels.tolist()
 
 
@@ -322,14 +329,21 @@ def demo_trained_healer(config_path: str = 'config/cifar10_config.yaml',
 
 def main():
     """Run all Healer visualization demos"""
+    import argparse
+    parser = argparse.ArgumentParser(description='Healer Visualization Demos')
+    parser.add_argument('--dataset', type=str, choices=['cifar10', 'tinyimagenet'], 
+                        default='cifar10', help='Dataset to use')
+    args = parser.parse_args()
+    
     set_seed(42)
     
     # Create output directory
-    vis_dir = Path('./healer_visualizations')
+    vis_dir = Path(f'./healer_visualizations_{args.dataset}')
     vis_dir.mkdir(exist_ok=True)
     
-    print("Loading sample images...")
-    images, labels = load_sample_images(num_images=4)
+    print(f"Loading sample images from {args.dataset.upper()}...")
+    config_path = f'config/{args.dataset}_config.yaml'
+    images, labels = load_sample_images(config_path, num_images=4)
     
     print("\n1. Demonstrating Healer corrections for different transformations...")
     for transform_type in ['gaussian_noise', 'rotation', 'affine']:
@@ -360,15 +374,24 @@ def main():
     
     print("\n4. Demo with trained Healer model...")
     # Check if trained model exists
-    checkpoint_path = Path('./checkpoints/cifar10/bestmodel_healer/best_model.pt')
-    if checkpoint_path.exists():
+    checkpoint_base = Path(f'./checkpoints/{args.dataset}/bestmodel_healer/best_model.pt')
+    if checkpoint_base.exists():
         demo_trained_healer(
-            config_path='config/cifar10_config.yaml',
-            checkpoint_path=str(checkpoint_path),
+            config_path=config_path,
+            checkpoint_path=str(checkpoint_base),
             save_dir=vis_dir
         )
     else:
-        print("   No trained Healer model found. Train a Healer model first to see this demo.")
+        # Try alternative checkpoint location
+        alt_checkpoint = Path(f'../../../{args.dataset}checkpointsrendufunky4/bestmodel_healer/best_model.pt')
+        if alt_checkpoint.exists():
+            demo_trained_healer(
+                config_path=config_path,
+                checkpoint_path=str(alt_checkpoint),
+                save_dir=vis_dir
+            )
+        else:
+            print(f"   No trained Healer model found for {args.dataset}. Train a Healer model first to see this demo.")
     
     print(f"\nAll visualizations saved to {vis_dir}/")
     print("\nDemo completed!")

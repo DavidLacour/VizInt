@@ -66,7 +66,8 @@ class ModelEvaluator:
                 # Check if the main model type is in the requested list
                 # Also check without _robust suffix for robust variants
                 model_type_to_check = main_model_type.replace('_robust', '')
-                if model_type_to_check not in model_types:
+                # Direct match or match after removing _robust
+                if main_model_type not in model_types and model_type_to_check not in model_types:
                     continue
             
             if main_model_type not in available_models:

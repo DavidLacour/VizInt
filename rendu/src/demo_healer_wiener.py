@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
+import argparse
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -172,19 +173,32 @@ def compare_noise_levels(image: torch.Tensor, save_path: Path = None):
 
 def main():
     """Run Wiener denoising demos"""
+    parser = argparse.ArgumentParser(description='Healer Wiener Denoising Demo')
+    parser.add_argument('--dataset', type=str, choices=['cifar10', 'tinyimagenet'], 
+                        default='cifar10', help='Dataset to use')
+    args = parser.parse_args()
+    
     set_seed(42)
     
     # Create output directory
-    vis_dir = Path('./healer_wiener_visualizations')
+    vis_dir = Path(f'./healer_wiener_visualizations_{args.dataset}')
     vis_dir.mkdir(exist_ok=True)
     
-    print("Loading sample image...")
-    config = ConfigLoader('config/cifar10_config.yaml')
+    print(f"Loading sample image from {args.dataset.upper()}...")
+    config_path = f'config/{args.dataset}_config.yaml'
+    config = ConfigLoader(config_path)
+    # Temporarily override batch size in config
+    config.config['training']['batch_size'] = 1
     data_factory = DataLoaderFactory(config)
-    _, val_loader = data_factory.get_dataloaders('cifar10', batch_size=1)
+    _, val_loader = data_factory.create_data_loaders(args.dataset, with_augmentation=False)
     
     # Get first image
-    for images, _ in val_loader:
+    for batch in val_loader:
+        if args.dataset == 'tinyimagenet' and len(batch) == 4:
+            # Handle TinyImageNet OOD loader format
+            images, _, _, _ = batch
+        else:
+            images, _ = batch
         image = images[0]
         break
     
@@ -202,7 +216,7 @@ def main():
     )
     
     print(f"\nAll visualizations saved to {vis_dir}/")
-    print("\nWiener denoising demo completed!")
+    print(f"\nWiener denoising demo completed for {args.dataset.upper()}!")
 
 
 if __name__ == "__main__":
