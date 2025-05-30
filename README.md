@@ -1,4 +1,4 @@
-# Vision Transformer Robustness Research Framework
+# Vision Models Robustness Research Framework
 
 This repository contains a comprehensive framework for training and evaluating robust vision models on CIFAR-10 and TinyImageNet datasets. The framework includes various model architectures, robustness techniques, and visualization tools.
 
