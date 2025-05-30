@@ -27,7 +27,7 @@ from utils.transformer_utils import set_seed
 
 
 def load_sample_images(config_path: str = 'config/cifar10_config.yaml', 
-                      num_images: int = 4) -> Tuple[torch.Tensor, List[int]]:
+                      num_images: int = 1) -> Tuple[torch.Tensor, List[int]]:
     """Load sample images from CIFAR-10 or TinyImageNet"""
     config = ConfigLoader(config_path)
     # Temporarily override batch size in config
@@ -88,45 +88,58 @@ def visualize_healer_corrections(images: torch.Tensor,
     # Apply transformations
     transformed_images, params = apply_transformations(images, transform_type, severity)
     
-    # Create mock predictions for Healer
-    predictions = HealerTransforms.create_mock_predictions(transform_type, **params)
+    # Create mock predictions for Healer with correct batch size
+    batch_size = images.shape[0]
+    
+    # Map transform types
+    type_map = {
+        'gaussian_noise': 1,
+        'rotation': 2, 
+        'affine': 3,
+        'no_transform': 0
+    }
+    t_type = type_map.get(transform_type, 0)
+    
+    # Create predictions for the batch
+    transform_logits = torch.zeros(batch_size, 4)
+    transform_logits[:, t_type] = 10.0  # High confidence
+    
+    predictions = {
+        'transform_type_logits': transform_logits,
+        'noise_std': torch.full((batch_size, 1), params.get('noise_std', 0.0)),
+        'rotation_angle': torch.full((batch_size, 1), params.get('rotation_angle', 0.0)),
+        'translate_x': torch.full((batch_size, 1), params.get('translate_x', 0.0)),
+        'translate_y': torch.full((batch_size, 1), params.get('translate_y', 0.0)),
+        'shear_x': torch.full((batch_size, 1), params.get('shear_x', 0.0)),
+        'shear_y': torch.full((batch_size, 1), params.get('shear_y', 0.0))
+    }
     
     # Apply Healer corrections
     corrected_images = HealerTransforms.apply_batch_correction(transformed_images, predictions)
     
-    # Create visualization
-    num_images = images.shape[0]
-    fig, axes = plt.subplots(3, num_images, figsize=(4*num_images, 12))
+    # Create visualization for single image
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
     
-    if num_images == 1:
-        axes = axes.reshape(-1, 1)
+    # Original image
+    img_orig = images[0].permute(1, 2, 0).cpu().numpy()
+    img_orig = np.clip(img_orig, 0, 1)
+    axes[0].imshow(img_orig)
+    axes[0].set_title('Original', fontsize=14)
+    axes[0].axis('off')
     
-    for i in range(num_images):
-        # Original image
-        img_orig = images[i].permute(1, 2, 0).cpu().numpy()
-        img_orig = np.clip(img_orig, 0, 1)
-        axes[0, i].imshow(img_orig)
-        axes[0, i].set_title('Original', fontsize=12)
-        axes[0, i].axis('off')
-        
-        # Transformed image
-        img_trans = transformed_images[i].permute(1, 2, 0).cpu().numpy()
-        img_trans = np.clip(img_trans, 0, 1)
-        axes[1, i].imshow(img_trans)
-        axes[1, i].set_title(f'{transform_type.replace("_", " ").title()}\n(severity={severity})', fontsize=12)
-        axes[1, i].axis('off')
-        
-        # Corrected image
-        img_corr = corrected_images[i].permute(1, 2, 0).cpu().numpy()
-        img_corr = np.clip(img_corr, 0, 1)
-        axes[2, i].imshow(img_corr)
-        axes[2, i].set_title('Healer Corrected', fontsize=12)
-        axes[2, i].axis('off')
+    # Transformed image
+    img_trans = transformed_images[0].permute(1, 2, 0).cpu().numpy()
+    img_trans = np.clip(img_trans, 0, 1)
+    axes[1].imshow(img_trans)
+    axes[1].set_title(f'{transform_type.replace("_", " ").title()}\n(severity={severity})', fontsize=14)
+    axes[1].axis('off')
     
-    # Add row labels
-    fig.text(0.02, 0.75, 'Original', rotation=90, va='center', fontsize=14, weight='bold')
-    fig.text(0.02, 0.5, 'Transformed', rotation=90, va='center', fontsize=14, weight='bold')
-    fig.text(0.02, 0.25, 'Corrected', rotation=90, va='center', fontsize=14, weight='bold')
+    # Corrected image
+    img_corr = corrected_images[0].permute(1, 2, 0).cpu().numpy()
+    img_corr = np.clip(img_corr, 0, 1)
+    axes[2].imshow(img_corr)
+    axes[2].set_title('Healer Corrected', fontsize=14)
+    axes[2].axis('off')
     
     plt.suptitle(f'Healer Correction Demo: {transform_type.replace("_", " ").title()}', fontsize=16)
     plt.tight_layout()
@@ -215,8 +228,28 @@ def visualize_severity_levels(image: torch.Tensor,
         transformed, params = apply_transformations(image.unsqueeze(0), transform_type, severity)
         transformed = transformed.squeeze(0)
         
-        # Create predictions and correct
-        predictions = HealerTransforms.create_mock_predictions(transform_type, **params)
+        # Create predictions for single image
+        type_map = {
+            'gaussian_noise': 1,
+            'rotation': 2, 
+            'affine': 3,
+            'no_transform': 0
+        }
+        t_type = type_map.get(transform_type, 0)
+        
+        transform_logits = torch.zeros(1, 4)
+        transform_logits[0, t_type] = 10.0
+        
+        predictions = {
+            'transform_type_logits': transform_logits,
+            'noise_std': torch.tensor([[params.get('noise_std', 0.0)]]),
+            'rotation_angle': torch.tensor([[params.get('rotation_angle', 0.0)]]),
+            'translate_x': torch.tensor([[params.get('translate_x', 0.0)]]),
+            'translate_y': torch.tensor([[params.get('translate_y', 0.0)]]),
+            'shear_x': torch.tensor([[params.get('shear_x', 0.0)]]),
+            'shear_y': torch.tensor([[params.get('shear_y', 0.0)]])
+        }
+        
         corrected = HealerTransforms.apply_batch_correction(
             transformed.unsqueeze(0), predictions
         ).squeeze(0)
