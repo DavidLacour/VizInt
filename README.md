@@ -21,7 +21,7 @@ python main.py --dataset tinyimagenet
 ### Robustness-Enhanced Models
 - **Healer**: Predicts and corrects transformations using Wiener deconvolution for noise and inverse transforms
 - **TTT/TTT3fc**: Test-Time Training models that adapt during inference
-- **BlendedTraining**: Combines clean and transformed features during training
+- **BlendedTraining**: Predicts applied corruptions in the hope of getting a better feature map and more robust model.
 
 ### Corrector + Classifier Combinations
 - **UNet + ResNet18/ViT**: UNet corrector preprocessing for classifiers
