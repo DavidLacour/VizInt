@@ -110,13 +110,10 @@ class OODTransforms:
     
     def _pixelation(self, img, severity):
         """Apply pixelation effect"""
-        # Reduce resolution and upscale back
         _, h, w = img.shape
         min_size = max(4, int(h * (1 - severity) + 4 * severity))  # Down to 4x4 at max severity
         
-        # Downsample
         img_small = F.interpolate(img.unsqueeze(0), size=(min_size, min_size), mode='nearest')
-        # Upsample back
         return F.interpolate(img_small, size=(h, w), mode='nearest').squeeze(0)
     
     def _extreme_rotation(self, img, severity):
@@ -145,12 +142,10 @@ class OODTransforms:
         max_sigma = 5.0 * severity  # Very strong blur
         sigma = random.uniform(0.1, max_sigma)
         
-        # Create Gaussian kernel
         kernel_size = int(6 * sigma + 1)
         if kernel_size % 2 == 0:
             kernel_size += 1
         
-        # Apply blur using conv2d
         img_expanded = img.unsqueeze(0)  # Add batch dimension
         
         # Create 2D Gaussian kernel
@@ -158,11 +153,9 @@ class OODTransforms:
         gaussian_1d = torch.exp(-0.5 * (x / sigma) ** 2)
         gaussian_1d = gaussian_1d / gaussian_1d.sum()
         
-        # Create 2D kernel
         kernel_2d = gaussian_1d[:, None] * gaussian_1d[None, :]
         kernel_2d = kernel_2d.expand(img.shape[0], 1, kernel_size, kernel_size).to(img.device)
         
-        # Apply convolution with padding
         padding = kernel_size // 2
         blurred = F.conv2d(img_expanded, kernel_2d, padding=padding, groups=img.shape[0])
         
@@ -170,12 +163,10 @@ class OODTransforms:
     
     def _posterization(self, img, severity):
         """Reduce color depth (posterization)"""
-        # Reduce bits per channel
         max_reduction = 6  # Reduce from 8 bits to 2 bits at max severity
         bits_to_remove = int(severity * max_reduction)
         bits_to_keep = 8 - bits_to_remove
         
-        # Convert to int, apply bit mask, convert back
         img_int = (img * 255).long()
         mask = (0xFF << bits_to_remove) & 0xFF
         img_posterized = (img_int & mask).float() / 255.0
@@ -192,17 +183,12 @@ class OODTransforms:
     
     def _jpeg_compression(self, img, severity):
         """Simulate JPEG compression artifacts"""
-        # This is a simplified version - in practice you'd use actual JPEG encoding/decoding
-        # We'll simulate by adding quantization noise and blocking artifacts
-        
-        # Block size for DCT-like effect
         block_size = 8
         
         # Add quantization noise
         quantization_factor = severity * 0.1
         noise = (torch.rand_like(img) - 0.5) * quantization_factor
         
-        # Create blocking artifacts by averaging within blocks
         _, h, w = img.shape
         compressed = img.clone()
         
@@ -212,7 +198,6 @@ class OODTransforms:
                 if block.numel() > 0:
                     # Average within block (simplified compression)
                     block_mean = block.mean(dim=(1, 2), keepdim=True)
-                    # Blend with original based on severity
                     compressed[:, i:i+block_size, j:j+block_size] = (
                         block * (1 - severity * 0.5) + 
                         block_mean * (severity * 0.5)
@@ -224,21 +209,16 @@ class OODTransforms:
         """Apply random rectangular masks"""
         masked_img = img.clone()
         
-        # Number of masks based on severity
         num_masks = int(severity * 10)  # Up to 10 masks
         
         _, h, w = img.shape
         
         for _ in range(num_masks):
-            # Random mask size (up to 1/4 of image)
             mask_h = random.randint(1, h // 4)
             mask_w = random.randint(1, w // 4)
-            
-            # Random position
             start_h = random.randint(0, h - mask_h)
             start_w = random.randint(0, w - mask_w)
             
-            # Random mask value (black, white, or random color)
             mask_type = random.choice(['black', 'white', 'random'])
             if mask_type == 'black':
                 mask_value = 0.0

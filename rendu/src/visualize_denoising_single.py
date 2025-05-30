@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.models.healer_transforms import HealerTransforms
@@ -22,11 +21,9 @@ def visualize_denoising_methods():
     print("🎨 Visualizing Denoising Methods on Single Image")
     print("=" * 60)
     
-    # Load configuration and data
     config = ConfigLoader()
     data_factory = DataLoaderFactory(config)
     
-    # Load CIFAR-10
     print("Loading CIFAR-10 dataset...")
     _, val_loader = data_factory.create_data_loaders(
         'cifar10', 
@@ -34,22 +31,17 @@ def visualize_denoising_methods():
         with_augmentation=False
     )
     
-    # Get a single image
     images, labels = next(iter(val_loader))
-    original = images[0]  # Take first image
-    
-    # Class names for CIFAR-10
+    original = images[0] 
     class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 
                   'dog', 'frog', 'horse', 'ship', 'truck']
     label = class_names[labels[0].item()]
     
-    # Add Gaussian noise with std=0.3
     noise_std = 0.3
     noise = torch.randn_like(original) * noise_std
     noisy = original + noise
     noisy = torch.clamp(noisy, 0, 1)
     
-    # Calculate noise statistics
     actual_noise = noisy - original
     actual_noise_std = torch.std(actual_noise).item()
     noise_psnr = calculate_psnr(original, noisy)
@@ -59,7 +51,6 @@ def visualize_denoising_methods():
     print(f"Actual noise std: {actual_noise_std:.3f}")
     print(f"Noisy image PSNR: {noise_psnr:.2f} dB")
     
-    # Apply all denoising methods
     methods = ['gaussian', 'bilateral', 'nlm', 'wiener']
     results = {}
     
@@ -74,7 +65,6 @@ def visualize_denoising_methods():
         
         elapsed = time.time() - start_time
         
-        # Calculate metrics
         psnr = calculate_psnr(original, denoised)
         mse = torch.mean((original - denoised) ** 2).item()
         ssim = calculate_ssim(original, denoised)
@@ -89,36 +79,33 @@ def visualize_denoising_methods():
         
         print(f" done ({elapsed*1000:.1f}ms)")
     
-    # Create visualization
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
     
-    # Original and Noisy in top row
     show_image(axes[0, 0], original, f"Original\n{label}")
     show_image(axes[0, 1], noisy, f"Noisy (σ={noise_std})\nPSNR: {noise_psnr:.1f} dB")
     
-    # Show noise pattern
     noise_viz = (actual_noise - actual_noise.min()) / (actual_noise.max() - actual_noise.min())
     show_image(axes[0, 2], noise_viz, f"Noise Pattern\nstd: {actual_noise_std:.3f}")
     
     # Show all 4 denoising methods
-    # Gaussian in bottom left
+    # Gaussian
     result = results['gaussian']
     title = f"Gaussian (Original)\nPSNR: {result['psnr']:.1f} dB\nSSIM: {result['ssim']:.3f}\nTime: {result['time']*1000:.1f}ms"
     show_image(axes[1, 0], result['image'], title)
     
-    # Bilateral in bottom middle (highlight as recommended)
+    # Bilateral
     result = results['bilateral']
     title = f"Bilateral (Recommended)\nPSNR: {result['psnr']:.1f} dB\nSSIM: {result['ssim']:.3f}\nTime: {result['time']*1000:.1f}ms"
     show_image(axes[1, 1], result['image'], title)
     axes[1, 1].patch.set_edgecolor('green')
     axes[1, 1].patch.set_linewidth(3)
     
-    # NLM in bottom right
+    # NLM
     result = results['nlm']
     title = f"Non-Local Means\nPSNR: {result['psnr']:.1f} dB\nSSIM: {result['ssim']:.3f}\nTime: {result['time']*1000:.1f}ms"
     show_image(axes[1, 2], result['image'], title)
     
-    # Add Wiener as inset
+    # Add Wiener
     ax_inset = fig.add_axes([0.75, 0.62, 0.2, 0.2])  # [left, bottom, width, height]
     result = results['wiener']
     show_image(ax_inset, result['image'], f"Wiener\nPSNR: {result['psnr']:.1f}")
@@ -128,17 +115,13 @@ def visualize_denoising_methods():
     plt.suptitle(f"Denoising Methods Comparison - Gaussian Noise (σ={noise_std})", fontsize=16)
     plt.tight_layout()
     
-    # Save figure
     output_dir = Path("../../../visualizationsrendu/demos/")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "single_image_denoising_comparison.png"
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"\n✅ Visualization saved to: {output_path}")
     
-    # Also create a detailed comparison
     create_detailed_comparison(original, noisy, results, noise_std, label)
-    
-    # Print summary table
     print("\n" + "="*80)
     print("📊 DENOISING RESULTS SUMMARY")
     print("="*80)
@@ -161,7 +144,7 @@ def create_detailed_comparison(original, noisy, results, noise_std, label):
     """Create a detailed side-by-side comparison"""
     fig, axes = plt.subplots(2, 4, figsize=(16, 8))
     
-    # First row: Original, noisy, and two best methods
+    # Original, noisy, and two best methods
     axes[0, 0].imshow(original.permute(1, 2, 0).numpy())
     axes[0, 0].set_title(f"Original\n{label}", fontsize=12)
     axes[0, 0].axis('off')
@@ -170,25 +153,21 @@ def create_detailed_comparison(original, noisy, results, noise_std, label):
     axes[0, 1].set_title(f"Noisy (σ={noise_std})", fontsize=12)
     axes[0, 1].axis('off')
     
-    # Bilateral (recommended)
     axes[0, 2].imshow(results['bilateral']['image'].permute(1, 2, 0).numpy())
     axes[0, 2].set_title("Bilateral (Recommended)\nEdge-preserving", fontsize=12, color='green')
     axes[0, 2].axis('off')
     
-    # Gaussian (original)
     axes[0, 3].imshow(results['gaussian']['image'].permute(1, 2, 0).numpy())
     axes[0, 3].set_title("Gaussian (Original)\nSimple blur", fontsize=12)
     axes[0, 3].axis('off')
     
-    # Second row: Difference maps
+    # Difference maps
     for idx, method in enumerate(['gaussian', 'bilateral', 'nlm', 'wiener']):
         ax = axes[1, idx]
         
-        # Calculate difference from original
         diff = torch.abs(original - results[method]['image'])
         diff_normalized = diff / diff.max()
         
-        # Create colorful difference map
         im = ax.imshow(diff_normalized.mean(0).numpy(), cmap='hot', vmin=0, vmax=0.5)
         ax.set_title(f"{method.capitalize()}\nError Map", fontsize=10)
         ax.axis('off')
@@ -215,7 +194,6 @@ def calculate_ssim(img1, img2):
     C1 = 0.01 ** 2
     C2 = 0.03 ** 2
     
-    # Convert to grayscale
     if img1.dim() == 3 and img1.shape[0] == 3:
         img1_gray = 0.299 * img1[0] + 0.587 * img1[1] + 0.114 * img1[2]
         img2_gray = 0.299 * img2[0] + 0.587 * img2[1] + 0.114 * img2[2]

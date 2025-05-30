@@ -53,27 +53,20 @@ class ModelTrainer:
         """
         self.logger.info(f"Starting training for {model_type} on {dataset_name}")
         
-        # Handle special model dependencies
         if model_type in ['ttt', 'ttt_robust', 'ttt3fc', 'ttt3fc_robust']:
             if base_model is None:
-                # Load base model
                 base_model = self._load_base_model(dataset_name, robust=(model_type.endswith('_robust')))
         
-        # Create model
         model = self.model_factory.create_model(model_type, dataset_name, base_model)
         model = model.to(self.device)
         
-        # Log model info
         num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         self.logger.info(f"Created {model_type} model with {num_params:,} trainable parameters")
         
-        # Create data loaders
         train_loader, val_loader = self._create_data_loaders(model_type, dataset_name)
         
-        # Create trainer
         trainer = self._create_trainer(model_type, model, robust_training)
         
-        # Get checkpoint directory
         checkpoint_dir = self._get_checkpoint_dir(model_type, dataset_name)
         
         # Train model
@@ -110,7 +103,6 @@ class ModelTrainer:
         else:
             with_normalization = True
         
-        # Create loaders
         train_loader, val_loader = self.data_factory.create_data_loaders(
             dataset_name,
             with_normalization=with_normalization,
@@ -121,7 +113,6 @@ class ModelTrainer:
     
     def _create_trainer(self, model_type: str, model: nn.Module, robust_training: bool):
         """Create appropriate trainer for model type"""
-        # Get model-specific training config
         if model_type in ['ttt', 'ttt_robust', 'ttt3fc', 'ttt3fc_robust']:
             training_config = self.config.get('training.ttt', {})
         elif model_type in ['blended', 'blended_robust', 'blended3fc', 'blended3fc_robust', 'blended_resnet18']:
@@ -129,11 +120,9 @@ class ModelTrainer:
         else:
             training_config = self.config.get('training', {})
         
-        # Merge with general training config
         general_config = self.config.get('training', {})
         merged_config = {**general_config, **training_config}
         
-        # Create trainer based on model type
         if model_type in ['healer', 'ttt', 'ttt3fc', 'ttt_resnet18', 'blended', 'blended3fc', 'blended_resnet18']:
             # These models need special trainers
             return self._create_specialized_trainer(model_type, model, merged_config)
@@ -148,7 +137,6 @@ class ModelTrainer:
     
     def _create_specialized_trainer(self, model_type: str, model: nn.Module, config: Dict[str, Any]):
         """Create specialized trainers for specific model types"""
-        # Import specialized trainers as needed
         if model_type == 'healer':
             # Healer should always use HealerTrainer for transformation prediction
             from trainers.healer_trainer import HealerTrainer

@@ -31,11 +31,9 @@ class ResNetBaseline(ClassificationModel):
         self.model = models.resnet18(pretrained=False, num_classes=num_classes)
         
         if self.img_size == 32:  # CIFAR-10
-            # Replace first conv layer for 32x32 images
             self.model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
             self.model.maxpool = nn.Identity()
         elif self.img_size == 64:  # TinyImageNet
-            # Adjust first conv layer for 64x64 images
             self.model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
             self.model.maxpool = nn.Identity()
     
@@ -96,36 +94,28 @@ class ResNetPretrained(ClassificationModel):
         
         self.img_size = config['img_size']
         
-        # Load pretrained ResNet18
         self.model = models.resnet18(pretrained=True)
         
         if self.img_size == 32:  # CIFAR-10
-            # Save the pretrained weights of conv1
             pretrained_conv1 = self.model.conv1.weight.data.clone()
             
-            # Replace first conv layer
             self.model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
             
-            # Initialize with center crop of pretrained weights
             with torch.no_grad():
                 self.model.conv1.weight.data = pretrained_conv1[:, :, 2:5, 2:5]
             
             self.model.maxpool = nn.Identity()
             
         elif self.img_size == 64:  # TinyImageNet
-            # Save the pretrained weights
             pretrained_conv1 = self.model.conv1.weight.data.clone()
             
-            # Replace first conv layer
             self.model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
             
-            # Initialize with center crop of pretrained weights
             with torch.no_grad():
                 self.model.conv1.weight.data = pretrained_conv1[:, :, 2:5, 2:5]
             
             self.model.maxpool = nn.Identity()
         
-        # Replace final FC layer for the target number of classes
         in_features = self.model.fc.in_features
         self.model.fc = nn.Linear(in_features, num_classes)
         

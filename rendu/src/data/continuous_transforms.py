@@ -60,7 +60,6 @@ class ContinuousTransforms:
             transform_params['noise_std'] = std
             
         elif transform_type == 'rotation':
-            # For rotation, we still need PIL, so transfer to CPU temporarily
             max_angle = MAX_ROTATION * severity
             angle = random.uniform(-max_angle, max_angle)
             

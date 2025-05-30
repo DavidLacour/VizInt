@@ -44,12 +44,10 @@ class BlendedWrapper(TransformationAwareModel):
         self.aux_loss_weight = config.get('aux_loss_weight', 0.5)
         self.dropout = config.get('dropout', 0.1)
         
-        # Freeze backbone if specified
         if config.get('freeze_backbone', False):
             for param in self.backbone.parameters():
                 param.requires_grad = False
         
-        # Transformation prediction heads
         self.transform_type_head = nn.Linear(feature_dim, num_transforms)
         self.rotation_head = nn.Linear(feature_dim, 1)
         self.noise_head = nn.Linear(feature_dim, 1)
@@ -65,10 +63,8 @@ class BlendedWrapper(TransformationAwareModel):
             nn.Linear(feature_dim, feature_dim)
         )
         
-        # Classification head
         self.classifier = nn.Linear(feature_dim, num_classes)
         
-        # Dropout layer
         self.dropout_layer = nn.Dropout(self.dropout)
         
         self._init_weights()
@@ -91,13 +87,11 @@ class BlendedWrapper(TransformationAwareModel):
         Returns:
             Feature tensor of shape (B, feature_dim)
         """
-        # Use backbone to extract features
         if hasattr(self.backbone, 'extract_features'):
             features = self.backbone.extract_features(x)
         else:
             features = self.backbone(x)
         
-        # Ensure features are 2D [B, feature_dim]
         if features.dim() > 2:
             # Global average pooling if needed
             features = F.adaptive_avg_pool2d(features, 1).flatten(1)
@@ -138,13 +132,10 @@ class BlendedWrapper(TransformationAwareModel):
             If return_aux=False: just logits
             If return_aux=True: Tuple of (class_logits, auxiliary_outputs)
         """
-        # Extract features from backbone
         features = self.extract_features(x)
         
-        # Predict transformations
         transform_preds = self.predict_transformations(features)
         
-        # Concatenate transformation predictions
         transform_features = torch.cat([
             transform_preds['transform_type'],
             transform_preds['rotation'],
@@ -152,17 +143,13 @@ class BlendedWrapper(TransformationAwareModel):
             transform_preds['affine_params']
         ], dim=1)
         
-        # Fuse features with transformation predictions
         combined_features = torch.cat([features, transform_features], dim=1)
         enhanced_features = self.feature_fusion(combined_features)
         
-        # Residual connection
         enhanced_features = features + enhanced_features
         
-        # Apply dropout
         enhanced_features = self.dropout_layer(enhanced_features)
         
-        # Classification
         logits = self.classifier(enhanced_features)
         
         if return_aux:
@@ -235,7 +222,6 @@ class TTTWrapper(TransformationAwareModel):
             nn.Linear(feature_dim // 2, num_transforms + 5)  # type + params
         )
         
-        # Classification head
         self.classifier = nn.Linear(feature_dim, num_classes)
         
         self._init_weights()
@@ -267,7 +253,6 @@ class TTTWrapper(TransformationAwareModel):
             else:
                 features = self.backbone(x)
         
-        # Ensure features are 2D [B, feature_dim]
         if features.dim() > 2:
             features = F.adaptive_avg_pool2d(features, 1).flatten(1)
         
@@ -290,20 +275,15 @@ class TTTWrapper(TransformationAwareModel):
         
         losses = []
         for step in range(self.inner_steps):
-            # Forward pass with adapted layers
             features = self.extract_features(x)
-            
-            # Apply adaptation layers
+        
             for layer in adapted_layers:
                 features = features + layer(features)
             
-            # Predict transformations
             transform_preds = self.transform_predictor(features)
             
-            # Compute self-supervised loss
             loss = F.cross_entropy(transform_preds[:, :self.num_transforms], transform_labels)
             
-            # Update adapted parameters
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -331,20 +311,16 @@ class TTTWrapper(TransformationAwareModel):
         Returns:
             Tuple of (class_logits, auxiliary_outputs)
         """
-        # Adapt parameters if requested
         adaptation_info = {}
         if adapt and transform_labels is not None:
             adaptation_info = self.adapt_parameters(x, transform_labels)
         
-        # Extract base features
         features = self.extract_features(x)
         
-        # Apply adaptation layers
         adapted_features = features
         for layer in self.adaptation_layers:
             adapted_features = adapted_features + layer(adapted_features)
         
-        # Get predictions
         logits = self.classifier(adapted_features)
         
         # Also get transformation predictions for auxiliary output
@@ -386,30 +362,23 @@ class HealerWrapper(nn.Module):
         self.num_denoising_steps = config.get('num_denoising_steps', 3)
         self.num_transforms = config.get('num_transform_types', 4)
         
-        # Import healer transforms
         from .healer_transforms import HealerTransforms
         self.healer_transforms = HealerTransforms
         
         # Create ResNet18 for transform prediction
         import torchvision.models as models
         self.transform_predictor = models.resnet18(pretrained=False)
-        # Modify the first conv layer if needed for different input sizes
-        # Keep the original conv layer as is for now
         
-        # Replace the final FC layer for transform prediction
         resnet_feature_dim = self.transform_predictor.fc.in_features  # 512 for ResNet18
         
-        # Transform prediction heads
         self.transform_predictor.fc = nn.Identity()  # Remove original FC layer
         self.transform_type_head = nn.Linear(resnet_feature_dim, self.num_transforms)
         self.rotation_head = nn.Linear(resnet_feature_dim, 1)
         self.noise_head = nn.Linear(resnet_feature_dim, 1)
         self.affine_head = nn.Linear(resnet_feature_dim, 4)  # translate_x, translate_y, shear_x, shear_y
         
-        # Classification head
         self.classifier = nn.Linear(feature_dim, self.num_classes)
         
-        # Initialize weights
         self._init_weights()
     
     def _init_weights(self):
@@ -418,7 +387,6 @@ class HealerWrapper(nn.Module):
         if self.classifier.bias is not None:
             nn.init.zeros_(self.classifier.bias)
         
-        # Initialize transform prediction heads
         for head in [self.transform_type_head, self.rotation_head, self.noise_head, self.affine_head]:
             nn.init.xavier_uniform_(head.weight)
             if head.bias is not None:
@@ -439,32 +407,25 @@ class HealerWrapper(nn.Module):
         device = x.device
         batch_size = x.shape[0]
         
-        # Use ResNet18 to predict transformations
         with torch.no_grad():
-            # Extract features from ResNet18
             resnet_features = self.transform_predictor(x)
             
-            # Predict transformation parameters
             transform_type_logits = self.transform_type_head(resnet_features)
             rotation_params = self.rotation_head(resnet_features)
             noise_params = self.noise_head(resnet_features)
             affine_params = self.affine_head(resnet_features)
             
-            # Get predicted transform type
             transform_type = torch.argmax(transform_type_logits, dim=1)
         
-        # Apply Wiener denoising convolution for all samples
         healed_x = x.clone()
         
-        # Apply Wiener denoising (this already uses convolution internally)
+        # Apply Wiener denoising
         for i in range(batch_size):
-            # Estimate noise level from predictions or use default
             if transform_type[i] == 1:  # Gaussian noise detected
                 noise_std = torch.sigmoid(noise_params[i]).item() * 0.5  # Scale to [0, 0.5]
             else:
                 noise_std = 0.1  # Default noise level
             
-            # Apply Wiener denoising which uses FFT-based convolution
             healed_x[i:i+1] = self.healer_transforms.apply_gaussian_denoising(
                 healed_x[i:i+1], noise_std=noise_std, device=device
             )
@@ -490,16 +451,13 @@ class HealerWrapper(nn.Module):
         Returns:
             Feature tensor of shape (B, feature_dim)
         """
-        # First heal the input (without returning predictions)
         healed_x = self.heal_input(x, return_transform_predictions=False)
         
-        # Extract features using backbone
         if hasattr(self.backbone, 'extract_features'):
             features = self.backbone.extract_features(healed_x)
         else:
             features = self.backbone(healed_x)
         
-        # Ensure features are 2D [B, feature_dim]
         if features.dim() > 2:
             features = F.adaptive_avg_pool2d(features, 1).flatten(1)
         
@@ -517,20 +475,16 @@ class HealerWrapper(nn.Module):
             If return_aux=False: Classification logits of shape (B, num_classes)
             If return_aux=True: Tuple of (logits, auxiliary_outputs)
         """
-        # Get healed input and transform predictions
         healed_x, transform_predictions = self.heal_input(x, return_transform_predictions=True)
         
-        # Extract features using backbone
         if hasattr(self.backbone, 'extract_features'):
             features = self.backbone.extract_features(healed_x)
         else:
             features = self.backbone(healed_x)
         
-        # Ensure features are 2D [B, feature_dim]
         if features.dim() > 2:
             features = F.adaptive_avg_pool2d(features, 1).flatten(1)
         
-        # Classify
         logits = self.classifier(features)
         
         if return_aux:

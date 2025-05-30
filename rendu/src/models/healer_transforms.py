@@ -52,22 +52,16 @@ class HealerTransforms:
                 img_np = np.clip(img_np, 0, 1)
                 
                 if method == 'wiener':
-                    # Apply Wiener filter
                     denoised_np = HealerTransforms._wiener_filter(img_np, noise_std)
                 elif method == 'bilateral':
-                    # Bilateral filter - edge-preserving
                     denoised_np = HealerTransforms._bilateral_filter(img_np, noise_std)
                 elif method == 'nlm':
-                    # Non-local means denoising
                     denoised_np = HealerTransforms._nlm_filter(img_np, noise_std)
                 elif method == 'bm3d':
-                    # BM3D-inspired denoising
                     denoised_np = HealerTransforms._bm3d_inspired_filter(img_np, noise_std)
-                else:  # gaussian
-                    # Fallback to Gaussian blur
+                else:  # fallback to Gaussian blur
                     denoised_np = HealerTransforms._gaussian_filter(img_np, noise_std)
                 
-                # Convert back to tensor
                 denoised_tensor = torch.from_numpy(
                     denoised_np.transpose(2, 0, 1)
                 ).float().to(device)
@@ -96,63 +90,43 @@ class HealerTransforms:
         for c in range(image_np.shape[2]):
             channel = image_np[:, :, c]
             
-            # FFT of the noisy image
             img_fft = np.fft.fft2(channel)
-            
-            # Power spectrum of the image
             power_spectrum = np.abs(img_fft) ** 2
             
             # Improved noise power estimation
             # Account for the fact that noise power is distributed across all frequencies
             h, w = channel.shape
             noise_variance = noise_std ** 2
-            noise_power_spectrum = noise_variance * h * w  # Total noise power
+            noise_power_spectrum = noise_variance * h * w 
             
-            # Create frequency grid for adaptive filtering
             freq_y = np.fft.fftfreq(h).reshape(-1, 1)
             freq_x = np.fft.fftfreq(w).reshape(1, -1)
             freq_radius = np.sqrt(freq_y**2 + freq_x**2)
             
-            # Estimate signal power using a more sophisticated approach
-            # Use median filtering to estimate local signal power
             from scipy.ndimage import median_filter
             
-            # Estimate local signal power by removing noise contribution
             # Use median filter to be robust to outliers
             local_power = median_filter(power_spectrum, size=5)
-            
-            # Estimate signal power by subtracting expected noise power
             signal_power = np.maximum(local_power - noise_power_spectrum, 
                                     power_spectrum * 0.01)  # Keep at least 1% to avoid zeros
             
-            # Calculate frequency-dependent Wiener gain
-            # Lower frequencies typically have higher SNR
-            # Add frequency-dependent regularization
-            regularization = 1.0 + 10.0 * freq_radius  # Increase regularization at high frequencies
+            regularization = 1.0 + 10.0 * freq_radius
             
-            # Wiener filter transfer function
-            # H(f) = S(f) / (S(f) + N(f) * regularization)
             wiener_gain = signal_power / (signal_power + noise_power_spectrum * regularization + 1e-10)
             
-            # Apply smooth transition to avoid ringing
             # Use sigmoid-like function for smooth cutoff
-            transition_freq = 0.3  # Transition around 30% of Nyquist frequency
+            transition_freq = 0.3
             smooth_factor = 1.0 / (1.0 + np.exp(20 * (freq_radius - transition_freq)))
             wiener_gain = wiener_gain * smooth_factor + (1 - smooth_factor) * wiener_gain * 0.1
             
-            # Apply filter
             filtered_fft = img_fft * wiener_gain
-            
-            # Inverse FFT
             filtered = np.real(np.fft.ifft2(filtered_fft))
             
             # Post-processing: slight sharpening to compensate for smoothing
-            # Use unsharp masking with small amount
             from scipy.ndimage import gaussian_filter
             blurred = gaussian_filter(filtered, sigma=0.5)
             sharpened = filtered + 0.1 * (filtered - blurred)
-            
-            # Store result with clipping
+
             output[:, :, c] = np.clip(sharpened, 0, 1)
         
         return output
@@ -160,38 +134,30 @@ class HealerTransforms:
     @staticmethod
     def _bilateral_filter(image_np: np.ndarray, noise_std: float) -> np.ndarray:
         """Apply bilateral filter for edge-preserving denoising"""
-        # Convert to uint8 for cv2
         img_uint8 = (image_np * 255).astype(np.uint8)
         
-        # Adaptive parameters based on noise level
         d = max(5, int(noise_std * 20))  # Diameter
         sigma_color = max(10, noise_std * 200)
         sigma_space = max(10, noise_std * 200)
         
-        # Apply bilateral filter
         denoised = cv2.bilateralFilter(img_uint8, d, sigma_color, sigma_space)
         
-        # Convert back to float
         return denoised.astype(np.float32) / 255.0
     
     @staticmethod
     def _nlm_filter(image_np: np.ndarray, noise_std: float) -> np.ndarray:
         """Apply Non-Local Means denoising"""
-        # Convert to uint8 for cv2
         img_uint8 = (image_np * 255).astype(np.uint8)
         
-        # Adaptive parameters
         h = max(3, noise_std * 30)  # Filter strength
         template_window_size = 7
         search_window_size = 21
         
         if len(img_uint8.shape) == 3:
-            # Color image
             denoised = cv2.fastNlMeansDenoisingColored(
                 img_uint8, None, h, h, template_window_size, search_window_size
             )
         else:
-            # Grayscale
             denoised = cv2.fastNlMeansDenoising(
                 img_uint8, None, h, template_window_size, search_window_size
             )
@@ -205,12 +171,10 @@ class HealerTransforms:
         """
         output = np.zeros_like(image_np)
         
-        # Parameters
         patch_size = 8
         search_window = 21
-        h_filtering = noise_std * 10  # Filtering parameter
+        h_filtering = noise_std * 10 
         
-        # Convert to grayscale for patch matching (if color)
         if image_np.shape[2] == 3:
             gray = 0.299 * image_np[:, :, 0] + 0.587 * image_np[:, :, 1] + 0.114 * image_np[:, :, 2]
         else:
@@ -220,13 +184,11 @@ class HealerTransforms:
         half_patch = patch_size // 2
         half_search = search_window // 2
         
-        # Process each pixel
         for c in range(image_np.shape[2]):
             channel = image_np[:, :, c]
             filtered_channel = np.zeros_like(channel)
             weight_sum = np.zeros_like(channel)
             
-            # Pad the image
             padded = np.pad(channel, 
                           ((half_search + half_patch, half_search + half_patch),
                            (half_search + half_patch, half_search + half_patch)), 
@@ -238,29 +200,22 @@ class HealerTransforms:
             
             for i in range(half_search + half_patch, h + half_search + half_patch):
                 for j in range(half_search + half_patch, w + half_search + half_patch):
-                    # Get reference patch (from grayscale for matching)
                     ref_patch = gray_padded[i-half_patch:i+half_patch+1, 
                                           j-half_patch:j+half_patch+1]
                     
-                    # Search in window
+
                     for di in range(-half_search, half_search + 1):
                         for dj in range(-half_search, half_search + 1):
-                            # Get comparison patch
                             comp_patch = gray_padded[i+di-half_patch:i+di+half_patch+1,
                                                    j+dj-half_patch:j+dj+half_patch+1]
                             
-                            # Calculate patch distance
                             dist = np.sum((ref_patch - comp_patch) ** 2) / (patch_size ** 2)
-                            
-                            # Calculate weight
                             weight = np.exp(-dist / (h_filtering ** 2))
                             
-                            # Accumulate
                             filtered_channel[i-half_search-half_patch, j-half_search-half_patch] += \
                                 weight * padded[i+di, j+dj]
                             weight_sum[i-half_search-half_patch, j-half_search-half_patch] += weight
             
-            # Normalize
             output[:, :, c] = filtered_channel / (weight_sum + 1e-10)
         
         return np.clip(output, 0, 1)
@@ -268,7 +223,6 @@ class HealerTransforms:
     @staticmethod
     def _gaussian_filter(image_np: np.ndarray, noise_std: float) -> np.ndarray:
         """Apply Gaussian filter (original method)"""
-        # Adaptive blur radius based on noise level
         sigma = max(0.5, min(2.0, noise_std * 4.0))
         
         output = np.zeros_like(image_np)
@@ -293,7 +247,6 @@ class HealerTransforms:
         Returns:
             Denoised image tensor
         """
-        # Use Wiener denoising by default (theoretically optimal for Gaussian noise)
         return HealerTransforms.apply_wiener_denoising(
             image, noise_std, method='wiener', device=device
         )
@@ -316,7 +269,6 @@ class HealerTransforms:
         if device is None:
             device = image.device
             
-        # Handle batch dimension
         if image.dim() == 3:
             image = image.unsqueeze(0)
             squeeze_output = True
@@ -329,13 +281,11 @@ class HealerTransforms:
         for i in range(batch_size):
             img = image[i]
             
-            # Convert to PIL for rotation
             img_cpu = img.cpu()
             to_pil = transforms.ToPILImage()
             to_tensor = transforms.ToTensor()
             pil_img = to_pil(img_cpu)
             
-            # Apply inverse rotation (negative angle)
             rotated_img = transforms.functional.rotate(pil_img, -rotation_angle)
             corrected_tensor = to_tensor(rotated_img).to(device)
             corrected_images.append(corrected_tensor)
@@ -367,7 +317,6 @@ class HealerTransforms:
         if device is None:
             device = image.device
             
-        # Handle batch dimension
         if image.dim() == 3:
             image = image.unsqueeze(0)
             squeeze_output = True
@@ -380,17 +329,14 @@ class HealerTransforms:
         for i in range(batch_size):
             img = image[i]
             
-            # Convert to PIL for affine transformation
             img_cpu = img.cpu()
             to_pil = transforms.ToPILImage()
             to_tensor = transforms.ToTensor()
             pil_img = to_pil(img_cpu)
             
-            # Calculate pixel translations
             width, height = pil_img.size
             translate_pixels = (-translate_x * width, -translate_y * height)
             
-            # Apply inverse affine transformation
             affine_img = transforms.functional.affine(
                 pil_img,
                 angle=0.0,
@@ -468,18 +414,13 @@ class HealerTransforms:
         device = images.device
         batch_size = images.shape[0]
         
-        # Get predicted transform types
         transform_type_logits = predictions['transform_type_logits']
         transform_types = torch.argmax(transform_type_logits, dim=1)  # [B]
         
-        # Initialize corrected images
         corrected_images = images.clone()
         
-        # Process each image
         for i in range(batch_size):
             t_type = transform_types[i].item()
-            
-            # Extract parameters for this image
             params = {
                 'noise_std': predictions['noise_std'][i].item(),
                 'rotation_angle': predictions['rotation_angle'][i].item(),
@@ -489,7 +430,6 @@ class HealerTransforms:
                 'shear_y': predictions['shear_y'][i].item()
             }
             
-            # Apply correction
             corrected_images[i] = HealerTransforms.apply_correction_by_type(
                 images[i], t_type, params, device
             )
@@ -509,7 +449,6 @@ class HealerTransforms:
         Returns:
             Dictionary of predictions in the expected format
         """
-        # Transform type mapping
         type_map = {
             'none': 0,
             'no_transform': 0,
@@ -527,7 +466,6 @@ class HealerTransforms:
         transform_logits = torch.zeros(1, 4)
         transform_logits[0, t_type] = 10.0  # High confidence
         
-        # Default parameters
         predictions = {
             'transform_type_logits': transform_logits,
             'noise_std': torch.tensor([[kwargs.get('noise_std', 0.0)]]),

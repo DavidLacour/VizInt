@@ -29,10 +29,8 @@ class PretrainedUNetCorrector(BaseModel):
         self.out_channels = config.get('out_channels', 3)
         self.use_residual = config.get('use_residual', True)
         
-        # Load pre-trained ResNet18 as encoder
         self.encoder = models.resnet18(pretrained=True)
         
-        # Modify first conv for different input sizes if needed
         if self.img_size in [32, 64]:
             pretrained_conv1 = self.encoder.conv1.weight.data.clone()
             self.encoder.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
@@ -40,11 +38,8 @@ class PretrainedUNetCorrector(BaseModel):
                 self.encoder.conv1.weight.data = pretrained_conv1[:, :, 2:5, 2:5]
             self.encoder.maxpool = nn.Identity()
         
-        # Remove classifier
         self.encoder.fc = nn.Identity()
         
-        # Get feature dimensions from ResNet layers
-        # ResNet18: [64, 64, 128, 256, 512]
         self.encoder_dims = [64, 64, 128, 256, 512]
         
         # Decoder layers
@@ -153,7 +148,6 @@ class DecoderBlock(nn.Module):
     def forward(self, x: torch.Tensor, skip: torch.Tensor) -> torch.Tensor:
         x = self.upconv(x)
         
-        # Handle size mismatch
         if x.shape[2:] != skip.shape[2:]:
             x = F.interpolate(x, size=skip.shape[2:], mode='bilinear', align_corners=False)
             
@@ -219,12 +213,10 @@ class ImageToImageTransformer(BaseModel):
             nn.Linear(self.embed_dim // 2, self.patch_size * self.patch_size * self.out_channels)
         )
         
-        # Initialize weights
         self._init_weights()
         
     def _init_weights(self):
         """Initialize model weights"""
-        # Initialize patch reconstruction head
         nn.init.normal_(self.patch_reconstruct[0].weight, std=0.02)
         nn.init.normal_(self.patch_reconstruct[2].weight, std=0.02)
         nn.init.zeros_(self.patch_reconstruct[0].bias)
@@ -245,9 +237,8 @@ class ImageToImageTransformer(BaseModel):
         h_patches = H // p
         w_patches = W // p
         
-        # Reshape to patches
         x = imgs.reshape(B, C, h_patches, p, w_patches, p)
-        x = x.permute(0, 2, 4, 3, 5, 1)  # [B, h_patches, w_patches, p, p, C]
+        x = x.permute(0, 2, 4, 3, 5, 1) 
         x = x.reshape(B, h_patches * w_patches, p * p * C)
         
         return x
@@ -267,9 +258,8 @@ class ImageToImageTransformer(BaseModel):
         p = self.patch_size
         h_patches = w_patches = int(num_patches ** 0.5)
         
-        # Reshape patches to image
         x = patches.reshape(B, h_patches, w_patches, p, p, C)
-        x = x.permute(0, 5, 1, 3, 2, 4)  # [B, C, h_patches, p, w_patches, p]
+        x = x.permute(0, 5, 1, 3, 2, 4)
         x = x.reshape(B, C, h_patches * p, w_patches * p)
         
         return x
@@ -287,28 +277,20 @@ class ImageToImageTransformer(BaseModel):
         input_img = x
         B, C, H, W = x.shape
         
-        # Patch embedding
-        x = self.patch_embed(x)  # [B, num_patches, embed_dim]
+        x = self.patch_embed(x)
         
-        # Add position embeddings
         x = x + self.pos_embed
         
-        # Apply transformer
         x = self.transformer(x)
         
-        # Apply normalization
         x = self.norm(x)
         
-        # Reconstruct patches
-        patch_outputs = self.patch_reconstruct(x)  # [B, num_patches, patch_size^2 * C]
+        patch_outputs = self.patch_reconstruct(x) 
         
-        # Convert patches back to image
-        output = self.unpatchify(patch_outputs)  # [B, C, H, W]
+        output = self.unpatchify(patch_outputs)
         
-        # Apply tanh activation for output range
         output = torch.tanh(output)
         
-        # Residual connection
         if self.use_residual:
             output = output + input_img
             

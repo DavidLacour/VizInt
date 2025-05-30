@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from torchvision import transforms
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.config.config_loader import ConfigLoader
@@ -31,15 +30,12 @@ def run_demo(dataset='cifar10', severity=0.5, debug=True, show_healer=True):
     print(f"\n🎨 Transform & Healer Demo - {dataset.upper()}")
     print("=" * 50)
     
-    # Load configuration
     config = ConfigLoader()
     device = torch.device(config.get_device())
     
-    # Create factories
     data_factory = DataLoaderFactory(config)
     model_factory = ModelFactory(config)
     
-    # Load data
     print("📊 Loading dataset...")
     _, val_loader = data_factory.create_data_loaders(
         dataset, 
@@ -47,7 +43,6 @@ def run_demo(dataset='cifar10', severity=0.5, debug=True, show_healer=True):
         with_augmentation=False
     )
     
-    # Load healer model
     healer_model = None
     if show_healer:
         print("🔮 Loading healer model...")
@@ -64,13 +59,8 @@ def run_demo(dataset='cifar10', severity=0.5, debug=True, show_healer=True):
             print("❌ Healer model not found!")
             show_healer = False
     
-    # Get normalization
     normalize = data_factory.get_normalization_transform(dataset)
-    
-    # Create transforms
     transform_engine = ContinuousTransforms(severity=severity)
-    
-    # Get sample images
     images, labels = next(iter(val_loader))
     
     # Dataset-specific denormalization
@@ -84,14 +74,12 @@ def run_demo(dataset='cifar10', severity=0.5, debug=True, show_healer=True):
         std = np.array([0.229, 0.224, 0.225])
         class_names = None  # Too many classes for TinyImageNet
     
-    # Process first 3 images
     for img_idx in range(min(3, len(images))):
         print(f"\n📸 Processing image {img_idx + 1}...")
         
         original = images[img_idx]
         label = labels[img_idx].item()
         
-        # Create visualization
         if show_healer and healer_model:
             fig = plt.figure(figsize=(20, 10))
             gs = fig.add_gridspec(2, 5, hspace=0.3, wspace=0.2)
@@ -109,7 +97,6 @@ def run_demo(dataset='cifar10', severity=0.5, debug=True, show_healer=True):
             ax.text(0.5, -0.15, f"Class ID: {label}", 
                    transform=ax.transAxes, ha='center', fontsize=10)
         
-        # Apply transformations
         transforms_to_show = [
             ('no_transform', 'No Transform'),
             ('gaussian_noise', 'Gaussian Noise'),
@@ -118,7 +105,6 @@ def run_demo(dataset='cifar10', severity=0.5, debug=True, show_healer=True):
         ]
         
         for t_idx, (transform_type, display_name) in enumerate(transforms_to_show[1:], 1):
-            # Apply transformation
             transformed, params = transform_engine.apply_transforms(
                 original, 
                 transform_type=transform_type,
@@ -126,32 +112,23 @@ def run_demo(dataset='cifar10', severity=0.5, debug=True, show_healer=True):
                 return_params=True
             )
             
-            # Show transformed image
             ax = fig.add_subplot(gs[0, t_idx])
             show_tensor_image(ax, transformed, display_name)
             add_transform_info(ax, transform_type, params)
             
-            # Apply healer if available
             if show_healer and healer_model:
-                # Normalize for healer
                 normalized = normalize(transformed).unsqueeze(0).to(device)
                 
                 with torch.no_grad():
-                    # Get predictions
                     predictions, _ = healer_model(normalized, return_reconstruction=False, return_logits=False)
-                    
-                    # Apply correction
                     corrected = healer_model.apply_correction(normalized, predictions)
                     corrected = corrected[0].cpu()
                 
-                # Denormalize for display
                 corrected_denorm = denormalize_tensor(corrected, mean, std)
                 
-                # Show corrected image
                 ax = fig.add_subplot(gs[1, t_idx])
                 show_tensor_image(ax, corrected_denorm, "Healer Corrected")
                 
-                # Add prediction info
                 if 'transform_type_logits' in predictions:
                     pred_idx = torch.argmax(predictions['transform_type_logits'], dim=1).item()
                     pred_type = transform_engine.transform_types[pred_idx]
@@ -160,7 +137,6 @@ def run_demo(dataset='cifar10', severity=0.5, debug=True, show_healer=True):
                            transform=ax.transAxes, ha='center', fontsize=9,
                            color='green' if pred_type == transform_type else 'red')
         
-        # Add reference image in bottom left if using healer
         if show_healer and healer_model:
             ax = fig.add_subplot(gs[1, 0])
             show_tensor_image(ax, original, "Original (Reference)")

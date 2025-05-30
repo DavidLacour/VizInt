@@ -263,10 +263,8 @@ class DataLoaderFactory:
                 dataset_config, train=False, with_normalization=False, with_augmentation=False
             )
         
-        # Create robustness transform
         transforms_for_robustness = ContinuousTransforms(severity=severity)
         
-        # Create dataset with robustness transforms
         if dataset_name.lower() == 'cifar10':
             dataset = datasets.CIFAR10(
                 root=dataset_config['path'],

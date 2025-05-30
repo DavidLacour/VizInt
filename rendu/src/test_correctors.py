@@ -6,7 +6,6 @@ import torch.nn as nn
 from pathlib import Path
 import sys
 
-# Add src to path
 sys.path.append(str(Path(__file__).parent))
 
 from config.config_loader import ConfigLoader
@@ -19,45 +18,37 @@ def test_corrector_models():
     """Test corrector model creation and basic functionality"""
     print("Testing corrector models...")
     
-    # Load config
     config = ConfigLoader('config/cifar10_config.yaml')
     model_factory = ModelFactory(config)
     
-    # Test data dimensions for CIFAR-10
     batch_size = 4
     channels = 3
     img_size = 32
     
-    # Create dummy input
     dummy_input = torch.randn(batch_size, channels, img_size, img_size)
     
     print(f"Testing with input shape: {dummy_input.shape}")
     
-    # Test corrector models
     corrector_types = ['unet_corrector', 'transformer_corrector', 'hybrid_corrector']
     
     for corrector_type in corrector_types:
         print(f"\n--- Testing {corrector_type} ---")
         try:
-            # Create model
             model = model_factory.create_model(corrector_type, 'cifar10')
             model.eval()
             
             print(f"✓ {corrector_type} created successfully")
             print(f"  Parameters: {sum(p.numel() for p in model.parameters()):,}")
             
-            # Test forward pass
             with torch.no_grad():
                 output = model(dummy_input)
             
             print(f"  Input shape: {dummy_input.shape}")
             print(f"  Output shape: {output.shape}")
             
-            # Check output shape matches input
             assert output.shape == dummy_input.shape, f"Shape mismatch: {output.shape} vs {dummy_input.shape}"
             print(f"✓ {corrector_type} forward pass successful")
             
-            # Test correct_image method
             corrected = model.correct_image(dummy_input)
             assert corrected.shape == dummy_input.shape
             print(f"✓ {corrector_type} correct_image method works")
@@ -67,7 +58,6 @@ def test_corrector_models():
             import traceback
             traceback.print_exc()
     
-    # Test corrector wrapper models
     wrapper_types = [
         ('unet_resnet18', 'ResNet18'),
         ('transformer_resnet18', 'ResNet18'),
@@ -78,26 +68,22 @@ def test_corrector_models():
     for wrapper_type, backbone_name in wrapper_types:
         print(f"\nTesting {wrapper_type} ({backbone_name} backbone)...")
         try:
-            # Create wrapper model
             model = model_factory.create_model(wrapper_type, 'cifar10')
             model.eval()
             
             print(f"✓ {wrapper_type} created successfully")
             print(f"  Parameters: {sum(p.numel() for p in model.parameters()):,}")
             
-            # Test forward pass
             with torch.no_grad():
                 logits = model(dummy_input)
             
             print(f"  Input shape: {dummy_input.shape}")
             print(f"  Logits shape: {logits.shape}")
             
-            # Check logits shape
             expected_classes = 10  # CIFAR-10
             assert logits.shape == (batch_size, expected_classes), f"Logits shape mismatch: {logits.shape}"
             print(f"✓ {wrapper_type} classification forward pass successful")
             
-            # Test corrector functionality
             corrected_logits, corrected_images = model(dummy_input, return_corrected=True)
             assert corrected_images.shape == dummy_input.shape
             print(f"✓ {wrapper_type} image correction works")
@@ -112,22 +98,17 @@ def test_transforms_and_correction():
     """Test applying transforms and correcting them"""
     print(f"\n--- Testing Transform Application and Correction ---")
     
-    # Load config
     config = ConfigLoader('config/cifar10_config.yaml')
     model_factory = ModelFactory(config)
     
-    # Create UNet corrector for testing
     try:
         corrector = model_factory.create_model('unet_corrector', 'cifar10')
         corrector.eval()
         
-        # Create clean test image
         clean_image = torch.randn(1, 3, 32, 32)
         
-        # Create transform generator
         transforms = ContinuousTransforms(img_size=32, num_classes=10)
         
-        # Test different transforms
         transform_tests = [
             ('gaussian_noise', {'severity': 0.3}),
             ('rotation', {'angle': 30}),
@@ -136,7 +117,6 @@ def test_transforms_and_correction():
         for transform_name, params in transform_tests:
             print(f"\nTesting {transform_name} correction...")
             
-            # Apply transform
             if transform_name == 'gaussian_noise':
                 corrupted = transforms.apply_gaussian_noise(clean_image[0], severity=params['severity'])
                 corrupted = corrupted.unsqueeze(0)
@@ -144,11 +124,9 @@ def test_transforms_and_correction():
                 corrupted = transforms.apply_rotation(clean_image[0], angle=params['angle'])
                 corrupted = corrupted.unsqueeze(0)
             
-            # Apply correction
             with torch.no_grad():
                 corrected = corrector.correct_image(corrupted)
             
-            # Calculate improvement metrics
             original_mse = torch.nn.functional.mse_loss(corrupted, clean_image)
             corrected_mse = torch.nn.functional.mse_loss(corrected, clean_image)
             
@@ -163,14 +141,11 @@ def test_transforms_and_correction():
 
 
 if __name__ == "__main__":
-    # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    # Test corrector models
     test_corrector_models()
     
-    # Test transforms and correction
     test_transforms_and_correction()
     
     print(f"\n--- Test Complete ---")

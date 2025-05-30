@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 from copy import deepcopy
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.utils.transformer_utils import LayerNorm, TransformerTrunk
@@ -58,7 +57,6 @@ class TTT(TransformationAwareModel):
             # Create a simple feature extractor if no base model provided
             self.base_model = self._create_feature_extractor()
         
-        # TTT adaptation layers
         self.adaptation_layers = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(self.embed_dim, self.embed_dim),
@@ -67,17 +65,14 @@ class TTT(TransformationAwareModel):
             ) for _ in range(self.ttt_layers)
         ])
         
-        # Transformation prediction head for self-supervised task
         self.transform_predictor = nn.Sequential(
             nn.Linear(self.embed_dim, self.embed_dim // 2),
             nn.ReLU(),
             nn.Linear(self.embed_dim // 2, self.num_transforms + 5)  # type + params
         )
         
-        # Classification head
         self.classifier = nn.Linear(self.embed_dim, self.num_classes)
         
-        # Initialize weights
         self._init_weights()
         
     def _create_feature_extractor(self):
@@ -117,13 +112,11 @@ class TTT(TransformationAwareModel):
         Returns:
             Feature tensor of shape (B, embed_dim)
         """
-        # Get base features
         if hasattr(self.base_model, 'extract_features'):
             features = self.base_model.extract_features(x)
         else:
             features = self.base_model(x)
         
-        # Ensure features are the right dimension
         if features.dim() > 2:
             features = features.mean(dim=list(range(2, features.dim())))
         
@@ -146,32 +139,26 @@ class TTT(TransformationAwareModel):
         Returns:
             Dictionary of adaptation losses
         """
-        # Create a copy of adaptation layers for inner loop
         adapted_layers = deepcopy(self.adaptation_layers)
         optimizer = torch.optim.SGD(adapted_layers.parameters(), lr=self.inner_lr)
         
         losses = []
         for step in range(self.inner_steps):
-            # Forward pass with adapted layers
             features = self.extract_features(x)
             
             for layer in adapted_layers:
                 features = features + layer(features)
             
-            # Predict transformations
             transform_preds = self.transform_predictor(features)
             
-            # Compute self-supervised loss
             loss = F.cross_entropy(transform_preds[:, :self.num_transforms], transform_labels)
             
-            # Update adapted parameters
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
             losses.append(loss.item())
         
-        # Update main model with adapted parameters
         with torch.no_grad():
             for main_layer, adapted_layer in zip(self.adaptation_layers, adapted_layers):
                 main_layer.load_state_dict(adapted_layer.state_dict())
@@ -192,26 +179,20 @@ class TTT(TransformationAwareModel):
         Returns:
             Tuple of (class_logits, auxiliary_outputs)
         """
-        # Adapt parameters if requested
         adaptation_info = {}
         if adapt and transform_labels is not None:
             adaptation_info = self.adapt_parameters(x, transform_labels)
         
-        # Extract base features
         features = self.extract_features(x)
         
-        # Apply adaptation layers
         adapted_features = features
         for layer in self.adaptation_layers:
             adapted_features = adapted_features + layer(adapted_features)
         
-        # Classification
         logits = self.classifier(adapted_features)
         
-        # Transformation prediction (for auxiliary task)
         transform_preds = self.transform_predictor(adapted_features)
         
-        # Prepare auxiliary outputs
         aux_outputs = {
             'features': adapted_features,
             'transform_predictions': transform_preds,
@@ -238,10 +219,8 @@ class TTT3fc(TTT):
         """
         super().__init__(config, base_model)
         
-        # Extract FC layer configuration
         self.fc_layers = config.get('fc_layers', [512, 256, 128])
         
-        # Create three FC layers
         fc_dims = [self.embed_dim] + self.fc_layers
         self.fc_blocks = nn.ModuleList()
         
@@ -253,7 +232,6 @@ class TTT3fc(TTT):
                 nn.LayerNorm(fc_dims[i+1])
             ))
         
-        # Update adaptation layers to work with final FC dimension
         final_dim = self.fc_layers[-1]
         self.adaptation_layers = nn.ModuleList([
             nn.Sequential(
@@ -263,7 +241,6 @@ class TTT3fc(TTT):
             ) for _ in range(self.ttt_layers)
         ])
         
-        # Update heads for final dimension
         self.transform_predictor = nn.Sequential(
             nn.Linear(final_dim, final_dim // 2),
             nn.ReLU(),
@@ -272,7 +249,6 @@ class TTT3fc(TTT):
         
         self.classifier = nn.Linear(final_dim, self.num_classes)
         
-        # Re-initialize weights
         self._init_weights()
         
     def extract_features(self, x: torch.Tensor) -> torch.Tensor:
@@ -285,10 +261,8 @@ class TTT3fc(TTT):
         Returns:
             Feature tensor of shape (B, final_fc_dim)
         """
-        # Get base features
         features = super().extract_features(x)
         
-        # Apply FC layers
         for fc_block in self.fc_blocks:
             features = fc_block(features)
         

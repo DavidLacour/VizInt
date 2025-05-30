@@ -20,13 +20,11 @@ def demonstrate_frequency_selectivity():
     print("🌊 Wiener Filter Frequency Selectivity Demo")
     print("=" * 60)
     
-    # Create test image with different frequency components
     size = 128
     x = np.linspace(0, 1, size)
     y = np.linspace(0, 1, size)
     xx, yy = np.meshgrid(x, y)
     
-    # Create image with multiple frequency components
     # Low frequency: gradients
     low_freq = xx + yy
     
@@ -36,11 +34,8 @@ def demonstrate_frequency_selectivity():
     # High frequency: fine texture
     high_freq = np.sin(100 * np.pi * xx) * np.sin(100 * np.pi * yy) * 0.1
     
-    # Combine
     test_image = low_freq + med_freq + high_freq
     test_image = (test_image - test_image.min()) / (test_image.max() - test_image.min())
-    
-    # Convert to RGB tensor
     test_tensor = torch.tensor(test_image, dtype=torch.float32)
     test_tensor = test_tensor.unsqueeze(0).repeat(3, 1, 1)
     
@@ -49,7 +44,6 @@ def demonstrate_frequency_selectivity():
     noisy = test_tensor + torch.randn_like(test_tensor) * noise_std
     noisy = torch.clamp(noisy, 0, 1)
     
-    # Apply filters
     results = {
         'Original': test_tensor,
         'Noisy': noisy,
@@ -58,37 +52,28 @@ def demonstrate_frequency_selectivity():
         'Wiener': HealerTransforms.apply_wiener_denoising(noisy, noise_std, method='wiener')
     }
     
-    # Create visualization
     fig = plt.figure(figsize=(20, 12))
     
-    # Top row: Images
     for idx, (name, img) in enumerate(results.items()):
         ax = plt.subplot(3, 5, idx + 1)
         show_image(ax, img, name)
-    
-    # Middle row: Frequency spectra
     for idx, (name, img) in enumerate(results.items()):
         ax = plt.subplot(3, 5, idx + 6)
         show_spectrum(ax, img, f"{name} Spectrum")
-    
-    # Bottom row: Frequency response curves
     ax_response = plt.subplot(3, 1, 3)
     plot_frequency_responses(ax_response, results)
     
     plt.tight_layout()
     
-    # Save
     output_path = Path("../../../visualizationsrendu/demos/") / "wiener_frequency_selectivity.png"
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"\n✅ Saved to: {output_path}")
     
-    # Create a second figure showing real image example
     create_real_image_demo()
 
 
 def create_real_image_demo():
     """Show Wiener advantages on real CIFAR-10 image"""
-    # Load real image
     config = ConfigLoader()
     data_factory = DataLoaderFactory(config)
     _, val_loader = data_factory.create_data_loaders('cifar10', with_normalization=False, with_augmentation=False)
@@ -96,12 +81,10 @@ def create_real_image_demo():
     images, _ = next(iter(val_loader))
     original = images[0]
     
-    # Add noise
     noise_std = 0.1
     noisy = original + torch.randn_like(original) * noise_std
     noisy = torch.clamp(noisy, 0, 1)
     
-    # Apply methods
     methods = {
         'Original': original,
         'Noisy (σ=0.1)': noisy,
@@ -110,21 +93,16 @@ def create_real_image_demo():
         'Bilateral': HealerTransforms.apply_wiener_denoising(noisy, noise_std, method='bilateral')
     }
     
-    # Create figure
     fig, axes = plt.subplots(2, 5, figsize=(20, 8))
     
-    # Show images
     for idx, (name, img) in enumerate(methods.items()):
         ax = axes[0, idx]
         show_image(ax, img, name)
-        
-        # Calculate metrics
         if 'Noisy' not in name and name != 'Original':
             psnr = calculate_psnr(original, img)
             ax.text(0.5, -0.1, f"PSNR: {psnr:.1f} dB", 
                    transform=ax.transAxes, ha='center')
     
-    # Show difference maps
     for idx, (name, img) in enumerate(methods.items()):
         ax = axes[1, idx]
         if name == 'Original':
@@ -158,13 +136,11 @@ def show_image(ax, tensor, title):
 
 def show_spectrum(ax, tensor, title):
     """Show frequency spectrum"""
-    # Convert to grayscale for visualization
     if tensor.dim() == 3:
         gray = 0.299 * tensor[0] + 0.587 * tensor[1] + 0.114 * tensor[2]
     else:
         gray = tensor
     
-    # FFT and shift
     fft = np.fft.fft2(gray.numpy())
     fft_shift = np.fft.fftshift(fft)
     magnitude = np.log(np.abs(fft_shift) + 1)
@@ -180,17 +156,14 @@ def plot_frequency_responses(ax, results):
               'Bilateral': 'green', 'Wiener': 'purple'}
     
     for name, img in results.items():
-        # Convert to grayscale
         if img.dim() == 3:
             gray = 0.299 * img[0] + 0.587 * img[1] + 0.114 * img[2]
         else:
             gray = img
         
-        # FFT
         fft = np.fft.fft2(gray.numpy())
         power = np.abs(fft) ** 2
         
-        # Radial average
         h, w = gray.shape
         y, x = np.ogrid[:h, :w]
         center = (h//2, w//2)
@@ -202,7 +175,6 @@ def plot_frequency_responses(ax, results):
             if mask.any():
                 radial_prof[i] = power[mask].mean()
         
-        # Normalize and plot
         freqs = np.arange(len(radial_prof)) / len(radial_prof)
         ax.semilogy(freqs[:len(freqs)//2], radial_prof[:len(radial_prof)//2] / radial_prof[0], 
                    label=name, color=colors.get(name, 'gray'), linewidth=2, alpha=0.8)
@@ -214,7 +186,6 @@ def plot_frequency_responses(ax, results):
     ax.grid(True, alpha=0.3)
     ax.set_xlim(0, 0.5)
     
-    # Add annotations
     ax.axvline(x=0.1, color='gray', linestyle='--', alpha=0.5)
     ax.axvline(x=0.3, color='gray', linestyle='--', alpha=0.5)
     ax.text(0.05, 1e-3, 'Low Freq\n(Structure)', ha='center', fontsize=9)

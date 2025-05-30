@@ -17,7 +17,6 @@ from src.data.data_loader import DataLoaderFactory
 
 def visualize_moderate_noise():
     """Compare denoising at different noise levels"""
-    # Load data
     config = ConfigLoader()
     data_factory = DataLoaderFactory(config)
     _, val_loader = data_factory.create_data_loaders('cifar10', with_normalization=False, with_augmentation=False)
@@ -25,14 +24,11 @@ def visualize_moderate_noise():
     images, labels = next(iter(val_loader))
     original = images[0]
     
-    # Test multiple noise levels
     noise_levels = [0.05, 0.1, 0.2, 0.3]
     methods = ['gaussian', 'bilateral', 'nlm', 'wiener']
     
-    # Create figure
     fig, axes = plt.subplots(len(noise_levels) + 1, len(methods) + 1, figsize=(20, 20))
     
-    # Headers
     axes[0, 0].text(0.5, 0.5, 'Original', ha='center', va='center', fontsize=14, weight='bold')
     axes[0, 0].axis('off')
     
@@ -40,28 +36,22 @@ def visualize_moderate_noise():
         axes[0, j+1].text(0.5, 0.5, method.capitalize(), ha='center', va='center', fontsize=14, weight='bold')
         axes[0, j+1].axis('off')
     
-    # Show original in first column
     for i in range(1, len(noise_levels) + 1):
         show_image(axes[i, 0], original, f"σ = {noise_levels[i-1]}")
     
     # Process each noise level
     for i, noise_std in enumerate(noise_levels):
-        # Add noise
         noisy = original + torch.randn_like(original) * noise_std
         noisy = torch.clamp(noisy, 0, 1)
         
-        # Apply each method
         for j, method in enumerate(methods):
             denoised = HealerTransforms.apply_wiener_denoising(noisy, noise_std, method=method)
             
-            # Calculate PSNR
             mse = torch.mean((original - denoised) ** 2)
             psnr = 20 * torch.log10(1.0 / torch.sqrt(mse)) if mse > 0 else float('inf')
             
-            # Show result
             show_image(axes[i+1, j+1], denoised, f"PSNR: {psnr:.1f}")
             
-            # Highlight best for each noise level
             if noise_std == 0.1 and method == 'bilateral':
                 axes[i+1, j+1].patch.set_edgecolor('green')
                 axes[i+1, j+1].patch.set_linewidth(3)
@@ -69,22 +59,18 @@ def visualize_moderate_noise():
     plt.suptitle('Denoising Performance at Different Noise Levels', fontsize=16)
     plt.tight_layout()
     
-    # Save
     output_path = Path("../../../visualizationsrendu/demos/") / "noise_levels_comparison.png"
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"✅ Saved to: {output_path}")
     
-    # Create zoomed comparison for σ=0.1
     create_zoomed_comparison(original, 0.1)
 
 
 def create_zoomed_comparison(original, noise_std=0.1):
     """Create detailed comparison at moderate noise level"""
-    # Add noise
     noisy = original + torch.randn_like(original) * noise_std
     noisy = torch.clamp(noisy, 0, 1)
     
-    # Apply methods
     methods = {
         'Original': original,
         'Noisy': noisy,
@@ -92,30 +78,24 @@ def create_zoomed_comparison(original, noise_std=0.1):
         'Bilateral': HealerTransforms.apply_wiener_denoising(noisy, noise_std, method='bilateral'),
     }
     
-    # Create figure with zoomed regions
     fig, axes = plt.subplots(2, 4, figsize=(16, 8))
     
-    # Define zoom region (center crop)
     h, w = original.shape[1:]
     crop_size = 16
     start_h, start_w = h//2 - crop_size//2, w//2 - crop_size//2
     
     for idx, (name, img) in enumerate(methods.items()):
-        # Full image
         ax = axes[0, idx]
         show_image(ax, img, name)
         
-        # Draw zoom box
         rect = plt.Rectangle((start_w, start_h), crop_size, crop_size, 
                            fill=False, edgecolor='red', linewidth=2)
         ax.add_patch(rect)
         
-        # Zoomed region
         ax_zoom = axes[1, idx]
         zoom = img[:, start_h:start_h+crop_size, start_w:start_w+crop_size]
         show_image(ax_zoom, zoom, f"{name} (Zoomed)")
         
-        # Calculate quality metrics
         if name not in ['Original', 'Noisy']:
             mse = torch.mean((original - img) ** 2)
             psnr = 20 * torch.log10(1.0 / torch.sqrt(mse))

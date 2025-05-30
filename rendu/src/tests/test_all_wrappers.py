@@ -11,13 +11,10 @@ from models.model_factory import ModelFactory
 
 def test_all_wrapped_models():
     """Test creating and using all wrapped models"""
-    
-    # Load configuration
     config_path = Path(__file__).parent.parent / 'config' / 'cifar10_config.yaml'
     config_loader = ConfigLoader(config_path)
     model_factory = ModelFactory(config_loader)
     
-    # Test all wrapper types
     wrapper_models = {
         'blended_resnet18': 'BlendedWrapper with ResNet18',
         'ttt_resnet18': 'TTTWrapper with ResNet18', 
@@ -29,7 +26,6 @@ def test_all_wrapped_models():
     for model_type, description in wrapper_models.items():
         print(f"\nTesting {description}...")
         
-        # Create model
         model = model_factory.create_model(model_type, 'cifar10')
         print(f"Created {description}")
         print(f"Number of parameters: {sum(p.numel() for p in model.parameters()):,}")
@@ -40,7 +36,7 @@ def test_all_wrapped_models():
             print(f"Backbone parameters: {backbone_params:,}")
             print(f"Trainable parameters: {trainable_params:,}")
         
-        # Test forward pass
+
         with torch.no_grad():
             output = model(dummy_input)
             
@@ -53,7 +49,6 @@ def test_all_wrapped_models():
             else:
                 print(f"Output shape: {output.shape}")
         
-        # Test specific wrapper functionality
         if model_type == 'ttt_resnet18':
             print("Testing TTT adaptation...")
             dummy_transform_labels = torch.randint(0, 4, (2,))

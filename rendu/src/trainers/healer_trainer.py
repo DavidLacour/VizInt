@@ -32,7 +32,6 @@ class HealerTrainer(BaseTrainer):
         self.transform_type_criterion = nn.CrossEntropyLoss()
         self.regression_criterion = nn.MSELoss()
         
-        # Training configuration
         train_config = config.get('training', {})
         healer_config = train_config.get('healer', {})
         
@@ -40,11 +39,9 @@ class HealerTrainer(BaseTrainer):
         self.transform_type_weight = healer_config.get('transform_type_weight', 1.0)
         self.transform_params_weight = healer_config.get('transform_params_weight', 0.5)
         
-        # Transformation settings
         self.transform_severity = healer_config.get('transform_severity', 0.5)
         self.transform_probability = healer_config.get('transform_probability', 0.8)
         
-        # Create continuous transforms
         self.continuous_transforms = ContinuousTransforms(severity=self.transform_severity)
         self.num_transform_types = len(self.continuous_transforms.transform_types)
         
@@ -114,14 +111,10 @@ class HealerTrainer(BaseTrainer):
         
         for i in range(batch_size):
             if np.random.rand() < self.transform_probability:
-                # Choose random transformation type (excluding 'none')
                 transform_idx = np.random.randint(1, self.num_transform_types)
                 transform_type = self.continuous_transforms.transform_types[transform_idx]
-                
-                # Random severity
                 severity = np.random.uniform(0.1, self.transform_severity)
                 
-                # Apply transformation and get parameters
                 transformed_img, params = self.continuous_transforms.apply_transforms_unnormalized(
                     images[i], 
                     transform_type=transform_type,
@@ -131,7 +124,6 @@ class HealerTrainer(BaseTrainer):
                 transformed_images.append(transformed_img)
                 transform_types.append(transform_idx)
                 
-                # Extract transformation parameters
                 rotation_angles.append(params.get('angle', 0.0))
                 noise_stds.append(params.get('noise_std', 0.0))
                 translate_xs.append(params.get('translate_x', 0.0))
@@ -149,7 +141,6 @@ class HealerTrainer(BaseTrainer):
                 shear_xs.append(0.0)
                 shear_ys.append(0.0)
         
-        # Stack into tensors
         transformed_images = torch.stack(transformed_images)
         transform_labels = {
             'transform_type': torch.tensor(transform_types, dtype=torch.long, device=self.device),
@@ -177,14 +168,12 @@ class HealerTrainer(BaseTrainer):
         """
         losses = {}
         
-        # Transform type prediction loss (categorical)
         if 'transform_type_logits' in predictions:
             losses['transform_type'] = self.transform_type_criterion(
                 predictions['transform_type_logits'], 
                 transform_labels['transform_type']
             )
         
-        # Regression losses for transformation parameters
         if 'rotation_angle' in predictions:
             losses['rotation'] = self.regression_criterion(
                 predictions['rotation_angle'], 
@@ -215,13 +204,11 @@ class HealerTrainer(BaseTrainer):
                 transform_labels['shear_y']
             )
         
-        # Combine losses
         total_loss = torch.tensor(0.0, device=self.device)
         
         if 'transform_type' in losses:
             total_loss = total_loss + self.transform_type_weight * losses['transform_type']
         
-        # Add regression losses
         for key in ['rotation', 'noise', 'translation', 'shear']:
             if key in losses:
                 total_loss = total_loss + self.transform_params_weight * losses[key]
@@ -233,25 +220,17 @@ class HealerTrainer(BaseTrainer):
         """Single training step for transformation prediction"""
         images, labels = batch
         
-        # Apply transformations and get ground truth
         transformed_images, labels, transform_labels = self.apply_transformations_with_labels(images, labels)
         
-        # Forward pass - model returns transformation predictions only
         outputs = self.model(transformed_images, training_mode=True)
-        
-        # Compute losses (no class labels needed)
         losses = self.compute_losses(outputs, transform_labels)
         
-        # Compute metrics
         metrics = {'loss': losses['total']}
-        
-        # Transform type accuracy
         if 'transform_type_logits' in outputs:
             _, predicted_transforms = torch.max(outputs['transform_type_logits'], 1)
             transform_accuracy = (predicted_transforms == transform_labels['transform_type']).float().mean()
             metrics['transform_acc'] = transform_accuracy
         
-        # Add individual losses to metrics
         for key, value in losses.items():
             if key != 'total':
                 metrics[f'loss_{key}'] = value
@@ -262,19 +241,14 @@ class HealerTrainer(BaseTrainer):
         """Single validation step"""
         images, labels = batch
         
-        # Apply transformations for validation too
         transformed_images, labels, transform_labels = self.apply_transformations_with_labels(images, labels)
         
-        # Forward pass
         outputs = self.model(transformed_images, training_mode=True)
         
-        # Compute losses (no class labels needed)
         losses = self.compute_losses(outputs, transform_labels)
         
-        # Compute metrics
         metrics = {'loss': losses['total']}
         
-        # Transform type accuracy
         if 'transform_type_logits' in outputs:
             _, predicted_transforms = torch.max(outputs['transform_type_logits'], 1)
             transform_accuracy = (predicted_transforms == transform_labels['transform_type']).float().mean()

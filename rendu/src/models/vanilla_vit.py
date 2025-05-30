@@ -102,10 +102,8 @@ class VanillaViT(ClassificationModel):
         """
         B = x.shape[0]
         
-        # Patch embedding: (B, C, H, W) -> (B, num_patches, embed_dim)
         x = self.patch_embed(x)
         
-        # Add CLS token: (B, num_patches, embed_dim) -> (B, 1 + num_patches, embed_dim)
         cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
         

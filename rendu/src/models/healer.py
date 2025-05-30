@@ -41,7 +41,6 @@ class Healer(TransformationAwareModel):
         num_transforms = config.get('num_transform_types', 4)
         super().__init__(config, num_classes, num_transforms)
         
-        # Extract configuration
         self.img_size = config['img_size']
         self.patch_size = config['patch_size']
         self.embed_dim = config['embed_dim']
@@ -51,7 +50,6 @@ class Healer(TransformationAwareModel):
         self.num_denoising_steps = config.get('num_denoising_steps', 3)
         self.dropout = config.get('dropout', 0.1)
         
-        # Patch embedding
         self.patch_embed = PatchEmbed(
             img_size=self.img_size,
             patch_size=self.patch_size,
@@ -62,17 +60,14 @@ class Healer(TransformationAwareModel):
         
         self.num_patches = self.patch_embed.num_patches
         
-        # CLS token
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.embed_dim))
         nn.init.normal_(self.cls_token, std=0.02)
         
-        # Position embeddings
         self.pos_embed = nn.Parameter(
             torch.zeros(1, 1 + self.num_patches, self.embed_dim)
         )
         nn.init.normal_(self.pos_embed, std=0.02)
         
-        # Transformer blocks
         self.blocks = TransformerTrunk(
             dim=self.embed_dim,
             depth=self.depth,
@@ -81,26 +76,17 @@ class Healer(TransformationAwareModel):
             use_bias=False
         ).blocks
         
-        # Normalization layer
         self.norm = LayerNorm(self.embed_dim, bias=False)
         
-        # Transformation prediction heads
         self.transform_type_head = nn.Linear(self.embed_dim, self.num_transforms)
         self.rotation_head = nn.Linear(self.embed_dim, 1)
         self.noise_head = nn.Linear(self.embed_dim, 1)
         self.affine_head = nn.Linear(self.embed_dim, 4)  # translate_x, translate_y, shear_x, shear_y
         
-        # Remove the complex healing network and output projection
-        # We'll use direct inverse transformations instead
-        
-        # No classification head needed - Healer only predicts transformations
-        
-        # Initialize weights
         self._init_weights()
         
     def _init_weights(self):
         """Initialize model weights"""
-        # Initialize transformation heads
         for head in [self.transform_type_head, self.rotation_head, self.noise_head, self.affine_head]:
             nn.init.normal_(head.weight, std=0.02)
             if head.bias is not None:
@@ -118,24 +104,18 @@ class Healer(TransformationAwareModel):
         """
         B = x.shape[0]
         
-        # Patch embedding
         x = self.patch_embed(x)
         
-        # Add CLS token
         cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
         
-        # Add position embeddings
         x = x + self.pos_embed
         
-        # Apply transformer blocks
         for block in self.blocks:
             x = block(x)
         
-        # Apply layer norm
         x = self.norm(x)
         
-        # Return both CLS token and patch features
         return x
     
     def predict_transformations(self, features: torch.Tensor) -> Dict[str, torch.Tensor]:
@@ -148,17 +128,13 @@ class Healer(TransformationAwareModel):
         Returns:
             Dictionary containing transformation predictions
         """
-        # Use CLS token for predictions
         cls_features = features[:, 0]
         
-        # Predict transformation type
         transform_type_logits = self.transform_type_head(cls_features)
         
-        # Predict transformation parameters
         rotation_angle = torch.tanh(self.rotation_head(cls_features)) * 180.0
         noise_std = torch.sigmoid(self.noise_head(cls_features)) * 0.5
         
-        # Affine transformation parameters
         affine_params = self.affine_head(cls_features)  # [B, 4]
         translate_x = torch.tanh(affine_params[:, 0:1]) * 0.1
         translate_y = torch.tanh(affine_params[:, 1:2]) * 0.1
@@ -186,7 +162,6 @@ class Healer(TransformationAwareModel):
         Returns:
             corrected_images: Tensor of corrected images [B, C, H, W]
         """
-        # Use the static method from HealerTransforms
         return HealerTransforms.apply_batch_correction(transformed_images, predictions)
     
     
@@ -208,15 +183,11 @@ class Healer(TransformationAwareModel):
             If return_logits is True and classification_head exists: returns logits
             Otherwise: returns tuple of (predictions, None) for compatibility
         """
-        # Extract features
         features = self.extract_features(x)
         
         # Training mode - return transformation predictions for training
         if training_mode:
-            # Get transformation predictions
             transform_preds = self.predict_transformations(features)
-            
-            # Return transformation predictions only
             outputs = {
                 'transform_type_logits': transform_preds['transform_type_logits'],
                 'rotation_angle': transform_preds['rotation_angle'],
@@ -230,8 +201,5 @@ class Healer(TransformationAwareModel):
             return outputs
         
         # For healing mode (inference/evaluation)
-        # Predict transformations
         transform_preds = self.predict_transformations(features)
-        
-        # Return predictions and None for compatibility with existing interface
         return transform_preds, None

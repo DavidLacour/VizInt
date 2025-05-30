@@ -11,33 +11,27 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.models.healer_transforms import HealerTransforms
 
-# Create test image
 test_image = torch.rand(3, 32, 32)
 noise_std = 0.1
 
-# Add noise
 noisy = test_image + torch.randn_like(test_image) * noise_std
 noisy = torch.clamp(noisy, 0, 1)
 
 print("Testing default denoising method...")
 print("=" * 50)
 
-# Test default method
 start = time.time()
 denoised_default = HealerTransforms.apply_gaussian_denoising(noisy, noise_std)
 time_default = time.time() - start
 
-# Test explicit bilateral
 start = time.time()
 denoised_bilateral = HealerTransforms.apply_wiener_denoising(noisy, noise_std, method='bilateral')
 time_bilateral = time.time() - start
 
-# Test old gaussian
 start = time.time()
 denoised_gaussian = HealerTransforms.apply_wiener_denoising(noisy, noise_std, method='gaussian')
 time_gaussian = time.time() - start
 
-# Compare
 diff = torch.abs(denoised_default - denoised_bilateral).mean()
 print(f"Default method time: {time_default*1000:.2f}ms")
 print(f"Bilateral method time: {time_bilateral*1000:.2f}ms")

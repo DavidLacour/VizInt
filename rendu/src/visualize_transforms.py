@@ -9,7 +9,6 @@ import numpy as np
 from torchvision import transforms
 import argparse
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.config.config_loader import ConfigLoader
@@ -22,19 +21,12 @@ def visualize_transform_and_healing(args):
     """
     Main visualization function
     """
-    # Load configuration
     config = ConfigLoader()
-    
-    # Set device
     device = torch.device(config.get_device())
     
-    # Create data loader factory
     data_factory = DataLoaderFactory(config)
-    
-    # Create model factory
     model_factory = ModelFactory(config)
     
-    # Load dataset
     print(f"Loading {args.dataset} dataset...")
     train_loader, val_loader = data_factory.create_data_loaders(
         args.dataset, 
@@ -42,7 +34,6 @@ def visualize_transform_and_healing(args):
         with_augmentation=False
     )
     
-    # Use validation loader for consistent images
     data_loader = val_loader
     
     # Load healer model if requested
@@ -61,16 +52,11 @@ def visualize_transform_and_healing(args):
             print(f"Healer model not found at {healer_path}")
             args.use_healer = False
     
-    # Get normalization transform
     normalize = data_factory.get_normalization_transform(args.dataset)
-    
-    # Create continuous transforms
     transforms_for_robustness = ContinuousTransforms(severity=args.severity)
     
-    # Get a batch of images
     images_batch, labels_batch = next(iter(data_loader))
     
-    # Select images to visualize
     num_images = min(args.num_images, len(images_batch))
     
     # Process each image
@@ -78,7 +64,6 @@ def visualize_transform_and_healing(args):
         original_img = images_batch[img_idx]
         label = labels_batch[img_idx].item()
         
-        # Create figure
         fig_rows = 2 if args.use_healer else 1
         fig, axes = plt.subplots(fig_rows, 4, figsize=(16, 4 * fig_rows))
         if fig_rows == 1:
@@ -92,7 +77,6 @@ def visualize_transform_and_healing(args):
         transform_types = ['gaussian_noise', 'rotation', 'affine']
         
         for t_idx, transform_type in enumerate(transform_types):
-            # Apply transformation
             transformed_img, transform_params = transforms_for_robustness.apply_transforms(
                 original_img, 
                 transform_type=transform_type,
@@ -107,25 +91,18 @@ def visualize_transform_and_healing(args):
             
             # Apply healer correction if available
             if args.use_healer and healer_model is not None:
-                # Normalize image for healer
                 normalized_img = normalize(transformed_img)
                 normalized_batch = normalized_img.unsqueeze(0).to(device)
                 
                 with torch.no_grad():
-                    # Get healer predictions
                     predictions, _ = healer_model(normalized_batch, return_reconstruction=False, return_logits=False)
-                    
-                    # Apply corrections
                     corrected_batch = healer_model.apply_correction(normalized_batch, predictions)
                     corrected_img = corrected_batch[0].cpu()
                 
-                # Denormalize for visualization
                 denormalized_img = denormalize_image(corrected_img, args.dataset)
                 
-                # Show corrected image
                 ax = axes[1, t_idx + 1]
                 
-                # Get predicted transform type
                 if 'transform_type_logits' in predictions:
                     pred_transform_idx = torch.argmax(predictions['transform_type_logits'], dim=1).item()
                     pred_transform = transforms_for_robustness.transform_types[pred_transform_idx]
@@ -144,7 +121,6 @@ def visualize_transform_and_healing(args):
         plt.suptitle(f"{args.dataset.upper()} - Image {img_idx + 1} - Severity: {args.severity}", fontsize=16)
         plt.tight_layout()
         
-        # Save or show
         if args.save_path:
             save_path = Path(args.save_path) / f"{args.dataset}_transform_demo_{img_idx + 1}.png"
             save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,16 +134,13 @@ def visualize_transform_and_healing(args):
 
 def show_image(ax, img_tensor, title):
     """Display image on axis"""
-    # Convert tensor to numpy
     if img_tensor.dim() == 3:
         img_np = img_tensor.permute(1, 2, 0).numpy()
     else:
         img_np = img_tensor.numpy()
     
-    # Clip values to [0, 1]
     img_np = np.clip(img_np, 0, 1)
     
-    # Show image
     ax.imshow(img_np)
     ax.set_title(title, fontsize=10)
     ax.axis('off')
@@ -202,7 +175,6 @@ def denormalize_image(img_tensor, dataset_name):
         mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
         std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
     
-    # Denormalize
     denormalized = img_tensor * std + mean
     return torch.clamp(denormalized, 0, 1)
 

@@ -102,36 +102,28 @@ class ModelFactory:
             return BlendedTraining3fc(model_config)
             
         elif model_type == 'blended_resnet18':
-            # Create ResNet18 backbone
             backbone_config = model_config.copy()
             backbone_config['model_type'] = 'resnet18'
             backbone = ResNetBaseline(backbone_config)
-            # Get feature dimension from ResNet18 (512 for resnet18)
             feature_dim = 512
             return BlendedWrapper(backbone, model_config, feature_dim)
             
         elif model_type == 'ttt_resnet18':
-            # Create ResNet18 backbone
             backbone_config = model_config.copy()
             backbone_config['model_type'] = 'resnet18'
             backbone = ResNetBaseline(backbone_config)
-            # Get feature dimension from ResNet18 (512 for resnet18)
             feature_dim = 512
             return TTTWrapper(backbone, model_config, feature_dim)
             
         
             
         elif model_type == 'healer_resnet18':
-            # Create ResNet18 backbone
             backbone_config = model_config.copy()
             backbone_config['model_type'] = 'resnet18'
             backbone = ResNetBaseline(backbone_config)
-            # Get feature dimension from ResNet18 (512 for resnet18)
             feature_dim = 512
             return HealerWrapper(backbone, model_config, feature_dim)
             
-            
-        # Corrector models for standalone training
         elif model_type == 'unet_corrector':
             return PretrainedUNetCorrector(model_config)
             
@@ -141,7 +133,6 @@ class ModelFactory:
         elif model_type == 'hybrid_corrector':
             return HybridCorrector(model_config)
             
-        # Corrector + classifier combinations
         elif model_type == 'unet_resnet18':
             backbone = ResNetBaseline(model_config)
             return UNetCorrectorWrapper(backbone, model_config)
@@ -201,34 +192,27 @@ class ModelFactory:
         
         if model_type in ['ttt', 'ttt3fc', 'ttt_robust', 'ttt3fc_robust']:
             # Check if the saved model has a base_model in the state dict
-            # This indicates it was saved with a base model included
             has_saved_base_model = any(k.startswith('base_model.') for k in state_dict.keys())
             
             self.logger.info(f"Loading {model_type}: has_saved_base_model={has_saved_base_model}")
             
             if has_saved_base_model:
-                # The saved model has a VanillaViT base model
-                # We need to create the appropriate base model first
                 base_model_keys = [k for k in state_dict.keys() if k.startswith('base_model.')]
                 
                 # Check if it's a VanillaViT based on the presence of cls_token
                 if 'base_model.cls_token' in state_dict:
                     self.logger.info(f"Detected VanillaViT base model in saved {model_type}")
                     
-                    # Create a VanillaViT base model
                     from .vanilla_vit import VanillaViT
                     dataset_config = self.config.get_dataset_config(dataset_name)
                     base_config = self.config.get_model_config('vanilla_vit').copy()
                     base_config['num_classes'] = dataset_config['num_classes']
                     base_config['img_size'] = dataset_config['img_size']
                     
-                    # Create the base model
                     vit_base = VanillaViT(base_config)
                     
-                    # Create TTT model with this base
                     model = self.create_model(model_type, dataset_name, base_model=vit_base)
                 else:
-                    # Unknown base model type, try without base model
                     self.logger.warning(f"Unknown base model type in {model_type}, creating without base model")
                     model = self.create_model(model_type, dataset_name, base_model=None)
             else:
@@ -236,14 +220,12 @@ class ModelFactory:
                 self.logger.info(f"Creating {model_type} with external base model")
                 model = self.create_model(model_type, dataset_name, base_model)
         elif model_type in ['blended_resnet18', 'ttt_resnet18', 'healer_resnet18']:
-            # Handle wrapped models
             self.logger.info(f"Loading wrapped model {model_type}")
             model = self.create_model(model_type, dataset_name)
         else:
             # Create model normally for non-TTT models
             model = self.create_model(model_type, dataset_name, base_model)
             
-        # Load state dict
         model.load_state_dict(state_dict)
         model = model.to(device)
         model.eval()

@@ -34,12 +34,10 @@ class CorrectorWrapper(ClassificationModel):
         self.corrector = corrector
         self.backbone = backbone
         
-        # Freeze corrector if specified
         if config.get('freeze_corrector', True):
             for param in self.corrector.parameters():
                 param.requires_grad = False
         
-        # Get backbone feature dimension
         if hasattr(backbone, 'feature_dim'):
             self.feature_dim = backbone.feature_dim
         elif hasattr(backbone, 'fc'):
@@ -90,16 +88,13 @@ class CorrectorWrapper(ClassificationModel):
         Returns:
             Feature tensor [B, feature_dim]
         """
-        # First correct the input
         corrected_x = self.correct_input(x)
         
-        # Extract features using backbone
         if hasattr(self.backbone, 'extract_features'):
             features = self.backbone.extract_features(corrected_x)
         else:
             features = self.backbone(corrected_x)
         
-        # Ensure features are 2D
         if features.dim() > 2:
             features = F.adaptive_avg_pool2d(features, 1).flatten(1)
         
@@ -117,13 +112,10 @@ class CorrectorWrapper(ClassificationModel):
             If return_corrected=False: Classification logits
             If return_corrected=True: Tuple of (logits, corrected_images)
         """
-        # Correct input
         corrected_x = self.correct_input(x)
         
-        # Extract features and classify
         features = self.extract_features(x)  # This will internally apply correction
         
-        # Get logits from backbone
         if hasattr(self.backbone, 'classifier'):
             logits = self.backbone.classifier(features)
         elif hasattr(self.backbone, 'fc'):
@@ -151,7 +143,6 @@ class UNetCorrectorWrapper(CorrectorWrapper):
             config: Configuration dictionary
             corrector_checkpoint: Path to trained UNet corrector checkpoint
         """
-        # Create UNet corrector
         corrector_config = {
             'img_size': config['img_size'],
             'in_channels': 3,
@@ -160,7 +151,6 @@ class UNetCorrectorWrapper(CorrectorWrapper):
         }
         corrector = PretrainedUNetCorrector(corrector_config)
         
-        # Load checkpoint if provided
         if corrector_checkpoint and corrector_checkpoint.exists():
             checkpoint = torch.load(corrector_checkpoint, map_location='cpu')
             corrector.load_state_dict(checkpoint['model_state_dict'])
@@ -180,7 +170,6 @@ class TransformerCorrectorWrapper(CorrectorWrapper):
             config: Configuration dictionary
             corrector_checkpoint: Path to trained Transformer corrector checkpoint
         """
-        # Create Transformer corrector
         corrector_config = {
             'img_size': config['img_size'],
             'patch_size': config.get('corrector_patch_size', 8),
@@ -194,7 +183,6 @@ class TransformerCorrectorWrapper(CorrectorWrapper):
         }
         corrector = ImageToImageTransformer(corrector_config)
         
-        # Load checkpoint if provided
         if corrector_checkpoint and corrector_checkpoint.exists():
             checkpoint = torch.load(corrector_checkpoint, map_location='cpu')
             corrector.load_state_dict(checkpoint['model_state_dict'])
@@ -214,7 +202,6 @@ class HybridCorrectorWrapper(CorrectorWrapper):
             config: Configuration dictionary
             corrector_checkpoint: Path to trained Hybrid corrector checkpoint
         """
-        # Create Hybrid corrector
         corrector_config = {
             'img_size': config['img_size'],
             'patch_size': config.get('corrector_patch_size', 8),
@@ -231,7 +218,6 @@ class HybridCorrectorWrapper(CorrectorWrapper):
         }
         corrector = HybridCorrector(corrector_config)
         
-        # Load checkpoint if provided
         if corrector_checkpoint and corrector_checkpoint.exists():
             checkpoint = torch.load(corrector_checkpoint, map_location='cpu')
             corrector.load_state_dict(checkpoint['model_state_dict'])
@@ -274,7 +260,6 @@ class AdaptiveCorrectorWrapper(ClassificationModel):
             nn.Linear(64, len(correctors))  # Predict which corrector to use
         )
         
-        # Get feature dimension
         with torch.no_grad():
             dummy_input = torch.randn(1, 3, config['img_size'], config['img_size'])
             if hasattr(backbone, 'extract_features'):
@@ -286,7 +271,6 @@ class AdaptiveCorrectorWrapper(ClassificationModel):
                 dummy_output = F.adaptive_avg_pool2d(dummy_output, 1).flatten(1)
             self.feature_dim = dummy_output.shape[1]
         
-        # Replace backbone classifier
         if hasattr(backbone, 'fc'):
             backbone.fc = nn.Linear(self.feature_dim, num_classes)
         elif hasattr(backbone, 'classifier'):

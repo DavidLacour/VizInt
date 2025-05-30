@@ -104,7 +104,6 @@ class VisionTransformer(nn.Module):
             use_resnet_stem=use_resnet_stem
         )
         
-        # Class token and position embedding
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         
         # Add learnable sinusoidal position embedding 

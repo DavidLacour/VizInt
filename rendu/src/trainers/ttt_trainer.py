@@ -106,16 +106,13 @@ class TTTTrainer(BaseTrainer):
         images, _ = batch
         batch_size = images.size(0)
         
-        # Apply transformations with fixed severity for validation
         transformed_images = []
         transform_labels = []
         
         for i in range(batch_size):
-            # Randomly choose transformation type
             transform_type = np.random.choice(self.continuous_transform.transform_types)
             transform_type_idx = self.continuous_transform.transform_types.index(transform_type)
             
-            # Apply transformation with fixed severity
             transformed_img, _ = self.continuous_transform.apply_transforms_unnormalized(
                 images[i], 
                 transform_type=transform_type,

@@ -29,7 +29,6 @@ class CorrectorTrainer:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.logger = logging.getLogger(self.__class__.__name__)
         
-        # Training parameters
         self.learning_rate = config.get('learning_rate', 1e-4)
         self.weight_decay = config.get('weight_decay', 1e-5)
         self.num_epochs = config.get('num_epochs', 50)
@@ -39,15 +38,12 @@ class CorrectorTrainer:
         self.transform_types = config.get('transform_types', ['gaussian_noise', 'rotation', 'affine'])
         self.severity_range = config.get('severity_range', [0.1, 0.8])
         
-        # Loss weights for combined loss
         self.l1_weight = config.get('l1_weight', 1.0)
         self.l2_weight = config.get('l2_weight', 0.5)
         self.perceptual_weight = config.get('perceptual_weight', 0.1)
         
-        # Initialize transform generator
         self.transforms = ContinuousTransforms(severity=1.0)
         
-        # Initialize perceptual loss if needed
         if 'perceptual' in self.loss_type:
             self._init_perceptual_loss()
     
@@ -55,7 +51,6 @@ class CorrectorTrainer:
         """Initialize perceptual loss using pre-trained VGG"""
         import torchvision.models as models
         
-        # Load pre-trained VGG16
         vgg = models.vgg16(pretrained=True).features[:16]  # Up to conv3_3
         self.perceptual_net = vgg.eval()
         for param in self.perceptual_net.parameters():
@@ -79,7 +74,6 @@ class CorrectorTrainer:
         mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1).to(pred.device)
         std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(pred.device)
         
-        # Ensure inputs are in [0, 1] range
         pred_norm = (torch.clamp(pred, -1, 1) + 1) / 2
         target_norm = (torch.clamp(target, -1, 1) + 1) / 2
         
@@ -91,11 +85,9 @@ class CorrectorTrainer:
             pred_norm = torch.nn.functional.interpolate(pred_norm, size=(32, 32), mode='bilinear')
             target_norm = torch.nn.functional.interpolate(target_norm, size=(32, 32), mode='bilinear')
         
-        # Extract features
         pred_features = self.perceptual_net(pred_norm)
         target_features = self.perceptual_net(target_norm)
         
-        # Calculate L2 loss in feature space
         return torch.nn.functional.mse_loss(pred_features, target_features)
     
     def _calculate_loss(self, pred: torch.Tensor, target: torch.Tensor) -> Dict[str, torch.Tensor]:
@@ -145,16 +137,11 @@ class CorrectorTrainer:
         corrupted_images = []
         
         for i in range(batch_size):
-            # Choose random transform type
             transform_type = np.random.choice(self.transform_types)
-            
-            # Choose random severity
             severity = np.random.uniform(self.severity_range[0], self.severity_range[1])
             
-            # Apply transform
             clean_img = clean_images[i]
             
-            # Use the unified apply_transforms method
             corrupted_img = self.transforms.apply_transforms(
                 clean_img, 
                 transform_type=transform_type, 
@@ -187,26 +174,20 @@ class CorrectorTrainer:
         for batch_idx, (clean_images, _) in enumerate(progress_bar):
             clean_images = clean_images.to(self.device)
             
-            # Generate corrupted images
             corrupted_images, targets = self._generate_training_batch(clean_images)
             corrupted_images = corrupted_images.to(self.device)
             
-            # Forward pass
             optimizer.zero_grad()
             predictions = model(corrupted_images)
             
-            # Calculate loss
             losses = self._calculate_loss(predictions, targets)
             
-            # Backward pass
             losses['total'].backward()
             
-            # Gradient clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             
             optimizer.step()
             
-            # Accumulate losses
             for key, value in losses.items():
                 if key not in epoch_losses:
                     epoch_losses[key] = 0
@@ -214,13 +195,11 @@ class CorrectorTrainer:
             
             num_batches += 1
             
-            # Update progress bar
             progress_bar.set_postfix({
                 'loss': f"{losses['total'].item():.4f}",
                 'l1': f"{losses.get('l1', torch.tensor(0)).item():.4f}"
             })
         
-        # Average losses
         for key in epoch_losses:
             epoch_losses[key] /= num_batches
         
@@ -246,22 +225,17 @@ class CorrectorTrainer:
             for clean_images, _ in tqdm(dataloader, desc="Validation"):
                 clean_images = clean_images.to(self.device)
                 
-                # Generate corrupted images
                 corrupted_images, targets = self._generate_training_batch(clean_images)
                 corrupted_images = corrupted_images.to(self.device)
                 
-                # Forward pass
                 predictions = model(corrupted_images)
                 
-                # Calculate loss
                 losses = self._calculate_loss(predictions, targets)
                 
-                # Calculate PSNR
                 mse = torch.nn.functional.mse_loss(predictions, targets)
                 psnr = 20 * torch.log10(1.0 / torch.sqrt(mse))
                 psnr_scores.append(psnr.item())
                 
-                # Accumulate losses
                 for key, value in losses.items():
                     if key not in epoch_losses:
                         epoch_losses[key] = 0
@@ -269,7 +243,6 @@ class CorrectorTrainer:
                 
                 num_batches += 1
         
-        # Average losses and metrics
         for key in epoch_losses:
             epoch_losses[key] /= num_batches
         
@@ -292,22 +265,18 @@ class CorrectorTrainer:
         Returns:
             Training history
         """
-        # Move model to device
         model = model.to(self.device)
         
-        # Initialize optimizer
         optimizer = optim.AdamW(
             model.parameters(),
             lr=self.learning_rate,
             weight_decay=self.weight_decay
         )
         
-        # Initialize scheduler
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=self.num_epochs
         )
         
-        # Training history
         history = {
             'train_losses': [],
             'val_losses': [],
@@ -330,7 +299,6 @@ class CorrectorTrainer:
                 val_losses = self.validate_epoch(model, val_loader)
                 history['val_losses'].append(val_losses)
                 
-                # Early stopping and best model saving
                 if val_losses['total'] < best_val_loss:
                     best_val_loss = val_losses['total']
                     patience_counter = 0
@@ -348,18 +316,16 @@ class CorrectorTrainer:
                     f"Patience: {patience_counter}/{patience}"
                 )
                 
-                # Early stopping
                 if patience_counter >= patience:
                     self.logger.info(f"Early stopping triggered after {epoch + 1} epochs")
                     break
             else:
                 self.logger.info(f"Train Loss: {train_losses['total']:.4f}")
             
-            # Update learning rate
             scheduler.step()
             history['learning_rates'].append(scheduler.get_last_lr()[0])
             
-            # Save checkpoint every few epochs
+            # Save checkpoint
             if save_dir and (epoch + 1) % 10 == 0:
                 checkpoint_path = save_dir / f"{self.model_type}_corrector_epoch_{epoch+1}.pth"
                 model.save_checkpoint(checkpoint_path, epoch, optimizer, train_losses)
