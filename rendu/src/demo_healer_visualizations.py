@@ -307,7 +307,7 @@ def demo_trained_healer(config_path: str = 'config/cifar10_config.yaml',
     healer.eval()
     
     # Load sample images
-    images, labels = load_sample_images(config_path, num_images=4)
+    images, labels = load_sample_images(config_path, num_images=1)
     
     # Test each transformation type
     transform_types = ['gaussian_noise', 'rotation', 'affine']
@@ -323,27 +323,26 @@ def demo_trained_healer(config_path: str = 'config/cifar10_config.yaml',
         # Apply corrections
         corrected = HealerTransforms.apply_batch_correction(transformed, predictions)
         
-        # Visualize results
-        fig, axes = plt.subplots(3, 4, figsize=(16, 12))
+        # Visualize results for single image
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4))
         
-        for i in range(4):
-            # Original
-            img_orig = images[i].permute(1, 2, 0).cpu().numpy()
-            axes[0, i].imshow(np.clip(img_orig, 0, 1))
-            axes[0, i].set_title('Original')
-            axes[0, i].axis('off')
-            
-            # Transformed
-            img_trans = transformed[i].permute(1, 2, 0).cpu().numpy()
-            axes[1, i].imshow(np.clip(img_trans, 0, 1))
-            axes[1, i].set_title(f'{transform_type.replace("_", " ").title()}')
-            axes[1, i].axis('off')
-            
-            # Corrected
-            img_corr = corrected[i].permute(1, 2, 0).cpu().numpy()
-            axes[2, i].imshow(np.clip(img_corr, 0, 1))
-            axes[2, i].set_title('Healer Corrected')
-            axes[2, i].axis('off')
+        # Original
+        img_orig = images[0].permute(1, 2, 0).cpu().numpy()
+        axes[0].imshow(np.clip(img_orig, 0, 1))
+        axes[0].set_title('Original')
+        axes[0].axis('off')
+        
+        # Transformed
+        img_trans = transformed[0].permute(1, 2, 0).cpu().numpy()
+        axes[1].imshow(np.clip(img_trans, 0, 1))
+        axes[1].set_title(f'{transform_type.replace("_", " ").title()}')
+        axes[1].axis('off')
+        
+        # Corrected
+        img_corr = corrected[0].permute(1, 2, 0).cpu().numpy()
+        axes[2].imshow(np.clip(img_corr, 0, 1))
+        axes[2].set_title('Healer Corrected')
+        axes[2].axis('off')
         
         plt.suptitle(f'Trained Healer Demo: {transform_type.replace("_", " ").title()}', fontsize=16)
         plt.tight_layout()
@@ -370,9 +369,9 @@ def main():
     vis_dir = Path(f'./healer_visualizations_{args.dataset}')
     vis_dir.mkdir(exist_ok=True)
     
-    print(f"Loading sample images from {args.dataset.upper()}...")
+    print(f"Loading sample image from {args.dataset.upper()}...")
     config_path = f'config/{args.dataset}_config.yaml'
-    images, labels = load_sample_images(config_path, num_images=4)
+    images, labels = load_sample_images(config_path, num_images=1)
     
     print("\n1. Demonstrating Healer corrections for different transformations...")
     for transform_type in ['gaussian_noise', 'rotation', 'affine']:
