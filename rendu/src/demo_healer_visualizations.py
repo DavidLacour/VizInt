@@ -50,37 +50,33 @@ def apply_transformations(images: torch.Tensor,
                          transform_type: str,
                          severity: float = 0.5) -> Tuple[torch.Tensor, Dict[str, float]]:
     """Apply continuous transformations to images"""
-    transforms = ContinuousTransforms()
+    transforms = ContinuousTransforms(severity=severity)
     transformed_images = []
+    all_params = []
     
+    for img in images:
+        transformed, params = transforms.apply_transforms(
+            img, 
+            transform_type=transform_type, 
+            severity=severity, 
+            return_params=True
+        )
+        transformed_images.append(transformed)
+        all_params.append(params)
+    
+    # Average parameters for visualization
+    avg_params = {}
     if transform_type == 'gaussian_noise':
-        for img in images:
-            transformed = transforms.gaussian_noise(img.unsqueeze(0), severity)
-            transformed_images.append(transformed.squeeze(0))
-        params = {'noise_std': severity * 0.5}
-        
+        avg_params['noise_std'] = sum(p['noise_std'] for p in all_params) / len(all_params)
     elif transform_type == 'rotation':
-        angle = severity * 360  # Max 360 degrees
-        for img in images:
-            transformed = transforms.rotation(img.unsqueeze(0), severity)
-            transformed_images.append(transformed.squeeze(0))
-        params = {'rotation_angle': angle}
-        
+        avg_params['rotation_angle'] = sum(p['rotation_angle'] for p in all_params) / len(all_params)
     elif transform_type == 'affine':
-        for img in images:
-            transformed = transforms.affine(img.unsqueeze(0), severity)
-            transformed_images.append(transformed.squeeze(0))
-        # Approximate parameters (actual values are random)
-        params = {
-            'translate_x': severity * 0.1,
-            'translate_y': severity * 0.1,
-            'shear_x': severity * 15,
-            'shear_y': severity * 15
-        }
-    else:
-        return images, {}
+        avg_params['translate_x'] = sum(p['translate_x'] for p in all_params) / len(all_params)
+        avg_params['translate_y'] = sum(p['translate_y'] for p in all_params) / len(all_params)
+        avg_params['shear_x'] = sum(p['shear_x'] for p in all_params) / len(all_params)
+        avg_params['shear_y'] = sum(p['shear_y'] for p in all_params) / len(all_params)
     
-    return torch.stack(transformed_images), params
+    return torch.stack(transformed_images), avg_params
 
 
 def visualize_healer_corrections(images: torch.Tensor,
