@@ -76,7 +76,7 @@ def parse_arguments():
 def get_models_to_process(args, config):
     """Get list of models to process based on arguments"""
     all_models = ['vanilla_vit', 'healer', 'ttt', 'ttt3fc', 'blended_training', 'blended_training_3fc', 
-                  'resnet', 'resnet_pretrained', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18',
+                  'resnet', 'resnet_pretrained', 'resnet18_not_pretrained_robust', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18',
                   'unet_corrector', 'transformer_corrector', 'hybrid_corrector',
                   'unet_resnet18', 'unet_vit',
                   'transformer_resnet18', 'transformer_vit',
@@ -246,6 +246,10 @@ def train_models(args, config, models_to_train):
         )
         trained_models[model_name] = model
         
+        # Handle resnet18_not_pretrained_robust separately as it's trained with robust flag
+        if model_name == 'resnet18_not_pretrained_robust':
+            continue
+            
         # Always train robust version for vanilla_vit (and optionally for others if --robust flag is set)
         # Not for blended models as they're already robust
         should_train_robust = (model_name == 'vanilla_vit') or (args.robust and model_name in ['ttt', 'ttt3fc'])
@@ -267,6 +271,23 @@ def train_models(args, config, models_to_train):
                     robust_training=True
                 )
                 trained_models[robust_model_name] = robust_model
+    
+    # Train resnet18_not_pretrained_robust if it's in the models list
+    if 'resnet18_not_pretrained_robust' in models_to_train:
+        logger.info(f"\nTraining resnet18_not_pretrained_robust with continuous transforms")
+        
+        model_dir = checkpoint_dir / "bestmodel_resnet18_not_pretrained_robust"
+        checkpoint_path = model_dir / "best_model.pt"
+        
+        if checkpoint_path.exists() and not args.force_retrain:
+            logger.info(f"Model already exists at {checkpoint_path}, skipping training")
+        else:
+            model, history = trainer_service.train_model(
+                model_type='resnet18_not_pretrained_robust',
+                dataset_name=args.dataset,
+                robust_training=True
+            )
+            trained_models['resnet18_not_pretrained_robust'] = model
     
     return trained_models
 

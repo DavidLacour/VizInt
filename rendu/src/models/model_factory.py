@@ -60,6 +60,8 @@ class ModelFactory:
             config_key = 'vanilla_vit'
         elif model_type.startswith('blended_training'):
             config_key = 'blended_training'
+        elif model_type == 'resnet18_not_pretrained_robust':
+            config_key = 'resnet'
         elif model_type.endswith('_robust'):
             config_key = model_type.replace('_robust', '')
         else:
@@ -85,6 +87,9 @@ class ModelFactory:
             
         elif model_type in ['resnet_pretrained', 'pretrained']:
             return ResNetPretrained(model_config)
+            
+        elif model_type == 'resnet18_not_pretrained_robust':
+            return ResNetBaseline(model_config)
             
         elif model_type == 'healer':
             return Healer(model_config)
