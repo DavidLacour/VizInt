@@ -174,6 +174,12 @@ def train_corrector(corrector_name, dataset_name, config, model_factory, data_fa
     
     save_dir.mkdir(parents=True, exist_ok=True)
     
+    # Check if corrector already exists
+    corrector_checkpoint = save_dir / f"best_{corrector_type}_corrector.pth"
+    if corrector_checkpoint.exists():
+        logger.info(f"Corrector already exists at {corrector_checkpoint}, skipping training")
+        return {"message": "Model already exists, skipped training"}
+    
     # Train
     logger.info(f"Starting {corrector_type} corrector training...")
     history = trainer.train(model, train_loader, val_loader, save_dir)
