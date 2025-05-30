@@ -331,6 +331,11 @@ model_combinations:
     healer_model: null
     description: "ResNet18 (ImageNet pretrained)"
     
+  - name: "ResNet18_NotPretrainedRobust"
+    main_model: "resnet18_not_pretrained_robust"
+    healer_model: null
+    description: "ResNet18 (from scratch, robust training)"
+    
   - name: "BlendedResNet18"
     main_model: "blended_resnet18"
     healer_model: null
