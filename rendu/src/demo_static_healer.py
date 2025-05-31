@@ -41,9 +41,12 @@ def demo_static_corrections():
     
     print("\n1. Gaussian Noise Correction:")
     
-    noise_std = 0.2
-    noisy_image = original_image + torch.randn_like(original_image) * noise_std
-    noisy_image = torch.clamp(noisy_image, 0, 1)
+    continuous_transform = ContinuousTransforms(severity=1.0)
+    # Use severity 0.4 to get noise_std of 0.2 (0.4 * 0.5 = 0.2)
+    noisy_image, noise_params = continuous_transform.apply_transforms(
+        original_image, 'gaussian_noise', severity=0.4, return_params=True
+    )
+    noise_std = noise_params['noise_std']
     
     show_image(axes[0, 1], noisy_image, f"Noisy (σ={noise_std})")
     
@@ -58,15 +61,14 @@ def demo_static_corrections():
     
     print("2. Rotation Correction:")
 
-    angle = 30.0
-    transform_engine = ContinuousTransforms(severity=0.5)
-    rotated_image = transforms.functional.rotate(
-        transforms.ToPILImage()(original_image), angle
+    # Use ContinuousTransforms for rotation
+    rotated_tensor, rotation_params = continuous_transform.apply_transforms(
+        original_image, 'rotation', severity=0.0833, return_params=True  # 0.0833 * 360 ≈ 30 degrees
     )
-    rotated_tensor = transforms.ToTensor()(rotated_image)
+    angle = rotation_params['rotation_angle']
     
     show_image(axes[1, 0], original_image, "Original")
-    show_image(axes[1, 1], rotated_tensor, f"Rotated ({angle}°)")
+    show_image(axes[1, 1], rotated_tensor, f"Rotated ({angle:.1f}°)")
     
     corrected = HealerTransforms.apply_inverse_rotation(rotated_tensor, angle)
     show_image(axes[1, 2], corrected, "Corrected (Static)")
@@ -79,19 +81,15 @@ def demo_static_corrections():
     
     print("3. Affine Transform Correction:")
 
-    tx, ty = 0.1, -0.1
-    sx, sy = 15.0, -10.0
-    
-    pil_img = transforms.ToPILImage()(original_image)
-    width, height = pil_img.size
-    affine_img = transforms.functional.affine(
-        pil_img,
-        angle=0,
-        translate=(tx * width, ty * height),
-        scale=1.0,
-        shear=[sx, sy]
+    # Use ContinuousTransforms for affine transformation
+    # This will generate random affine parameters within the severity range
+    affine_tensor, affine_params = continuous_transform.apply_transforms(
+        original_image, 'affine', severity=1.0, return_params=True
     )
-    affine_tensor = transforms.ToTensor()(affine_img)
+    tx = affine_params['translate_x']
+    ty = affine_params['translate_y']
+    sx = affine_params['shear_x']
+    sy = affine_params['shear_y']
     
     show_image(axes[2, 0], original_image, "Original")
     show_image(axes[2, 1], affine_tensor, f"Affine Transform")

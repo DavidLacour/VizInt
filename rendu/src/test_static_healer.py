@@ -15,6 +15,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from src.models.healer_transforms import HealerTransforms
 from src.config.config_loader import ConfigLoader
 from src.data.data_loader import DataLoaderFactory
+from src.data.continuous_transforms import ContinuousTransforms
 from torchvision import transforms
 
 
@@ -38,8 +39,9 @@ def test_static_healer():
     
     print("\n2. Testing Gaussian Denoising:")
     noise_std = 0.15
-    noisy = test_image + torch.randn_like(test_image) * noise_std
-    noisy = torch.clamp(noisy, 0, 1)
+    continuous_transform = ContinuousTransforms(severity=1.0)
+    # Use severity 0.3 to get noise_std of 0.15 (0.3 * 0.5 = 0.15)
+    noisy, _ = continuous_transform.apply_transforms(test_image, 'gaussian_noise', severity=0.3, return_params=True)
     
     denoised = HealerTransforms.apply_gaussian_denoising(noisy, noise_std)
     noise_reduction = torch.mean(torch.abs(noisy - test_image)) - torch.mean(torch.abs(denoised - test_image))
@@ -47,13 +49,12 @@ def test_static_healer():
     
     print("\n3. Testing Rotation Correction:")
     angle = 45.0
+    # Use severity 0.125 to get 45 degree rotation (0.125 * 360 = 45)
+    rotated, rotation_params = continuous_transform.apply_transforms(test_image, 'rotation', severity=0.125, return_params=True)
+    actual_angle = rotation_params['rotation_angle']
     
-    pil_img = transforms.ToPILImage()(test_image)
-    rotated_pil = transforms.functional.rotate(pil_img, angle)
-    rotated = transforms.ToTensor()(rotated_pil)
-    
-    corrected = HealerTransforms.apply_inverse_rotation(rotated, angle)
-    print(f"   Applied rotation: {angle}°")
+    corrected = HealerTransforms.apply_inverse_rotation(rotated, actual_angle)
+    print(f"   Applied rotation: {actual_angle:.1f}°")
     print(f"   Corrected shape: {corrected.shape}")
     
     print("\n4. Testing Affine Correction:")
@@ -115,7 +116,7 @@ def test_static_healer():
     axes[0, 2].axis('off')
     
     axes[1, 0].imshow(rotated.permute(1, 2, 0).numpy())
-    axes[1, 0].set_title(f"Rotated ({angle}°)")
+    axes[1, 0].set_title(f"Rotated ({actual_angle:.1f}°)")
     axes[1, 0].axis('off')
     
     axes[1, 1].imshow(corrected.permute(1, 2, 0).numpy())

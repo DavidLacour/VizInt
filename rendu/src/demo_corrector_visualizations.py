@@ -43,20 +43,19 @@ def load_sample_image(config_path: str = 'config/cifar10_config.yaml') -> Tuple[
 
 
 def apply_corruption(image: torch.Tensor, corruption_type: str = 'mixed') -> torch.Tensor:
-    """Apply corruption to image"""
+    """Apply corruption to image using ContinuousTransforms and additional effects"""
+    continuous_transform = ContinuousTransforms(severity=1.0)
+    
     if corruption_type == 'gaussian_noise':
-        noise = torch.randn_like(image) * 0.3
-        corrupted = torch.clamp(image + noise, 0, 1)
+        # Use ContinuousTransforms for gaussian noise with severity 0.6 (0.6 * 0.5 = 0.3 std)
+        corrupted = continuous_transform.apply_transforms(image, 'gaussian_noise', severity=0.6)
         
     elif corruption_type == 'rotation':
-        angle = 45.0
-        img_cpu = image.cpu()
-        pil_img = transforms.ToPILImage()(img_cpu)
-        rotated = transforms.functional.rotate(pil_img, angle)
-        corrupted = transforms.ToTensor()(rotated).to(image.device)
+        # Use ContinuousTransforms for rotation with severity 0.125 (0.125 * 360 = 45 degrees max)
+        corrupted = continuous_transform.apply_transforms(image, 'rotation', severity=0.125)
         
     elif corruption_type == 'blur':
-        # Apply Gaussian blur
+        # Apply Gaussian blur (not in ContinuousTransforms)
         img_cpu = image.cpu()
         pil_img = transforms.ToPILImage()(img_cpu)
         blurred = transforms.functional.gaussian_blur(pil_img, kernel_size=7, sigma=2.0)
@@ -64,9 +63,8 @@ def apply_corruption(image: torch.Tensor, corruption_type: str = 'mixed') -> tor
         
     elif corruption_type == 'mixed':
         # Apply multiple corruptions
-        # First add noise
-        noise = torch.randn_like(image) * 0.15
-        corrupted = image + noise
+        # First add noise using ContinuousTransforms
+        corrupted = continuous_transform.apply_transforms(image, 'gaussian_noise', severity=0.3)
         
         # Then blur
         img_cpu = corrupted.cpu()
@@ -74,11 +72,8 @@ def apply_corruption(image: torch.Tensor, corruption_type: str = 'mixed') -> tor
         blurred = transforms.functional.gaussian_blur(pil_img, kernel_size=5, sigma=1.0)
         corrupted = transforms.ToTensor()(blurred).to(image.device)
         
-        # Finally add slight rotation
-        angle = 10.0
-        pil_img = transforms.ToPILImage()(torch.clamp(corrupted.cpu(), 0, 1))
-        rotated = transforms.functional.rotate(pil_img, angle)
-        corrupted = transforms.ToTensor()(rotated).to(image.device)
+        # Finally add slight rotation using ContinuousTransforms
+        corrupted = continuous_transform.apply_transforms(corrupted, 'rotation', severity=0.028)
         
     else:
         corrupted = image.clone()
