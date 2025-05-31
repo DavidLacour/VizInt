@@ -1,8 +1,8 @@
-# Vision Transformer Robustness Research Framework
+# Vision Models Robustness Research Framework
 
 This repository contains a comprehensive framework for training and evaluating robust vision models on CIFAR-10 and TinyImageNet datasets. The framework includes various model architectures, robustness techniques, and visualization tools.
 
-The defauls command shoud create folders in the directories above the VizInt git repo folders train everything and evaluate everything. 
+The defauls commands shoud create folders in the directories above the VizInt git repo folders train everything and evaluate everything. 
 It could take more than one day with a gaming laptop GPU. 
 
 python main.py --dataset cifar10 
@@ -21,7 +21,7 @@ python main.py --dataset tinyimagenet
 ### Robustness-Enhanced Models
 - **Healer**: Predicts and corrects transformations using Wiener deconvolution for noise and inverse transforms
 - **TTT/TTT3fc**: Test-Time Training models that adapt during inference
-- **BlendedTraining**: Combines clean and transformed features during training
+- **BlendedTraining**: Predicts applied corruptions in the hope of getting a better feature map and more robust model.
 
 ### Corrector + Classifier Combinations
 - **UNet + ResNet18/ViT**: UNet corrector preprocessing for classifiers

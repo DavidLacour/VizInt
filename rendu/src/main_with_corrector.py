@@ -10,7 +10,6 @@ import torch
 import logging
 from pathlib import Path
 
-# Add src to path
 sys.path.append(str(Path(__file__).parent))
 
 from config.config_loader import ConfigLoader
@@ -110,7 +109,6 @@ def train_corrector(corrector_name, dataset_name, config, model_factory, data_fa
     """Train a corrector model"""
     logger = logging.getLogger('train_corrector')
     
-    # Get corrector type
     if 'unet' in corrector_name:
         corrector_type = 'unet'
     elif 'transformer' in corrector_name:
@@ -120,7 +118,6 @@ def train_corrector(corrector_name, dataset_name, config, model_factory, data_fa
     else:
         raise ValueError(f"Unknown corrector type: {corrector_name}")
     
-    # Create corrector training config
     corrector_config = config.get_dataset_config(dataset_name).copy()
     corrector_config.update({
         'model_type': corrector_type,
@@ -135,7 +132,6 @@ def train_corrector(corrector_name, dataset_name, config, model_factory, data_fa
         'weight_decay': 1e-5
     })
     
-    # Update with any corrector-specific config
     if corrector_type == 'transformer':
         corrector_config.update({
             'corrector_patch_size': 8,
@@ -151,17 +147,13 @@ def train_corrector(corrector_name, dataset_name, config, model_factory, data_fa
             'use_cnn': True
         })
     
-    # Create model
     model = model_factory.create_model(corrector_name, dataset_name)
     
-    # Create trainer
     from trainers.corrector_trainer import CorrectorTrainer
     trainer = CorrectorTrainer(corrector_config)
     
-    # Get data loaders (only clean images for corrector training)
     train_loader, val_loader = data_factory.create_data_loaders(dataset_name)
     
-    # Use debug checkpoint directory if in debug mode
     if config.is_debug_mode():
         debug_checkpoint_dir = Path(config.get('debug.checkpoint_dir', '../../../debugmodelrendu/cifar10'))
         if not debug_checkpoint_dir.is_absolute():
@@ -174,7 +166,6 @@ def train_corrector(corrector_name, dataset_name, config, model_factory, data_fa
     
     save_dir.mkdir(parents=True, exist_ok=True)
     
-    # Check if corrector already exists
     corrector_checkpoint = save_dir / f"best_{corrector_type}_corrector.pth"
     if corrector_checkpoint.exists():
         logger.info(f"Corrector already exists at {corrector_checkpoint}, skipping training")
@@ -198,7 +189,6 @@ def train_models(args, config, models_to_train):
     checkpoint_dir = config.get_checkpoint_dir(args.dataset)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     
-    # Check if we need corrector training
     corrector_models = ['unet_corrector', 'transformer_corrector', 'hybrid_corrector']
     corrector_wrapper_models = [m for m in models_to_train if any(c in m for c in ['unet_', 'transformer_', 'hybrid_']) and m not in corrector_models]
     pure_correctors = [m for m in models_to_train if m in corrector_models]
@@ -213,7 +203,6 @@ def train_models(args, config, models_to_train):
             logger.info(f"Training {corrector_name} corrector on {args.dataset}")
             logger.info(f"{'='*60}")
             
-            # Check if corrector already exists
             corrector_dir = checkpoint_dir / f"bestmodel_{corrector_name}"
             corrector_checkpoint = corrector_dir / "best_model.pt"
             
@@ -221,7 +210,6 @@ def train_models(args, config, models_to_train):
                 logger.info(f"Corrector already exists at {corrector_checkpoint}, skipping training")
                 continue
             
-            # Train corrector
             train_corrector(corrector_name, args.dataset, config, model_factory, data_factory, checkpoint_dir)
     
     trainer_service = ModelTrainer(config, model_factory, data_factory)
@@ -237,7 +225,6 @@ def train_models(args, config, models_to_train):
         logger.info(f"Training {model_name} model on {args.dataset}")
         logger.info(f"{'='*60}")
         
-        # Check if model already exists and load it and don't if it already exists
         model_dir = checkpoint_dir / f"bestmodel_{model_name}"
         checkpoint_path = model_dir / "best_model.pt"
         
@@ -260,7 +247,6 @@ def train_models(args, config, models_to_train):
             robust_model_name = f"{model_name}_robust"
             logger.info(f"\nTraining robust version: {robust_model_name}")
             
-            # Check if robust model already exists
             robust_model_dir = checkpoint_dir / f"bestmodel_{robust_model_name}"
             robust_checkpoint_path = robust_model_dir / "best_model.pt"
             
@@ -281,20 +267,16 @@ def evaluate_models(args, config, models_to_evaluate):
     """Evaluate all specified models"""
     logger = logging.getLogger('evaluate_models')
     
-    # Create factories
     model_factory = ModelFactory(config)
     data_factory = DataLoaderFactory(config)
     
-    # Get evaluation severities
     if args.severities:
         severities = args.severities
     else:
         severities = config.get('evaluation.severities', [0.0, 0.25, 0.5, 0.75, 1.0])
     
-    # Create evaluator service
     evaluator = ModelEvaluator(config, model_factory, data_factory)
     
-    # Evaluate all model combinations
     logger.info(f"\n{'='*60}")
     logger.info(f"Evaluating models on {args.dataset} with severities: {severities}")
     logger.info(f"{'='*60}")
@@ -306,10 +288,8 @@ def evaluate_models(args, config, models_to_evaluate):
         include_ood=True
     )
     
-    # Print results
     evaluator.print_results(results)
     
-    # Create visualizations
     vis_dir = Path(config.get('paths.visualization_dir', './visualizations'))
     vis_dir = vis_dir / args.dataset
     vis_dir.mkdir(parents=True, exist_ok=True)
@@ -332,7 +312,6 @@ def main():
     
     config = ConfigLoader(args.config)
     
-    # Override config with command line arguments
     if args.debug:
         config.update({'debug': {'enabled': True}})
     if args.device:
@@ -355,11 +334,9 @@ def main():
     models_to_process = get_models_to_process(args, config)
     logger.info(f"Models to process: {models_to_process}")
     
-    # Training phase
     if args.mode in ['train', 'both']:
         train_models(args, config, models_to_process)
     
-    # Evaluation phase
     if args.mode in ['evaluate', 'both']:
         evaluate_models(args, config, models_to_process)
     
