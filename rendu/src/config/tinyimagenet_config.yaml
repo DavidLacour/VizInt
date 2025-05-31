@@ -270,8 +270,8 @@ evaluation:
 
 # Checkpoint and visualization settings
 paths:
-  checkpoint_dir: "../../../tinyimagenetrendufunky4"
-  visualization_dir: "../../../visualizationsrendufunky4/tinyimagenet"
+  checkpoint_dir: "../../../tinyimagenetrendufunky5"
+  visualization_dir: "../../../visualizationsrendufunky5/tinyimagenet"
   log_dir: "./logs/tinyimagenet"
 
 # Model combinations to evaluate
