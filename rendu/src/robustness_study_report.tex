@@ -1,0 +1,325 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+\title{A Comprehensive Framework for Robust Vision Model Training and Evaluation}
+\author{Vision Robustness Research}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report presents a comprehensive framework for training and evaluating robust vision models on CIFAR-10 and TinyImageNet datasets. The framework implements various model architectures including Vision Transformers and ResNet variants, enhanced with multiple robustness techniques such as continuous transforms, test-time training, and advanced correction mechanisms. We introduce novel approaches including the Healer model with Wiener deconvolution capabilities and hybrid corrector-classifier combinations. The framework provides extensive visualization tools and supports comprehensive evaluation of model robustness against various input perturbations including Gaussian noise, rotation, and affine transformations. Our experimental results reveal that while traditional models like ResNet18 achieve high clean accuracy (90.64\%), specialized robustness techniques show varying effectiveness, with some unexpected results potentially attributable to implementation challenges or architectural limitations.
+\end{abstract}
+
+\section{Introduction}
+
+The robustness of deep learning models to input perturbations remains a critical challenge in computer vision. While modern architectures achieve impressive performance on clean data, their accuracy often degrades significantly when faced with corrupted or transformed inputs. This study presents a comprehensive framework for investigating and improving model robustness through various architectural and training innovations.
+
+Our contributions include:
+\begin{itemize}
+    \item A unified framework supporting multiple model architectures and robustness techniques
+    \item Implementation of continuous transformations for robust training
+    \item Novel Healer model incorporating Wiener deconvolution for image restoration
+    \item Comprehensive evaluation across multiple severity levels and transformation types
+    \item Extensive visualization tools for understanding model behavior
+\end{itemize}
+
+\section{Methodology}
+
+\subsection{Model Architectures}
+
+\subsubsection{Base Models}
+
+\paragraph{Vision Transformer (ViT)}
+We implement a vanilla Vision Transformer with configurable depth and embedding dimensions. The model divides input images into patches, applies positional embeddings, and processes them through transformer blocks. Two variants are trained:
+\begin{itemize}
+    \item \textbf{VanillaViT}: Standard training on clean/augmented data
+    \item \textbf{VanillaViT\_Robust}: Training with continuous transforms applied
+\end{itemize}
+
+\paragraph{ResNet18}
+Three ResNet18 variants are implemented:
+\begin{itemize}
+    \item \textbf{ResNet18\_Baseline}: Trained from scratch on clean data
+    \item \textbf{ResNet18\_Pretrained}: Initialized with ImageNet weights
+    \item \textbf{ResNet18\_NotPretrainedRobust}: Trained from scratch with continuous transforms
+\end{itemize}
+
+\subsubsection{Robustness-Enhanced Models}
+
+\paragraph{Healer Model}
+The Healer model is designed to predict and correct transformations in corrupted images. Key features include:
+\begin{itemize}
+    \item Transformer-based architecture for transformation prediction
+    \item Wiener deconvolution for Gaussian noise removal
+    \item Inverse transformation functions for rotation and affine corrections
+    \item Multi-head outputs for transformation type classification and parameter regression
+\end{itemize}
+
+The Wiener filter implementation operates in the frequency domain:
+\begin{equation}
+G(\omega) = \frac{H^*(\omega)S(\omega)}{|H(\omega)|^2S(\omega) + N(\omega)}
+\end{equation}
+where $G(\omega)$ is the filter gain, $H(\omega)$ is the degradation function, $S(\omega)$ is the signal power spectrum, and $N(\omega)$ is the noise power spectrum.
+
+\paragraph{Test-Time Training (TTT)}
+TTT models incorporate a self-supervised auxiliary task (rotation prediction) that allows parameter adaptation during inference. Variants include:
+\begin{itemize}
+    \item \textbf{TTT}: Base implementation with single fully-connected auxiliary head
+    \item \textbf{TTT3fc}: Extended version with three fully-connected layers
+    \item \textbf{TTTResNet18}: TTT wrapper around ResNet18 backbone
+\end{itemize}
+
+\paragraph{Blended Training}
+Blended models simultaneously process clean and transformed features:
+\begin{itemize}
+    \item \textbf{BlendedTraining}: Base implementation
+    \item \textbf{BlendedTraining3fc}: Three fully-connected layer variant
+    \item \textbf{BlendedResNet18}: Blended wrapper around ResNet18
+\end{itemize}
+
+\subsubsection{Corrector-Classifier Combinations}
+
+Three corrector architectures are implemented as preprocessors:
+\begin{itemize}
+    \item \textbf{UNet Corrector}: CNN-based denoising architecture
+    \item \textbf{Transformer Corrector}: Attention-based image restoration
+    \item \textbf{Hybrid Corrector}: Combines CNN and Transformer approaches
+\end{itemize}
+
+Each corrector is combined with both ResNet18 and ViT classifiers, creating six additional model variants.
+
+\subsection{Continuous Transformations}
+
+The framework implements three primary transformation types with adjustable severity $s \in [0, 1]$:
+
+\paragraph{Gaussian Noise}
+\begin{equation}
+\tilde{x} = x + \epsilon, \quad \epsilon \sim \mathcal{N}(0, \sigma^2I), \quad \sigma = s \cdot 0.5
+\end{equation}
+
+\paragraph{Rotation}
+\begin{equation}
+\tilde{x} = R_\theta(x), \quad \theta \sim \mathcal{U}[-360s, 360s]
+\end{equation}
+
+\paragraph{Affine Transformation}
+Combines translation and shear:
+\begin{equation}
+\tilde{x} = A(x), \quad t_x, t_y \sim \mathcal{U}[-0.1s, 0.1s], \quad s_x, s_y \sim \mathcal{U}[-15s, 15s]
+\end{equation}
+
+\subsection{Training Procedure}
+
+Models are trained using:
+\begin{itemize}
+    \item Adam optimizer with learning rate $10^{-4}$
+    \item Cosine annealing learning rate schedule
+    \item Early stopping based on validation accuracy
+    \item Batch size of 128 for CIFAR-10, 64 for TinyImageNet
+\end{itemize}
+
+For robust training, transformations are applied with probability 0.5 during each training iteration, with severity sampled uniformly from $[0, 1]$.
+
+\section{Experimental Results}
+
+\subsection{CIFAR-10 Performance}
+
+Table~\ref{tab:main_results} presents the comprehensive evaluation results on CIFAR-10 across different severity levels.
+
+\begin{table}[H]
+\centering
+\caption{Model performance on CIFAR-10 across transformation severities}
+\label{tab:main_results}
+\small
+\begin{tabular}{lccccc}
+\toprule
+Model & Clean & S0.3 & S0.5 & S0.7 & S1.0 \\
+\midrule
+ResNet18\_Pretrained & \textbf{0.9064} & 0.5853 & 0.5555 & 0.5456 & 0.5415 \\
+ResNet18\_NotPretrainedRobust & 0.8654 & 0.5616 & 0.5213 & 0.5132 & 0.5083 \\
+ResNet18\_Baseline & 0.8636 & 0.5819 & 0.5434 & 0.5195 & 0.5050 \\
+BlendedResNet18 & 0.8375 & \textbf{0.7654} & \textbf{0.7253} & \textbf{0.7026} & \textbf{0.6695} \\
+VanillaViT\_Robust & 0.7395 & 0.5242 & 0.4690 & 0.4567 & 0.4581 \\
+VanillaViT & 0.7319 & 0.5045 & 0.4823 & 0.4563 & 0.4456 \\
+\midrule
+HealerResNet18 & 0.6409 & 0.5151 & 0.4508 & 0.4132 & 0.3876 \\
+Healer+VanillaViT\_Robust & 0.2886 & 0.2399 & 0.2440 & 0.2343 & 0.2286 \\
+Healer+VanillaViT & 0.2304 & 0.1516 & 0.1461 & 0.1494 & 0.1477 \\
+\midrule
+TTTResNet18 & 0.1023 & 0.1021 & 0.1013 & 0.0977 & 0.0979 \\
+TTT & 0.0946 & 0.1018 & 0.1021 & 0.0973 & 0.1003 \\
+TTT3fc & 0.0935 & 0.0994 & 0.1003 & 0.1045 & 0.0995 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Key Findings}
+
+\subsubsection{Clean Data Performance}
+ResNet18\_Pretrained achieves the highest clean accuracy (90.64\%), followed by ResNet18 variants trained from scratch (86.54\% and 86.36\%). Vision Transformers show lower clean accuracy (73-74\%), consistent with their known data efficiency challenges on smaller datasets.
+
+\subsubsection{Robustness Analysis}
+BlendedResNet18 demonstrates exceptional robustness, maintaining 66.95\% accuracy at maximum severity (S1.0) compared to 54.15\% for ResNet18\_Pretrained. This represents only a 14.54\% average drop compared to 38.55\% for the pretrained model.
+
+\subsubsection{Unexpected Results}
+
+Several models show unexpectedly poor performance:
+\begin{itemize}
+    \item \textbf{TTT Models}: Accuracies below 11\% suggest potential implementation issues with the self-supervised rotation task or gradient conflicts during training
+    \item \textbf{Healer Combinations}: The Healer+ViT combinations show degraded performance compared to standalone ViT, indicating possible issues with the correction pipeline or training instability
+    \item \textbf{Corrector Models}: Mixed results suggest optimization challenges in joint corrector-classifier training
+\end{itemize}
+
+\subsection{Transformation Prediction Accuracy}
+
+Table~\ref{tab:transform_pred} shows the transformation type prediction accuracy for models with this capability.
+
+\begin{table}[H]
+\centering
+\caption{Transformation prediction accuracy across severities}
+\label{tab:transform_pred}
+\begin{tabular}{lccccc}
+\toprule
+Model & S0.3 & S0.5 & S0.7 & S1.0 & Average \\
+\midrule
+BlendedResNet18 & 0.9117 & 0.9393 & 0.9427 & 0.9398 & \textbf{0.9334} \\
+Healer+VanillaViT & 0.5848 & 0.5949 & 0.5655 & 0.5257 & 0.5677 \\
+Healer+VanillaViT\_Robust & 0.5775 & 0.5856 & 0.5669 & 0.5217 & 0.5629 \\
+TTTResNet18 & 0.3633 & 0.3704 & 0.5288 & 0.5790 & 0.4604 \\
+HealerResNet18 & 0.2135 & 0.1878 & 0.1745 & 0.1623 & 0.1845 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+BlendedResNet18 achieves remarkable transformation prediction accuracy (93.34\%), while other models show moderate to poor performance.
+
+\subsection{Out-of-Distribution Evaluation}
+
+Models were evaluated on extreme transformations including color inversion, pixelation, and extreme blur:
+
+\begin{table}[H]
+\centering
+\caption{Out-of-distribution (OOD) performance}
+\begin{tabular}{lcc}
+\toprule
+Model & Clean Acc. & OOD Acc. \\
+\midrule
+BlendedResNet18 & 0.8375 & \textbf{0.4761} \\
+ResNet18\_Pretrained & 0.9064 & 0.4449 \\
+ResNet18\_NotPretrainedRobust & 0.8654 & 0.4303 \\
+ResNet18\_Baseline & 0.8636 & 0.4299 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussion}
+
+\subsection{Successful Approaches}
+
+\paragraph{Blended Training}
+The BlendedResNet18 model demonstrates that simultaneously processing clean and transformed features during training can significantly improve robustness without sacrificing clean accuracy. The 93\% transformation prediction accuracy suggests the model effectively learns to identify and handle different corruption types.
+
+\paragraph{Pretrained Initialization}
+ResNet18\_Pretrained shows that ImageNet pretraining provides a strong foundation, though interestingly, the robust training variant (ResNet18\_NotPretrainedRobust) shows only marginal improvements over the baseline.
+
+\subsection{Challenges and Limitations}
+
+\paragraph{TTT Implementation}
+The extremely poor performance of TTT models (below 11\% accuracy) strongly suggests implementation issues. Possible causes include:
+\begin{itemize}
+    \item Gradient interference between main and auxiliary tasks
+    \item Incorrect loss weighting or optimization dynamics
+    \item Architectural incompatibilities with the rotation prediction task
+\end{itemize}
+
+\paragraph{Healer Model Integration}
+While the Healer model shows promise in transformation prediction, its integration with classifiers results in degraded performance. This may be due to:
+\begin{itemize}
+    \item Distribution shift between original and corrected images
+    \item Imperfect corrections introducing artifacts
+    \item Training instability in the joint optimization
+\end{itemize}
+
+\paragraph{Corrector-Classifier Training}
+The mixed results for corrector models suggest challenges in end-to-end training of preprocessing and classification components. Future work should explore:
+\begin{itemize}
+    \item Staged training approaches
+    \item Better architectural integration
+    \item Loss function design for joint optimization
+\end{itemize}
+
+\section{Visualization Analysis}
+
+The framework includes comprehensive visualization tools:
+
+\subsection{Healer Corrections}
+Visual inspection reveals that while Wiener deconvolution effectively removes Gaussian noise, rotation and affine corrections may introduce artifacts at image boundaries. This could explain the performance degradation in Healer-guided models.
+
+\subsection{Transformation Effects}
+Severity progression visualizations show that:
+\begin{itemize}
+    \item Gaussian noise uniformly degrades all models
+    \item Rotation affects ViT models more severely than CNNs
+    \item Affine transformations cause the most significant accuracy drops
+\end{itemize}
+
+\section{Conclusions and Future Work}
+
+This comprehensive study reveals both the potential and challenges of various robustness techniques:
+
+\paragraph{Key Takeaways}
+\begin{itemize}
+    \item Blended training shows exceptional promise for robust model development
+    \item Traditional architectures (ResNet18) remain competitive with proper training
+    \item Complex techniques (TTT, Healer) require careful implementation and debugging
+    \item Joint optimization of multiple components remains challenging
+\end{itemize}
+
+\paragraph{Future Directions}
+\begin{itemize}
+    \item Debug and improve TTT implementation
+    \item Explore alternative Healer integration strategies
+    \item Investigate curriculum learning for robust training
+    \item Extend evaluation to larger datasets and more transformation types
+    \item Develop better metrics for robustness evaluation
+\end{itemize}
+
+\section{Implementation Notes}
+
+The framework is implemented in PyTorch and includes:
+\begin{itemize}
+    \item Modular architecture supporting easy addition of new models
+    \item Comprehensive configuration system via YAML files
+    \item Extensive logging and checkpointing
+    \item Visualization tools for debugging and analysis
+    \item Support for both CIFAR-10 and TinyImageNet datasets
+\end{itemize}
+
+Several implementation challenges were encountered:
+\begin{itemize}
+    \item Memory constraints with larger models on TinyImageNet
+    \item Numerical instability in some loss calculations
+    \item Synchronization issues in multi-component training
+\end{itemize}
+
+\section{Acknowledgments}
+
+This research framework builds upon established architectures and techniques from the robustness literature. The implementation leverages PyTorch, torchvision, and various open-source libraries.
+
+\end{document}

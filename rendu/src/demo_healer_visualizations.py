@@ -50,58 +50,37 @@ def load_sample_images(config_path: str = 'config/cifar10_config.yaml',
 def apply_transformations(images: torch.Tensor, 
                          transform_type: str,
                          severity: float = 0.5) -> Tuple[torch.Tensor, List[Dict[str, float]]]:
-    """Apply transformations with fixed parameters for perfect corrections"""
+    """Apply transformations using ContinuousTransforms class"""
     transformed_images = []
     params_list = []
     
-    # Use fixed parameters like in static healer demo
-    if transform_type == 'gaussian_noise':
-        noise_std = 0.2  # Fixed like static demo
-        for img in images:
-            noise = torch.randn_like(img) * noise_std
-            transformed = torch.clamp(img + noise, 0, 1)
-            transformed_images.append(transformed)
-            params_list.append({'noise_std': noise_std})
-            
-    elif transform_type == 'rotation':
-        angle = 30.0  # Fixed 30 degrees like static demo
-        for img in images:
-            img_cpu = img.cpu()
-            pil_img = transforms.ToPILImage()(img_cpu)
-            rotated_img = transforms.functional.rotate(pil_img, angle)
-            transformed = transforms.ToTensor()(rotated_img).to(img.device)
-            transformed_images.append(transformed)
-            params_list.append({'rotation_angle': angle})
-            
-    elif transform_type == 'affine':
-        # Fixed parameters like static demo
-        translate_x, translate_y = 0.1, -0.1
-        shear_x, shear_y = 15.0, -10.0
+    # Create transform instance with the specified severity
+    continuous_transform = ContinuousTransforms(severity=severity)
+    
+    for img in images:
+        # Apply transformation and get parameters
+        transformed, params = continuous_transform.apply_transforms(
+            img, 
+            transform_type=transform_type,
+            severity=severity,
+            return_params=True
+        )
+        transformed_images.append(transformed)
         
-        for img in images:
-            img_cpu = img.cpu()
-            pil_img = transforms.ToPILImage()(img_cpu)
-            width, height = pil_img.size
-            
-            affine_img = transforms.functional.affine(
-                pil_img,
-                angle=0.0,
-                translate=(translate_x * width, translate_y * height),
-                scale=1.0,
-                shear=[shear_x, shear_y]
-            )
-            transformed = transforms.ToTensor()(affine_img).to(img.device)
-            transformed_images.append(transformed)
+        # Extract relevant parameters based on transform type
+        if transform_type == 'gaussian_noise':
+            params_list.append({'noise_std': params['noise_std']})
+        elif transform_type == 'rotation':
+            params_list.append({'rotation_angle': params['rotation_angle']})
+        elif transform_type == 'affine':
             params_list.append({
-                'translate_x': translate_x,
-                'translate_y': translate_y,
-                'shear_x': shear_x,
-                'shear_y': shear_y
+                'translate_x': params['translate_x'],
+                'translate_y': params['translate_y'],
+                'shear_x': params['shear_x'],
+                'shear_y': params['shear_y']
             })
-    else:
-        # No transformation
-        transformed_images = list(images)
-        params_list = [{}] * len(images)
+        else:
+            params_list.append({})
     
     return torch.stack(transformed_images), params_list
 
@@ -257,7 +236,7 @@ def visualize_severity_levels(image: torch.Tensor,
     
     # Process each severity level
     for col, severity in enumerate(severities):
-        # Apply transformation - severity is ignored since we use fixed params
+        # Apply transformation with specified severity
         transformed, params_list = apply_transformations(image.unsqueeze(0), transform_type, severity)
         transformed = transformed.squeeze(0)
         params = params_list[0] if params_list else {}
