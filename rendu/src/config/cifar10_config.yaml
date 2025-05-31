@@ -223,7 +223,7 @@ models:
 
 # Training configurations
 training:
-  batch_size: 250
+  batch_size: 300
   learning_rate: 0.001
   weight_decay: 0.05
   optimizer: "AdamW"
@@ -260,7 +260,7 @@ training:
 # Evaluation settings
 evaluation:
   severities: [0.0, 0.3, 0.5, 0.7, 1.0]
-  batch_size: 128
+  batch_size: 300
   transforms:
     - name: "rotate"
       params: {max_angle: 30}
