@@ -198,7 +198,16 @@ def train_models(args, config, models_to_train):
             logger.info(f"Training {corrector_name} corrector on {args.dataset}")
             logger.info(f"{'='*60}")
             
-            corrector_dir = checkpoint_dir / f"bestmodel_{corrector_name}"
+            # Use debug checkpoint dir if in debug mode
+            if config.is_debug_mode():
+                debug_checkpoint_dir = Path(config.get('debug.checkpoint_dir', '../../../debugmodelrendu/cifar10'))
+                if not debug_checkpoint_dir.is_absolute():
+                    debug_checkpoint_dir = Path(__file__).parent.parent / debug_checkpoint_dir
+                debug_checkpoint_dir = debug_checkpoint_dir.resolve()
+                corrector_dir = debug_checkpoint_dir / f"bestmodel_{corrector_name}"
+            else:
+                corrector_dir = checkpoint_dir / f"bestmodel_{corrector_name}"
+                
             corrector_checkpoint = corrector_dir / "best_model.pt"
             
             if corrector_checkpoint.exists() and not args.force_retrain:
