@@ -13,7 +13,7 @@ class ContinuousTransforms:
     def __init__(self, severity=1.0):
         self.severity = severity
         self.transform_types = ['no_transform', 'gaussian_noise', 'rotation', 'affine']
-        self.transform_probs = [0.3, 1.0, 1.0, 1.0]  # TODO config
+        self.transform_probs = [1.0, 1.0, 1.0, 1.0]  # TODO config
         
     def apply_transforms(self, img, transform_type=None, severity=None, return_params=False):
         """
@@ -63,10 +63,14 @@ class ContinuousTransforms:
             max_angle = MAX_ROTATION * severity
             angle = random.uniform(-max_angle, max_angle)
             
-            # we must use CPU for PIL operations ?
-            img_cpu = img.cpu()
-            to_pil = transforms.ToPILImage()
+            # Ensure image is in valid range before PIL conversion
+            img_clamped = torch.clamp(img, 0, 1)
+            img_cpu = img_clamped.cpu()
+            
+            # Use proper mode for PIL conversion
+            to_pil = transforms.ToPILImage(mode='RGB')
             to_tensor = transforms.ToTensor()
+            
             pil_img = to_pil(img_cpu)
             rotated_img = transforms.functional.rotate(pil_img, angle)
             transformed_img = to_tensor(rotated_img).to(device)  
@@ -81,10 +85,14 @@ class ContinuousTransforms:
             shear_x = random.uniform(-max_shear, max_shear)
             shear_y = random.uniform(-max_shear, max_shear)
             
-            # CPU for PIL
-            img_cpu = img.cpu()
-            to_pil = transforms.ToPILImage()
+            # Ensure image is in valid range before PIL conversion
+            img_clamped = torch.clamp(img, 0, 1)
+            img_cpu = img_clamped.cpu()
+            
+            # Use proper mode for PIL conversion
+            to_pil = transforms.ToPILImage(mode='RGB')
             to_tensor = transforms.ToTensor()
+            
             pil_img = to_pil(img_cpu)
             
             width, height = pil_img.size
@@ -123,7 +131,7 @@ class ContinuousTransforms:
             return_params: If True, return the transformation parameters
             
         Returns:
-            transformed_img: The transformed image (without clamping)
+            transformed_img: The transformed image (without clamping for noise, but clamped for PIL operations)
             transform_params: Dictionary of transformation parameters (if return_params=True)
         """
         device = img.device
@@ -153,16 +161,20 @@ class ContinuousTransforms:
             std = severity * MAX_STD_GAUSSIAN_NOISE
             noise = torch.randn_like(img, device=device) * std
             transformed_img = img + noise
-            # NO CLAMPING - values can go outside [0,1] range ?
+            # NO CLAMPING - values can go outside [0,1] range
             transform_params['noise_std'] = std
             
         elif transform_type == 'rotation':
             max_angle = MAX_ROTATION * severity
             angle = random.uniform(-max_angle, max_angle)
             
-            img_cpu = img.cpu()
-            to_pil = transforms.ToPILImage()
+            # Must clamp for PIL conversion even in unnormalized version
+            img_clamped = torch.clamp(img, 0, 1)
+            img_cpu = img_clamped.cpu()
+            
+            to_pil = transforms.ToPILImage(mode='RGB')
             to_tensor = transforms.ToTensor()
+            
             pil_img = to_pil(img_cpu)
             rotated_img = transforms.functional.rotate(pil_img, angle)
             transformed_img = to_tensor(rotated_img).to(device)  
@@ -177,9 +189,13 @@ class ContinuousTransforms:
             shear_x = random.uniform(-max_shear, max_shear)
             shear_y = random.uniform(-max_shear, max_shear)
             
-            img_cpu = img.cpu()
-            to_pil = transforms.ToPILImage()
+            # Must clamp for PIL conversion even in unnormalized version
+            img_clamped = torch.clamp(img, 0, 1)
+            img_cpu = img_clamped.cpu()
+            
+            to_pil = transforms.ToPILImage(mode='RGB')
             to_tensor = transforms.ToTensor()
+            
             pil_img = to_pil(img_cpu)
             
             width, height = pil_img.size
