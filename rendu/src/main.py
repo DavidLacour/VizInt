@@ -211,9 +211,20 @@ def train_models(args, config, models_to_train):
     
     trained_models = {}
     
+    # List of combined corrector models that don't need training
+    combined_corrector_models = ['unet_resnet18', 'unet_vit', 'transformer_resnet18', 
+                                'transformer_vit', 'hybrid_resnet18', 'hybrid_vit']
+    
     for model_name in models_to_train:
         # Skip pure correctors as they're trained separately
         if model_name in corrector_models:
+            continue
+            
+        # Skip combined corrector models - they use pre-trained components
+        if model_name in combined_corrector_models:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Skipping {model_name} - uses pre-trained corrector and classifier")
+            logger.info(f"{'='*60}")
             continue
             
         logger.info(f"\n{'='*60}")

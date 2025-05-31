@@ -138,32 +138,53 @@ class ModelFactory:
         elif model_type == 'hybrid_corrector':
             return HybridCorrector(model_config)
             
-        elif model_type == 'unet_resnet18':
-            backbone = ResNetBaseline(model_config)
-            return UNetCorrectorWrapper(backbone, model_config)
+        elif model_type in ['unet_resnet18', 'unet_vit', 'transformer_resnet18', 
+                           'transformer_vit', 'hybrid_resnet18', 'hybrid_vit']:
+            # Extract corrector type and backbone type
+            if 'unet' in model_type:
+                corrector_type = 'unet_corrector'
+            elif 'transformer' in model_type:
+                corrector_type = 'transformer_corrector'
+            else:  # hybrid
+                corrector_type = 'hybrid_corrector'
             
+            if 'resnet18' in model_type:
+                backbone_type = 'resnet'
+                backbone_name = "ResNet18"
+            else:  # vit
+                backbone_type = 'vanilla_vit'
+                backbone_name = "VanillaViT"
             
-        elif model_type == 'unet_vit':
-            backbone = VanillaViT(model_config)
-            return UNetCorrectorWrapper(backbone, model_config)
+            # Check for pre-trained models
+            checkpoint_dir = self.config.get_checkpoint_dir(dataset_name)
+            corrector_checkpoint = checkpoint_dir / f"bestmodel_{corrector_type}" / "best_model.pt"
+            backbone_checkpoint = checkpoint_dir / f"bestmodel_{backbone_type}" / "best_model.pt"
             
-        elif model_type == 'transformer_resnet18':
-            backbone = ResNetBaseline(model_config)
-            return TransformerCorrectorWrapper(backbone, model_config)
+            missing_models = []
+            if not corrector_checkpoint.exists():
+                missing_models.append(f"{corrector_type} at {corrector_checkpoint}")
+            if not backbone_checkpoint.exists():
+                missing_models.append(f"{backbone_name} at {backbone_checkpoint}")
             
+            if missing_models:
+                error_msg = f"\nCannot create {model_type} - missing pre-trained models:\n"
+                for model in missing_models:
+                    error_msg += f"  - {model}\n"
+                error_msg += f"\nPlease train the required models first before using {model_type}"
+                self.logger.error(error_msg)
+                raise FileNotFoundError(error_msg)
             
-        elif model_type == 'transformer_vit':
-            backbone = VanillaViT(model_config)
-            return TransformerCorrectorWrapper(backbone, model_config)
+            # Load pre-trained models
+            self.logger.info(f"Loading pre-trained {backbone_name} from {backbone_checkpoint}")
+            backbone = self.load_model_from_checkpoint(backbone_checkpoint, backbone_type, dataset_name)
             
-        elif model_type == 'hybrid_resnet18':
-            backbone = ResNetBaseline(model_config)
-            return HybridCorrectorWrapper(backbone, model_config)
-            
-            
-        elif model_type == 'hybrid_vit':
-            backbone = VanillaViT(model_config)
-            return HybridCorrectorWrapper(backbone, model_config)
+            # Create appropriate wrapper with pre-trained corrector
+            if 'unet' in model_type:
+                return UNetCorrectorWrapper(backbone, model_config, corrector_checkpoint)
+            elif 'transformer' in model_type:
+                return TransformerCorrectorWrapper(backbone, model_config, corrector_checkpoint)
+            else:  # hybrid
+                return HybridCorrectorWrapper(backbone, model_config, corrector_checkpoint)
             
         else:
             raise ValueError(f"Unknown model type: {model_type}")
