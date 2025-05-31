@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=tiny_funky5      # Change as needed
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --account=cs-503
 #SBATCH --qos=cs-503
 #SBATCH --gres=gpu:1                    # Request 2 GPUs
@@ -20,4 +20,4 @@ conda activate nanofm
 conda install -y seaborn
 export WANDB_ENTITY=david-lacour-epfl
 export WANDB_API_KEY=1d6641b737cd13fe32a9371dd3780308fee23512 
-python main.py --dataset tinyimagenet
+python main_with_corrector.py --dataset tinyimagenet
