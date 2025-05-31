@@ -16,26 +16,43 @@ from src.config.config_loader import ConfigLoader
 from src.data.data_loader import DataLoaderFactory
 
 
-def visualize_denoising_methods():
+def visualize_denoising_methods(dataset='cifar10'):
     """Visualize all denoising methods on a single image"""
     print("🎨 Visualizing Denoising Methods on Single Image")
     print("=" * 60)
     
-    config = ConfigLoader()
+    # Load appropriate config
+    if dataset == 'cifar10':
+        config = ConfigLoader('config/cifar10_config.yaml')
+    else:
+        config = ConfigLoader('config/tinyimagenet_config.yaml')
+    
     data_factory = DataLoaderFactory(config)
     
-    print("Loading CIFAR-10 dataset...")
+    print(f"Loading {dataset.upper()} dataset...")
     _, val_loader = data_factory.create_data_loaders(
-        'cifar10', 
+        dataset, 
         with_normalization=False,
         with_augmentation=False
     )
     
-    images, labels = next(iter(val_loader))
-    original = images[0] 
-    class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 
-                  'dog', 'frog', 'horse', 'ship', 'truck']
-    label = class_names[labels[0].item()]
+    # Handle different dataset formats
+    for batch in val_loader:
+        if dataset == 'tinyimagenet' and len(batch) == 4:
+            images, _, labels, _ = batch
+        else:
+            images, labels = batch
+        break
+    
+    original = images[0]
+    
+    if dataset == 'cifar10':
+        class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 
+                      'dog', 'frog', 'horse', 'ship', 'truck']
+        label = class_names[labels[0].item()]
+    else:
+        # For TinyImageNet, just use class index
+        label = f"Class {labels[0].item()}"
     
     noise_std = 0.1
     noise = torch.randn_like(original) * noise_std
@@ -51,7 +68,7 @@ def visualize_denoising_methods():
     print(f"Actual noise std: {actual_noise_std:.3f}")
     print(f"Noisy image PSNR: {noise_psnr:.2f} dB")
     
-    methods = ['gaussian', 'bilateral', 'nlm', 'wiener']
+    methods = ['gaussian', 'bilateral', 'nlm', 'wiener', 'bm3d']
     results = {}
     
     print("\nApplying denoising methods...")
@@ -79,49 +96,64 @@ def visualize_denoising_methods():
         
         print(f" done ({elapsed*1000:.1f}ms)")
     
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    fig = plt.figure(figsize=(18, 10))
     
-    show_image(axes[0, 0], original, f"Original\n{label}")
-    show_image(axes[0, 1], noisy, f"Noisy (σ={noise_std})\nPSNR: {noise_psnr:.1f} dB")
+    # Create custom grid for better layout with 5 denoising methods
+    gs = fig.add_gridspec(2, 4, width_ratios=[1, 1, 1, 1], height_ratios=[1, 1])
     
-    noise_viz = (actual_noise - actual_noise.min()) / (actual_noise.max() - actual_noise.min())
-    show_image(axes[0, 2], noise_viz, f"Noise Pattern\nstd: {actual_noise_std:.3f}")
+    # Top row: Original, Noisy, and 2 methods
+    ax1 = fig.add_subplot(gs[0, 0])
+    show_image(ax1, original, f"Original\n{label}")
     
-    # Show all 4 denoising methods
+    ax2 = fig.add_subplot(gs[0, 1])
+    show_image(ax2, noisy, f"Noisy (σ={noise_std})\nPSNR: {noise_psnr:.1f} dB")
+    
     # Gaussian
+    ax3 = fig.add_subplot(gs[0, 2])
     result = results['gaussian']
-    title = f"Gaussian (Original)\nPSNR: {result['psnr']:.1f} dB\nSSIM: {result['ssim']:.3f}\nTime: {result['time']*1000:.1f}ms"
-    show_image(axes[1, 0], result['image'], title)
+    title = f"Gaussian\nPSNR: {result['psnr']:.1f} dB\nTime: {result['time']*1000:.1f}ms"
+    show_image(ax3, result['image'], title)
     
-    # Bilateral
+    # Bilateral (Used in Healer)
+    ax4 = fig.add_subplot(gs[0, 3])
     result = results['bilateral']
-    title = f"Bilateral (Recommended)\nPSNR: {result['psnr']:.1f} dB\nSSIM: {result['ssim']:.3f}\nTime: {result['time']*1000:.1f}ms"
-    show_image(axes[1, 1], result['image'], title)
-    axes[1, 1].patch.set_edgecolor('green')
-    axes[1, 1].patch.set_linewidth(3)
+    title = f"Bilateral (Used)\nPSNR: {result['psnr']:.1f} dB\nTime: {result['time']*1000:.1f}ms"
+    show_image(ax4, result['image'], title)
+    ax4.patch.set_edgecolor('green')
+    ax4.patch.set_linewidth(3)
     
-    # NLM
+    # Bottom row: Remaining 3 methods
+    ax5 = fig.add_subplot(gs[1, 0])
     result = results['nlm']
-    title = f"Non-Local Means\nPSNR: {result['psnr']:.1f} dB\nSSIM: {result['ssim']:.3f}\nTime: {result['time']*1000:.1f}ms"
-    show_image(axes[1, 2], result['image'], title)
+    title = f"Non-Local Means\nPSNR: {result['psnr']:.1f} dB\nTime: {result['time']*1000:.1f}ms"
+    show_image(ax5, result['image'], title)
     
-    # Add Wiener
-    ax_inset = fig.add_axes([0.75, 0.62, 0.2, 0.2])  # [left, bottom, width, height]
+    ax6 = fig.add_subplot(gs[1, 1])
     result = results['wiener']
-    show_image(ax_inset, result['image'], f"Wiener\nPSNR: {result['psnr']:.1f}")
-    ax_inset.patch.set_edgecolor('gray')
-    ax_inset.patch.set_linewidth(2)
+    title = f"Wiener\nPSNR: {result['psnr']:.1f} dB\nTime: {result['time']*1000:.1f}ms"
+    show_image(ax6, result['image'], title)
+    
+    ax7 = fig.add_subplot(gs[1, 2])
+    result = results['bm3d']
+    title = f"BM3D\nPSNR: {result['psnr']:.1f} dB\nTime: {result['time']*1000:.1f}ms"
+    show_image(ax7, result['image'], title)
+    
+    # Leave last spot empty or add a summary
+    ax8 = fig.add_subplot(gs[1, 3])
+    ax8.axis('off')
+    ax8.text(0.5, 0.5, "Summary:\nBilateral filter is used\nfor edge-preserving\ndenoising in Healer", 
+             ha='center', va='center', fontsize=12, weight='bold')
     
     plt.suptitle(f"Denoising Methods Comparison - Gaussian Noise (σ={noise_std})", fontsize=16)
     plt.tight_layout()
     
-    output_dir = Path("../../../visualizationsrendu/demos/")
+    output_dir = Path(f"../../../visualizationsrendu/demos/{dataset}")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "single_image_denoising_comparison.png"
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"\n✅ Visualization saved to: {output_path}")
     
-    create_detailed_comparison(original, noisy, results, noise_std, label)
+    create_detailed_comparison(original, noisy, results, noise_std, label, dataset)
     print("\n" + "="*80)
     print("📊 DENOISING RESULTS SUMMARY")
     print("="*80)
@@ -140,11 +172,11 @@ def visualize_denoising_methods():
     plt.show()
 
 
-def create_detailed_comparison(original, noisy, results, noise_std, label):
+def create_detailed_comparison(original, noisy, results, noise_std, label, dataset='cifar10'):
     """Create a detailed side-by-side comparison"""
-    fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+    fig, axes = plt.subplots(2, 5, figsize=(20, 8))
     
-    # Original, noisy, and two best methods
+    # Top row: Original, noisy, and three best methods
     axes[0, 0].imshow(original.permute(1, 2, 0).numpy())
     axes[0, 0].set_title(f"Original\n{label}", fontsize=12)
     axes[0, 0].axis('off')
@@ -154,15 +186,19 @@ def create_detailed_comparison(original, noisy, results, noise_std, label):
     axes[0, 1].axis('off')
     
     axes[0, 2].imshow(results['bilateral']['image'].permute(1, 2, 0).numpy())
-    axes[0, 2].set_title("Bilateral (Recommended)\nEdge-preserving", fontsize=12, color='green')
+    axes[0, 2].set_title("Bilateral (Used)\nEdge-preserving", fontsize=12, color='green')
     axes[0, 2].axis('off')
     
-    axes[0, 3].imshow(results['gaussian']['image'].permute(1, 2, 0).numpy())
-    axes[0, 3].set_title("Gaussian (Original)\nSimple blur", fontsize=12)
+    axes[0, 3].imshow(results['wiener']['image'].permute(1, 2, 0).numpy())
+    axes[0, 3].set_title("Wiener\nFrequency domain", fontsize=12)
     axes[0, 3].axis('off')
     
-    # Difference maps
-    for idx, method in enumerate(['gaussian', 'bilateral', 'nlm', 'wiener']):
+    axes[0, 4].imshow(results['bm3d']['image'].permute(1, 2, 0).numpy())
+    axes[0, 4].set_title("BM3D\nPatch-based", fontsize=12)
+    axes[0, 4].axis('off')
+    
+    # Bottom row: Difference maps for all 5 methods
+    for idx, method in enumerate(['gaussian', 'bilateral', 'nlm', 'wiener', 'bm3d']):
         ax = axes[1, idx]
         
         diff = torch.abs(original - results[method]['image'])
@@ -175,7 +211,7 @@ def create_detailed_comparison(original, noisy, results, noise_std, label):
     plt.suptitle("Detailed Denoising Comparison", fontsize=14)
     plt.tight_layout()
     
-    output_path = Path("../../../visualizationsrendu/demos/") / "detailed_denoising_comparison.png"
+    output_path = Path(f"../../../visualizationsrendu/demos/{dataset}") / "detailed_denoising_comparison.png"
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"✅ Detailed comparison saved to: {output_path}")
     plt.close()
@@ -224,4 +260,10 @@ def show_image(ax, tensor, title):
 
 
 if __name__ == '__main__':
-    visualize_denoising_methods()
+    import argparse
+    parser = argparse.ArgumentParser(description='Visualize denoising methods on a single image')
+    parser.add_argument('--dataset', type=str, choices=['cifar10', 'tinyimagenet'], 
+                        default='cifar10', help='Dataset to use (default: cifar10)')
+    args = parser.parse_args()
+    
+    visualize_denoising_methods(dataset=args.dataset)
