@@ -37,7 +37,7 @@ def visualize_denoising_methods():
                   'dog', 'frog', 'horse', 'ship', 'truck']
     label = class_names[labels[0].item()]
     
-    noise_std = 0.3
+    noise_std = 0.1
     noise = torch.randn_like(original) * noise_std
     noisy = original + noise
     noisy = torch.clamp(noisy, 0, 1)

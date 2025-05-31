@@ -237,7 +237,7 @@ class HealerTransforms:
                                device: Optional[torch.device] = None) -> torch.Tensor:
         """
         Apply denoising to remove Gaussian noise from an image
-        (Kept for backward compatibility - redirects to wiener method)
+        (Now uses bilateral filter for edge-preserving denoising)
         
         Args:
             image: Input image tensor [C, H, W] or [B, C, H, W]
@@ -248,7 +248,7 @@ class HealerTransforms:
             Denoised image tensor
         """
         return HealerTransforms.apply_wiener_denoising(
-            image, noise_std, method='wiener', device=device
+            image, noise_std, method='bilateral', device=device
         )
     
     @staticmethod
