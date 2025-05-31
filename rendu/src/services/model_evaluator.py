@@ -166,7 +166,7 @@ class ModelEvaluator:
             # Handle different checkpoint filename patterns
             if model_type in ['unet_corrector', 'transformer_corrector', 'hybrid_corrector']:
                 corrector_type = model_type.replace('_corrector', '')
-                checkpoint_path = checkpoint_dir / f"bestmodel_{model_type}" / f"best_{corrector_type}_corrector.pth"
+                checkpoint_path = checkpoint_dir / f"bestmodel_{model_type}" / "best_model.pt"
             else:
                 checkpoint_path = checkpoint_dir / f"bestmodel_{model_type}" / "best_model.pt"
             

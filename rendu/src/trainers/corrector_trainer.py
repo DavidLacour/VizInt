@@ -303,8 +303,14 @@ class CorrectorTrainer:
                     best_val_loss = val_losses['total']
                     patience_counter = 0
                     if save_dir:
-                        save_path = save_dir / f"best_{self.model_type}_corrector.pth"
-                        model.save_checkpoint(save_path, epoch, optimizer, val_losses)
+                        save_path = save_dir / "best_model.pt"
+                        torch.save({
+                            'model_state_dict': model.state_dict(),
+                            'optimizer_state_dict': optimizer.state_dict(),
+                            'epoch': epoch,
+                            'val_losses': val_losses,
+                            'train_losses': train_losses
+                        }, save_path)
                         self.logger.info(f"Saved checkpoint to {save_path}")
                 else:
                     patience_counter += 1
@@ -325,9 +331,14 @@ class CorrectorTrainer:
             scheduler.step()
             history['learning_rates'].append(scheduler.get_last_lr()[0])
             
-            # Save checkpoint
+            # Save intermediate checkpoint
             if save_dir and (epoch + 1) % 10 == 0:
-                checkpoint_path = save_dir / f"{self.model_type}_corrector_epoch_{epoch+1}.pth"
-                model.save_checkpoint(checkpoint_path, epoch, optimizer, train_losses)
+                checkpoint_path = save_dir / f"checkpoint_epoch_{epoch+1}.pt"
+                torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'epoch': epoch,
+                    'train_losses': train_losses
+                }, checkpoint_path)
         
         return history

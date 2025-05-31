@@ -199,7 +199,7 @@ def load_or_create_correctors(config_path: str, dataset_name: str, checkpoint_di
     
     for corrector_type in corrector_types:
         if checkpoint_dir:
-            checkpoint_path = checkpoint_dir / f'best_{corrector_type}.pth'
+            checkpoint_path = checkpoint_dir / f'best_{corrector_type}.pt'
             if checkpoint_path.exists():
                 print(f"Loading pretrained {corrector_type} from {checkpoint_path}")
                 corrector = model_factory.create_model(corrector_type, dataset_name)
