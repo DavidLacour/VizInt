@@ -78,7 +78,7 @@ class BaseModel(nn.Module, ABC):
         Returns:
             Tuple of (model, checkpoint_dict)
         """
-        checkpoint = torch.load(path, map_location=device)
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
         
         # Use saved config if not provided
         if config is None:

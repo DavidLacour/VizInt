@@ -187,7 +187,52 @@ class ModelEvaluator:
                 except Exception as e:
                     self.logger.error(f"Failed to load {model_type}: {e}")
             else:
-                self.logger.debug(f"Checkpoint not found for {model_type} at {checkpoint_path}")
+                # Try to create combined corrector models dynamically from pre-trained components
+                if model_type in ['unet_resnet18', 'unet_vit', 'transformer_resnet18', 
+                                 'transformer_vit', 'hybrid_resnet18', 'hybrid_vit']:
+                    try:
+                        # Extract corrector and backbone types
+                        if 'unet' in model_type:
+                            corrector_type = 'unet_corrector'
+                        elif 'transformer' in model_type:
+                            corrector_type = 'transformer_corrector'
+                        else:  # hybrid
+                            corrector_type = 'hybrid_corrector'
+                        
+                        if 'resnet18' in model_type:
+                            backbone_type = 'resnet'
+                        else:  # vit
+                            backbone_type = 'vanilla_vit'
+                        
+                        # Check if we have the required pre-trained components
+                        if corrector_type in available_models and backbone_type in available_models:
+                            self.logger.info(f"Creating {model_type} from pre-loaded components")
+                            model = self.model_factory.create_model(model_type, dataset_name)
+                            model = model.to(self.device)
+                            model.eval()
+                            available_models[model_type] = model
+                        else:
+                            # Try to load the components first
+                            corrector_checkpoint = checkpoint_dir / f"bestmodel_{corrector_type}" / "best_model.pt"
+                            backbone_checkpoint = checkpoint_dir / f"bestmodel_{backbone_type}" / "best_model.pt"
+                            
+                            if corrector_checkpoint.exists() and backbone_checkpoint.exists():
+                                self.logger.info(f"Creating {model_type} from pre-trained checkpoints")
+                                model = self.model_factory.create_model(model_type, dataset_name)
+                                model = model.to(self.device)
+                                model.eval()
+                                available_models[model_type] = model
+                            else:
+                                missing = []
+                                if not corrector_checkpoint.exists():
+                                    missing.append(f"{corrector_type} at {corrector_checkpoint}")
+                                if not backbone_checkpoint.exists():
+                                    missing.append(f"{backbone_type} at {backbone_checkpoint}")
+                                self.logger.warning(f"Cannot create {model_type}: Missing components - {', '.join(missing)}")
+                    except Exception as e:
+                        self.logger.error(f"Failed to create {model_type}: {e}")
+                else:
+                    self.logger.debug(f"Checkpoint not found for {model_type} at {checkpoint_path}")
         
         return available_models
     

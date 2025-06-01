@@ -1,0 +1,116 @@
+=============================================================================================================================================
+🏆 COMPREHENSIVE RESULTS - TinyImagenet200
+=============================================================================================================================================
+Model Combination                   Description                                           Clean    S0.25     S0.5    S0.75     S1.0
+---------------------------------------------------------------------------------------------------------------------------------------------
+ResNet18_Pretrained                 ResNet18 (ImageNet pretrained)                       0.5761   0.4068   0.3428   0.3205   0.3211
+BlendedResNet18                     Blended wrapper with ResNet18 backbone               0.5548   0.5118   0.4852   0.4609   0.4399
+ResNet18_Baseline                   ResNet18 (from scratch)                              0.4646   0.3103   0.2618   0.2562   0.2525
+VanillaViT                          Vanilla ViT (not robust)                             0.3613   0.2362   0.2027   0.1988   0.1847
+HealerResNet18                      Healer wrapper with ResNet18 backbone                0.3420   0.2370   0.2011   0.1941   0.1868
+VanillaViT_Robust                   Vanilla ViT (robust training)                        0.3283   0.2344   0.2015   0.1887   0.1844
+Healer+VanillaViT                   Healer + Vanilla ViT (not robust)                    0.3268   0.2127   0.1878   0.1762   0.1703
+BlendedTraining                     Blended Training (inherently robust)                 0.3078   0.2086   0.1803   0.1674   0.1618
+Healer+VanillaViT_Robust            Healer + Vanilla ViT (robust)                        0.3025   0.2205   0.1867   0.1756   0.1701
+TTT3fc                              TTT3fc (Test-Time Training with 3FC)                 0.0055   0.0032   0.0054   0.0058   0.0059
+TTT                                 TTT (Test-Time Training)                             0.0051   0.0051   0.0062   0.0053   0.0049
+BlendedTraining3fc                  Blended Training 3fc (inherently robust)             0.0050   0.0050   0.0050   0.0050   0.0050
+TTTResNet18                         TTT wrapper with ResNet18 backbone                   0.0038   0.0048   0.0047   0.0040   0.0044
+=============================================================================================================================================
+
+=============================================================================================================================================
+📊 ANALYSIS
+=============================================================================================================================================
+🥇 Best Clean Data Performance: ResNet18_Pretrained (0.5761)
+🛡️  Most Transform Robust: BlendedResNet18 (11.5% drop)
+
+=============================================================================================================================================
+📊 TRANSFORMATION ROBUSTNESS SUMMARY
+=============================================================================================================================================
+Model                                  Sev 0.0   Sev 0.25    Sev 0.5   Sev 0.75    Sev 1.0   Avg Drop
+---------------------------------------------------------------------------------------------------------------------------------------------
+ResNet18_Pretrained                     0.5761     0.4068     0.3428     0.3205     0.3211     0.3963
+BlendedResNet18                         0.5548     0.5118     0.4852     0.4609     0.4399     0.1448
+ResNet18_Baseline                       0.4646     0.3103     0.2618     0.2562     0.2525     0.4184
+VanillaViT                              0.3613     0.2362     0.2027     0.1988     0.1847     0.4309
+HealerResNet18                          0.3420     0.2370     0.2011     0.1941     0.1868     0.4013
+VanillaViT_Robust                       0.3283     0.2344     0.2015     0.1887     0.1844     0.3839
+Healer+VanillaViT                       0.3268     0.2127     0.1878     0.1762     0.1703     0.4285
+BlendedTraining                         0.3078     0.2086     0.1803     0.1674     0.1618     0.4167
+Healer+VanillaViT_Robust                0.3025     0.2205     0.1867     0.1756     0.1701     0.3778
+TTT3fc                                  0.0055     0.0032     0.0054     0.0058     0.0059     0.0773
+TTT                                     0.0051     0.0051     0.0062     0.0053     0.0049    -0.0539
+BlendedTraining3fc                      0.0050     0.0050     0.0050     0.0050     0.0050     0.0000
+TTTResNet18                             0.0038     0.0048     0.0047     0.0040     0.0044    -0.1776
+
+=============================================================================================================================================
+🔍 HEALER GUIDANCE EVALUATION
+=============================================================================================================================================
+
+🔍 Evaluating Healer+VanillaViT...
+    Severity 0.25: Original: 0.2362, Healed: 0.2127, Improvement: -0.0235
+    Severity 0.5: Original: 0.2027, Healed: 0.1878, Improvement: -0.0149
+    Severity 0.75: Original: 0.1988, Healed: 0.1762, Improvement: -0.0226
+    Severity 1.0: Original: 0.1847, Healed: 0.1703, Improvement: -0.0144
+
+🔍 Evaluating Healer+VanillaViT_Robust...
+    Severity 0.25: Original: 0.2362, Healed: 0.2205, Improvement: -0.0157
+    Severity 0.5: Original: 0.2027, Healed: 0.1867, Improvement: -0.0160
+    Severity 0.75: Original: 0.1988, Healed: 0.1756, Improvement: -0.0232
+    Severity 1.0: Original: 0.1847, Healed: 0.1701, Improvement: -0.0146
+
+=============================================================================================================================================
+🎯 TRANSFORMATION PREDICTION ACCURACY
+=============================================================================================================================================
+Model                                 Sev 0.25    Sev 0.5   Sev 0.75    Sev 1.0    Average
+---------------------------------------------------------------------------------------------------------------------------------------------
+BlendedResNet18                         0.9690     0.9765     0.9768     0.9752     0.9744
+HealerResNet18                          0.2566     0.2545     0.2573     0.2472     0.2539
+Healer+VanillaViT                       0.2579     0.2555     0.2615     0.2569     0.2580
+BlendedTraining                         0.2739     0.2727     0.2812     0.3605     0.2971
+Healer+VanillaViT_Robust                0.2582     0.2564     0.2545     0.2533     0.2556
+BlendedTraining3fc                      0.2518     0.2509     0.2525     0.2483     0.2509
+TTTResNet18                             0.3602     0.3539     0.5632     0.5463     0.4559
+
+=============================================================================================================================================
+🚀 OUT-OF-DISTRIBUTION (FUNKY TRANSFORMS) EVALUATION
+=============================================================================================================================================
+This section evaluates model performance on extreme, funky transformations
+including color inversion, pixelation, extreme blur, masking, etc.
+---------------------------------------------------------------------------------------------------------------------------------------------
+Model Combination                   Description                                           Funky OOD
+---------------------------------------------------------------------------------------------------------------------------------------------
+BlendedResNet18                     Blended wrapper with ResNet18 backbone                   0.2138
+ResNet18_Pretrained                 ResNet18 (ImageNet pretrained)                           0.2002
+ResNet18_Baseline                   ResNet18 (from scratch)                                  0.1435
+HealerResNet18                      Healer wrapper with ResNet18 backbone                    0.1127
+VanillaViT_Robust                   Vanilla ViT (robust training)                            0.1013
+VanillaViT                          Vanilla ViT (not robust)                                 0.0956
+Healer+VanillaViT                   Healer + Vanilla ViT (not robust)                        0.0908
+Healer+VanillaViT_Robust            Healer + Vanilla ViT (robust)                            0.0878
+BlendedTraining                     Blended Training (inherently robust)                     0.0853
+BlendedTraining3fc                  Blended Training 3fc (inherently robust)                 0.0050
+TTT3fc                              TTT3fc (Test-Time Training with 3FC)                     0.0048
+TTT                                 TTT (Test-Time Training)                                 0.0044
+TTTResNet18                         TTT wrapper with ResNet18 backbone                       0.0041
+=============================================================================================================================================
+
+📊 OOD ANALYSIS
+--------------------------------------------------
+🥇 Best Funky OOD Performance: BlendedResNet18 (0.2138)
+
+🔍 OOD vs Clean Performance Gap:
+    BlendedResNet18: Clean 0.5548 → OOD 0.2138 (Gap: 0.3410, 61.5%)
+    ResNet18_Pretrained: Clean 0.5761 → OOD 0.2002 (Gap: 0.3759, 65.2%)
+    ResNet18_Baseline: Clean 0.4646 → OOD 0.1435 (Gap: 0.3211, 69.1%)
+    HealerResNet18: Clean 0.3420 → OOD 0.1127 (Gap: 0.2293, 67.0%)
+    VanillaViT_Robust: Clean 0.3283 → OOD 0.1013 (Gap: 0.2270, 69.1%)
+
+🏆 OOD Robustness Ranking:
+    1. BlendedResNet18: 0.2138
+    2. ResNet18_Pretrained: 0.2002
+    3. ResNet18_Baseline: 0.1435
+    4. HealerResNet18: 0.1127
+    5. VanillaViT_Robust: 0.1013
+
+=============================================================================================================================================

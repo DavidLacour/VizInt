@@ -209,7 +209,7 @@ class ModelFactory:
         Returns:
             Loaded model
         """
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
         
         if 'model_state_dict' in checkpoint:
             state_dict = checkpoint['model_state_dict']

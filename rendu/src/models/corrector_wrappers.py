@@ -152,7 +152,7 @@ class UNetCorrectorWrapper(CorrectorWrapper):
         corrector = PretrainedUNetCorrector(corrector_config)
         
         if corrector_checkpoint and corrector_checkpoint.exists():
-            checkpoint = torch.load(corrector_checkpoint, map_location='cpu')
+            checkpoint = torch.load(corrector_checkpoint, map_location='cpu', weights_only=False)
             corrector.load_state_dict(checkpoint['model_state_dict'])
         
         super().__init__(corrector, backbone, config)
@@ -184,7 +184,7 @@ class TransformerCorrectorWrapper(CorrectorWrapper):
         corrector = ImageToImageTransformer(corrector_config)
         
         if corrector_checkpoint and corrector_checkpoint.exists():
-            checkpoint = torch.load(corrector_checkpoint, map_location='cpu')
+            checkpoint = torch.load(corrector_checkpoint, map_location='cpu', weights_only=False)
             corrector.load_state_dict(checkpoint['model_state_dict'])
         
         super().__init__(corrector, backbone, config)
@@ -219,7 +219,7 @@ class HybridCorrectorWrapper(CorrectorWrapper):
         corrector = HybridCorrector(corrector_config)
         
         if corrector_checkpoint and corrector_checkpoint.exists():
-            checkpoint = torch.load(corrector_checkpoint, map_location='cpu')
+            checkpoint = torch.load(corrector_checkpoint, map_location='cpu', weights_only=False)
             corrector.load_state_dict(checkpoint['model_state_dict'])
         
         super().__init__(corrector, backbone, config)
