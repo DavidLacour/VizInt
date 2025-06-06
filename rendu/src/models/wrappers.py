@@ -367,7 +367,7 @@ class HealerWrapper(nn.Module):
         
         # Create ResNet18 for transform prediction
         import torchvision.models as models
-        self.transform_predictor = models.resnet18(pretrained=False)
+        self.transform_predictor = models.resnet18(weights=None)
         
         resnet_feature_dim = self.transform_predictor.fc.in_features  # 512 for ResNet18
         

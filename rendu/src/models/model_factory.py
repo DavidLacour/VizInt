@@ -63,6 +63,9 @@ class ModelFactory:
             config_key = 'blended_training'
         elif model_type == 'resnet18_not_pretrained_robust':
             config_key = 'resnet'
+        elif model_type.startswith('vgg') and model_type.endswith('_robust'):
+            # For vgg_robust, vgg16_robust, vgg19_robust
+            config_key = model_type
         elif model_type.endswith('_robust'):
             config_key = model_type.replace('_robust', '')
         else:
@@ -153,6 +156,13 @@ class ModelFactory:
             backbone = VGG19(backbone_config)
             feature_dim = 4096
             return BlendedWrapper(backbone, model_config, feature_dim)
+            
+        elif model_type in ['vgg_robust', 'vgg16_robust', 'vgg19_robust']:
+            # VGG models trained with continuous transforms (robust training)
+            if 'vgg19' in model_type:
+                return VGG19(model_config)
+            else:  # Default to VGG16 for 'vgg_robust' and 'vgg16_robust'
+                return VGG16(model_config)
             
         elif model_type == 'unet_corrector':
             return PretrainedUNetCorrector(model_config)

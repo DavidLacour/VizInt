@@ -117,6 +117,35 @@ models:
     model_type: "resnet18"
     num_denoising_steps: 3
     
+  # VGG models
+  blended_vgg:
+    model_type: "vgg16"
+    aux_loss_weight: 0.5
+    pretrained: false
+    
+  blended_vgg16:
+    model_type: "vgg16"
+    aux_loss_weight: 0.5
+    pretrained: false
+    
+  blended_vgg19:
+    model_type: "vgg19"
+    aux_loss_weight: 0.5
+    pretrained: false
+    
+  # VGG robust models (without blending)
+  vgg_robust:
+    architecture: "vgg16"
+    pretrained: false
+    
+  vgg16_robust:
+    architecture: "vgg16"
+    pretrained: false
+    
+  vgg19_robust:
+    architecture: "vgg19"
+    pretrained: false
+    
   # Corrector models
   unet_corrector:
     in_channels: 3
@@ -353,6 +382,37 @@ model_combinations:
     main_model: "healer_resnet18"
     healer_model: null
     description: "Healer wrapper with ResNet18 backbone"
+    
+  # VGG Models
+  - name: "BlendedVGG"
+    main_model: "blended_vgg"
+    healer_model: null
+    description: "Blended wrapper with VGG16 backbone"
+    
+  - name: "BlendedVGG16"
+    main_model: "blended_vgg16"
+    healer_model: null
+    description: "Blended wrapper with VGG16 backbone"
+    
+  - name: "BlendedVGG19"
+    main_model: "blended_vgg19"
+    healer_model: null
+    description: "Blended wrapper with VGG19 backbone"
+    
+  - name: "VGG_Robust"
+    main_model: "vgg_robust"
+    healer_model: null
+    description: "VGG16 (robust training)"
+    
+  - name: "VGG16_Robust"
+    main_model: "vgg16_robust"
+    healer_model: null
+    description: "VGG16 (robust training)"
+    
+  - name: "VGG19_Robust"
+    main_model: "vgg19_robust"
+    healer_model: null
+    description: "VGG19 (robust training)"
     
   # New Corrector Models
   - name: "UNet+ResNet18"

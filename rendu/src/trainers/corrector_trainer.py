@@ -51,7 +51,7 @@ class CorrectorTrainer:
         """Initialize perceptual loss using pre-trained VGG"""
         import torchvision.models as models
         
-        vgg = models.vgg16(pretrained=True).features[:16]  # Up to conv3_3
+        vgg = models.vgg16(weights='DEFAULT').features[:16]  # Up to conv3_3
         self.perceptual_net = vgg.eval()
         for param in self.perceptual_net.parameters():
             param.requires_grad = False

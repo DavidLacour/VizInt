@@ -29,7 +29,7 @@ class PretrainedUNetCorrector(BaseModel):
         self.out_channels = config.get('out_channels', 3)
         self.use_residual = config.get('use_residual', True)
         
-        self.encoder = models.resnet18(pretrained=True)
+        self.encoder = models.resnet18(weights='DEFAULT')
         
         if self.img_size in [32, 64]:
             pretrained_conv1 = self.encoder.conv1.weight.data.clone()

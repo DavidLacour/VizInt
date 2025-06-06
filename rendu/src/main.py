@@ -74,7 +74,8 @@ def parse_arguments():
 
 def get_models_to_process(args, config):
     """Get list of models to process based on arguments"""
-    all_models = ['resnet18_not_pretrained_robust', 'blended_resnet18', 'blended_vgg', 'blended_vgg16', 'blended_vgg19']
+    all_models = ['resnet18_not_pretrained_robust', 'blended_resnet18', 'blended_vgg', 'blended_vgg16', 'blended_vgg19', 
+                  'vgg_robust', 'vgg16_robust', 'vgg19_robust']
     """all_models = ['vanilla_vit', 'healer', 'ttt', 'ttt3fc', 'blended_training', 'blended_training_3fc', 
                   'resnet', 'resnet_pretrained', 'resnet18_not_pretrained_robust', 'blended_resnet18', 'blended_vgg', 'blended_vgg16', 'blended_vgg19', 'ttt_resnet18', 'healer_resnet18',
                   'unet_corrector', 'transformer_corrector', 'hybrid_corrector',
@@ -255,8 +256,8 @@ def train_models(args, config, models_to_train):
         )
         trained_models[model_name] = model
         
-        # Handle resnet18_not_pretrained_robust separately as it's trained with robust flag
-        if model_name == 'resnet18_not_pretrained_robust':
+        # Handle models that are inherently robust separately
+        if model_name in ['resnet18_not_pretrained_robust', 'vgg_robust', 'vgg16_robust', 'vgg19_robust']:
             continue
             
         # Always train robust version for vanilla_vit (and optionally for others if --robust flag is set)
@@ -296,6 +297,25 @@ def train_models(args, config, models_to_train):
                 robust_training=True
             )
             trained_models['resnet18_not_pretrained_robust'] = model
+    
+    # Train VGG robust models if they're in the models list
+    vgg_robust_models = ['vgg_robust', 'vgg16_robust', 'vgg19_robust']
+    for vgg_model in vgg_robust_models:
+        if vgg_model in models_to_train:
+            logger.info(f"\nTraining {vgg_model} with continuous transforms")
+            
+            model_dir = checkpoint_dir / f"bestmodel_{vgg_model}"
+            checkpoint_path = model_dir / "best_model.pt"
+            
+            if checkpoint_path.exists() and not args.force_retrain:
+                logger.info(f"Model already exists at {checkpoint_path}, skipping training")
+            else:
+                model, history = trainer_service.train_model(
+                    model_type=vgg_model,
+                    dataset_name=args.dataset,
+                    robust_training=True
+                )
+                trained_models[vgg_model] = model
     
     return trained_models
 

@@ -28,7 +28,7 @@ class ResNetBaseline(ClassificationModel):
         self.img_size = config['img_size']
         
         # use ResNet18 from torchvision
-        self.model = models.resnet18(pretrained=False, num_classes=num_classes)
+        self.model = models.resnet18(weights=None, num_classes=num_classes)
         
         if self.img_size == 32:  # CIFAR-10
             self.model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
@@ -94,7 +94,7 @@ class ResNetPretrained(ClassificationModel):
         
         self.img_size = config['img_size']
         
-        self.model = models.resnet18(pretrained=True)
+        self.model = models.resnet18(weights='DEFAULT')
         
         if self.img_size == 32:  # CIFAR-10
             pretrained_conv1 = self.model.conv1.weight.data.clone()
