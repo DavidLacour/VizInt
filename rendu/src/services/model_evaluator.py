@@ -113,14 +113,15 @@ class ModelEvaluator:
         checkpoint_dir = self.config.get_checkpoint_dir(dataset_name, use_debug_dir=True)
         
         self.logger.info(f"Loading models from checkpoint directory: {checkpoint_dir}")
-        all_model_types = [
+        all_model_types = ['resnet18_not_pretrained_robust', 'blended_resnet18', 'blended_vgg', 'blended_vgg16', 'blended_vgg19']
+        """all_model_types = [
             'vanilla_vit', 'vanilla_vit_robust', 'healer', 'ttt', 'ttt_robust',
             'ttt3fc', 'blended_training', 'blended_training_3fc', 
-            'resnet', 'resnet_pretrained', 'resnet18_not_pretrained_robust', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18',
+            'resnet', 'resnet_pretrained', 'resnet18_not_pretrained_robust', 'blended_resnet18', 'blended_vgg', 'blended_vgg16', 'blended_vgg19', 'ttt_resnet18', 'healer_resnet18',
             'unet_corrector', 'transformer_corrector', 'hybrid_corrector',
             'unet_resnet18', 'unet_vit', 'transformer_resnet18', 'transformer_vit',
             'hybrid_resnet18', 'hybrid_vit'
-        ]
+        ]"""
         
         if model_types:
             types_to_load = []

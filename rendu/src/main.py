@@ -74,12 +74,13 @@ def parse_arguments():
 
 def get_models_to_process(args, config):
     """Get list of models to process based on arguments"""
-    all_models = ['vanilla_vit', 'healer', 'ttt', 'ttt3fc', 'blended_training', 'blended_training_3fc', 
-                  'resnet', 'resnet_pretrained', 'resnet18_not_pretrained_robust', 'blended_resnet18', 'ttt_resnet18', 'healer_resnet18',
+    all_models = ['resnet18_not_pretrained_robust', 'blended_resnet18', 'blended_vgg', 'blended_vgg16', 'blended_vgg19']
+    """all_models = ['vanilla_vit', 'healer', 'ttt', 'ttt3fc', 'blended_training', 'blended_training_3fc', 
+                  'resnet', 'resnet_pretrained', 'resnet18_not_pretrained_robust', 'blended_resnet18', 'blended_vgg', 'blended_vgg16', 'blended_vgg19', 'ttt_resnet18', 'healer_resnet18',
                   'unet_corrector', 'transformer_corrector', 'hybrid_corrector',
                   'unet_resnet18', 'unet_vit',
                   'transformer_resnet18', 'transformer_vit',
-                  'hybrid_resnet18', 'hybrid_vit']
+                  'hybrid_resnet18', 'hybrid_vit']"""
     
     name_mapping = {
         'main': 'vanilla_vit',

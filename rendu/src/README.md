@@ -186,3 +186,34 @@ Preprocessors that attempt to clean corrupted inputs before classification:
 - **UNet**: CNN-based denoising
 - **Transformer**: Attention-based correction
 - **Hybrid**: Combines CNN and Transformer approaches
+
+
+
+=============================================================================================================================================
+📊 TRANSFORMATION ROBUSTNESS SUMMARY tinyimagenet200
+=============================================================================================================================================
+Model                                  Sev 0.0   Sev 0.25    Sev 0.5   Sev 0.75    Sev 1.0   Avg Drop
+---------------------------------------------------------------------------------------------------------------------------------------------
+BlendedResNet18                         0.5698     0.5274     0.4959     0.4767     0.4510     0.1440
+ResNet18_Pretrained                     0.5663     0.3941     0.3346     0.3207     0.3141     0.3981
+ResNet18_NotPretrainedRobust            0.4686     0.3160     0.2702     0.2614     0.2531     0.4128
+ResNet18_Baseline                       0.4565     0.3008     0.2565     0.2462     0.2368     0.4303
+VanillaViT_Robust                       0.3765     0.2900     0.2419     0.2262     0.2204     0.3503
+HealerResNet18                          0.3709     0.2466     0.2097     0.2040     0.2034     0.4178
+BlendedTraining                         0.3567     0.2343     0.2007     0.2004     0.1925     0.4198
+VanillaViT                              0.3458     0.2406     0.2045     0.1935     0.1846     0.4049
+BlendedTraining3fc                      0.2484     0.1811     0.1469     0.1441     0.1405     0.3835
+
+
+
+
+📊 OOD ANALYSIS  tinyimagenet200
+--------------------------------------------------
+🥇 Best Funky OOD Performance: BlendedResNet18 (0.2161) 
+
+🔍 OOD vs Clean Performance Gap:
+    BlendedResNet18: Clean 0.5698 → OOD 0.2161 (Gap: 0.3537, 62.1%)
+    ResNet18_Pretrained: Clean 0.5663 → OOD 0.1893 (Gap: 0.3770, 66.6%)
+    ResNet18_NotPretrainedRobust: Clean 0.4686 → OOD 0.1453 (Gap: 0.3233, 69.0%)
+    ResNet18_Baseline: Clean 0.4565 → OOD 0.1394 (Gap: 0.3171, 69.5%)
+    VanillaViT_Robust: Clean 0.3765 → OOD 0.1187 (Gap: 0.2578, 68.5%)

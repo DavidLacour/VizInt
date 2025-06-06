@@ -95,8 +95,11 @@ class BlendedTrainer(BaseTrainer):
         transform_loss = self.aux_criterion(aux_outputs['transform_type'], transform_labels)
         
         # Combined loss: 0.95 *  sigmoid (classification ) + 0.05 * torch.sigmoid( transformation )
-        loss = self.class_loss_weight *  torch.sigmoid(cls_loss) + self.transform_loss_weight * torch.sigmoid( transform_loss )
+        # loss = self.class_loss_weight *  torch.sigmoid(cls_loss) + self.transform_loss_weight * torch.sigmoid( transform_loss )
         
+        # trying new loss 
+        loss = cls_loss + cls_loss * 0.01 * torch.sigmoid( transform_loss )
+
         _, predicted = torch.max(class_logits, 1)
         cls_accuracy = (predicted == labels).float().mean()
         

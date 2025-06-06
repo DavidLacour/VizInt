@@ -14,6 +14,7 @@ from config.config_loader import ConfigLoader
 
 from .vanilla_vit import VanillaViT, VanillaViTRobust
 from .resnet import ResNetBaseline, ResNetPretrained
+from .vgg import VGG, VGG16, VGG19
 from .ttt import TTT, TTT3fc
 from .blended_training import BlendedTraining
 from .blended_training_3fc import BlendedTraining3fc
@@ -128,6 +129,30 @@ class ModelFactory:
             backbone = ResNetBaseline(backbone_config)
             feature_dim = 512
             return HealerWrapper(backbone, model_config, feature_dim)
+            
+        elif model_type == 'blended_vgg':
+            backbone_config = model_config.copy()
+            backbone_config['model_type'] = 'vgg16'
+            backbone_config['pretrained'] = False
+            backbone = VGG16(backbone_config)
+            feature_dim = 4096
+            return BlendedWrapper(backbone, model_config, feature_dim)
+            
+        elif model_type == 'blended_vgg16':
+            backbone_config = model_config.copy()
+            backbone_config['model_type'] = 'vgg16'
+            backbone_config['pretrained'] = False
+            backbone = VGG16(backbone_config)
+            feature_dim = 4096
+            return BlendedWrapper(backbone, model_config, feature_dim)
+            
+        elif model_type == 'blended_vgg19':
+            backbone_config = model_config.copy()
+            backbone_config['model_type'] = 'vgg19'
+            backbone_config['pretrained'] = False
+            backbone = VGG19(backbone_config)
+            feature_dim = 4096
+            return BlendedWrapper(backbone, model_config, feature_dim)
             
         elif model_type == 'unet_corrector':
             return PretrainedUNetCorrector(model_config)

@@ -64,6 +64,10 @@ models:
   healer:
     enabled: true
     depth: 6
+    
+  vgg:
+    vgg_type: 'vgg16'
+    pretrained: false
 
 # Training configurations
 training:
@@ -194,6 +198,21 @@ model_combinations:
     main_model: "healer_resnet18"
     healer_model: null
     description: "Healer wrapper with ResNet18 backbone"
+    
+  - name: "BlendedVGG"
+    main_model: "blended_vgg"
+    healer_model: null
+    description: "Blended wrapper with VGG16 backbone"
+    
+  - name: "BlendedVGG16"
+    main_model: "blended_vgg16"
+    healer_model: null
+    description: "Blended wrapper with VGG16 backbone"
+    
+  - name: "BlendedVGG19"
+    main_model: "blended_vgg19"
+    healer_model: null
+    description: "Blended wrapper with VGG19 backbone"
 
 # Logging settings
 logging:
