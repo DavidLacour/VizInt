@@ -1,0 +1,122 @@
+[2026-02-25 21:20:46,466] INFO: Using device: cuda
+[2026-02-25 21:20:49,621] INFO: wandb initialized
+[2026-02-25 21:20:49,621] INFO: ============================================================
+[2026-02-25 21:20:49,621] INFO: PHASE 1: TRAINING MODELS
+[2026-02-25 21:20:49,621] INFO: ============================================================
+[2026-02-25 21:20:49,621] INFO: 
+============================================================
+[2026-02-25 21:20:49,621] INFO: Training: resnet18_not_pretrained_robust
+[2026-02-25 21:20:49,621] INFO: ============================================================
+[2026-02-25 21:20:49,622] INFO: Starting training for resnet18_not_pretrained_robust on cifar10
+[2026-02-25 21:20:49,818] INFO: Created resnet18_not_pretrained_robust model with 11,173,962 trainable parameters
+[2026-02-25 21:21:10,911] INFO: Created CIFAR-10 loaders: 50000 train, 10000 val samples
+[2026-02-25 21:21:42,319] INFO: Epoch 1/100 - Time: 31.4s - train_loss: 1.5507, train_accuracy: 0.4397 - val_loss: 1.1550, val_accuracy: 0.5888
+[2026-02-25 21:21:42,489] INFO: Saved checkpoint to ../../../cifar10checkpointsrendufunky5/bestmodel_resnet18_not_pretrained_robust/best_model.pt
+[2026-02-25 21:22:13,564] INFO: Epoch 2/100 - Time: 31.1s - train_loss: 1.1164, train_accuracy: 0.6011 - val_loss: 0.9861, val_accuracy: 0.6638
+[2026-02-25 21:22:13,806] INFO: Saved checkpoint to ../../../cifar10checkpointsrendufunky5/bestmodel_resnet18_not_pretrained_robust/best_model.pt
+[2026-02-25 21:22:27,352] INFO: Using device: cuda
+[2026-02-25 21:22:29,463] INFO: wandb initialized
+[2026-02-25 21:22:29,463] INFO: ============================================================
+[2026-02-25 21:22:29,463] INFO: PHASE 1: TRAINING MODELS
+[2026-02-25 21:22:29,463] INFO: ============================================================
+[2026-02-25 21:22:29,464] INFO: 
+============================================================
+[2026-02-25 21:22:29,464] INFO: Training: resnet18_not_pretrained_robust
+[2026-02-25 21:22:29,464] INFO: ============================================================
+[2026-02-25 21:22:29,464] INFO: Checkpoint exists at ../../../cifar10checkpointsrendufunky5/bestmodel_resnet18_not_pretrained_robust/best_model.pt, skipping training
+[2026-02-25 21:22:29,464] INFO: 
+============================================================
+[2026-02-25 21:22:29,464] INFO: Training: blended_resnet18
+[2026-02-25 21:22:29,464] INFO: ============================================================
+[2026-02-25 21:22:29,464] INFO: Starting training for blended_resnet18 on cifar10
+[2026-02-25 21:22:29,661] INFO: Created blended_resnet18 model with 11,714,654 trainable parameters
+[2026-02-25 21:22:30,847] INFO: Created CIFAR-10 loaders: 50000 train, 10000 val samples
+[2026-02-25 21:23:08,346] INFO: Epoch 1/100 - Time: 37.5s - train_loss: 1.6185, train_cls_loss: 1.6057, train_transform_loss: 1.3554, train_accuracy: 0.4156, train_transform_accuracy: 0.3399 - val_loss: 3.5707, val_accuracy: 0.1029
+[2026-02-25 21:23:08,483] INFO: Saved checkpoint to ../../../cifar10checkpointsrendufunky5/bestmodel_blended_resnet18/best_model.pt
+[2026-02-25 21:23:45,767] INFO: Epoch 2/100 - Time: 37.3s - train_loss: 1.2661, train_cls_loss: 1.2564, train_transform_loss: 1.2144, train_accuracy: 0.5488, train_transform_accuracy: 0.4823 - val_loss: 3.3699, val_accuracy: 0.1954
+[2026-02-25 21:23:45,932] INFO: Saved checkpoint to ../../../cifar10checkpointsrendufunky5/bestmodel_blended_resnet18/best_model.pt
+[2026-02-25 21:24:23,294] INFO: Epoch 3/100 - Time: 37.4s - train_loss: 1.0867, train_cls_loss: 1.0786, train_transform_loss: 1.1020, train_accuracy: 0.6151, train_transform_accuracy: 0.5445 - val_loss: 3.3752, val_accuracy: 0.1713
+[2026-02-25 21:25:00,608] INFO: Epoch 4/100 - Time: 37.3s - train_loss: 0.9642, train_cls_loss: 0.9572, train_transform_loss: 1.0444, train_accuracy: 0.6587, train_transform_accuracy: 0.5733 - val_loss: 3.5877, val_accuracy: 0.1559
+[2026-02-25 21:25:37,912] INFO: Epoch 5/100 - Time: 37.3s - train_loss: 0.8872, train_cls_loss: 0.8808, train_transform_loss: 0.9987, train_accuracy: 0.6856, train_transform_accuracy: 0.5950 - val_loss: 3.4424, val_accuracy: 0.1740
+[2026-02-25 21:26:15,207] INFO: Epoch 6/100 - Time: 37.3s - train_loss: 0.8170, train_cls_loss: 0.8112, train_transform_loss: 0.9669, train_accuracy: 0.7135, train_transform_accuracy: 0.6117 - val_loss: 3.0068, val_accuracy: 0.2455
+[2026-02-25 21:26:15,376] INFO: Saved checkpoint to ../../../cifar10checkpointsrendufunky5/bestmodel_blended_resnet18/best_model.pt
+[2026-02-25 21:26:52,618] INFO: Epoch 7/100 - Time: 37.2s - train_loss: 0.7767, train_cls_loss: 0.7712, train_transform_loss: 0.9315, train_accuracy: 0.7303, train_transform_accuracy: 0.6272 - val_loss: 3.2784, val_accuracy: 0.2377
+[2026-02-25 21:27:29,862] INFO: Epoch 8/100 - Time: 37.2s - train_loss: 0.7207, train_cls_loss: 0.7156, train_transform_loss: 0.9068, train_accuracy: 0.7490, train_transform_accuracy: 0.6430 - val_loss: 2.5783, val_accuracy: 0.3196
+[2026-02-25 21:27:30,032] INFO: Saved checkpoint to ../../../cifar10checkpointsrendufunky5/bestmodel_blended_resnet18/best_model.pt
+[2026-02-25 21:28:07,333] INFO: Epoch 9/100 - Time: 37.3s - train_loss: 0.6812, train_cls_loss: 0.6764, train_transform_loss: 0.8927, train_accuracy: 0.7641, train_transform_accuracy: 0.6518 - val_loss: 3.0957, val_accuracy: 0.3141
+[2026-02-25 21:28:44,657] INFO: Epoch 10/100 - Time: 37.3s - train_loss: 0.6437, train_cls_loss: 0.6392, train_transform_loss: 0.8799, train_accuracy: 0.7756, train_transform_accuracy: 0.6550 - val_loss: 2.9267, val_accuracy: 0.2956
+[2026-02-25 21:29:21,947] INFO: Epoch 11/100 - Time: 37.3s - train_loss: 0.5547, train_cls_loss: 0.5508, train_transform_loss: 0.8423, train_accuracy: 0.8087, train_transform_accuracy: 0.6760 - val_loss: 2.8758, val_accuracy: 0.2752
+[2026-02-25 21:29:59,299] INFO: Epoch 12/100 - Time: 37.4s - train_loss: 0.5229, train_cls_loss: 0.5192, train_transform_loss: 0.8255, train_accuracy: 0.8196, train_transform_accuracy: 0.6861 - val_loss: 2.8271, val_accuracy: 0.3271
+[2026-02-25 21:29:59,476] INFO: Saved checkpoint to ../../../cifar10checkpointsrendufunky5/bestmodel_blended_resnet18/best_model.pt
+[2026-02-25 21:30:36,745] INFO: Epoch 13/100 - Time: 37.3s - train_loss: 0.4928, train_cls_loss: 0.4894, train_transform_loss: 0.8188, train_accuracy: 0.8300, train_transform_accuracy: 0.6913 - val_loss: 2.8897, val_accuracy: 0.3385
+[2026-02-25 21:30:36,915] INFO: Saved checkpoint to ../../../cifar10checkpointsrendufunky5/bestmodel_blended_resnet18/best_model.pt
+[2026-02-25 21:31:14,200] INFO: Epoch 14/100 - Time: 37.3s - train_loss: 0.4815, train_cls_loss: 0.4782, train_transform_loss: 0.8084, train_accuracy: 0.8339, train_transform_accuracy: 0.6945 - val_loss: 2.6650, val_accuracy: 0.3746
+[2026-02-25 21:31:14,395] INFO: Saved checkpoint to ../../../cifar10checkpointsrendufunky5/bestmodel_blended_resnet18/best_model.pt
+[2026-02-25 21:31:51,729] INFO: Epoch 15/100 - Time: 37.3s - train_loss: 0.4643, train_cls_loss: 0.4611, train_transform_loss: 0.8123, train_accuracy: 0.8400, train_transform_accuracy: 0.6906 - val_loss: 2.7506, val_accuracy: 0.3577
+[2026-02-25 21:32:29,061] INFO: Epoch 16/100 - Time: 37.3s - train_loss: 0.4499, train_cls_loss: 0.4468, train_transform_loss: 0.8086, train_accuracy: 0.8448, train_transform_accuracy: 0.6938 - val_loss: 2.9093, val_accuracy: 0.3675
+[2026-02-25 21:33:06,339] INFO: Epoch 17/100 - Time: 37.3s - train_loss: 0.4016, train_cls_loss: 0.3989, train_transform_loss: 0.7909, train_accuracy: 0.8625, train_transform_accuracy: 0.7047 - val_loss: 2.5516, val_accuracy: 0.3427
+[2026-02-25 21:33:43,655] INFO: Epoch 18/100 - Time: 37.3s - train_loss: 0.3902, train_cls_loss: 0.3875, train_transform_loss: 0.7920, train_accuracy: 0.8669, train_transform_accuracy: 0.7037 - val_loss: 2.8003, val_accuracy: 0.3420
+[2026-02-25 21:34:20,965] INFO: Epoch 19/100 - Time: 37.3s - train_loss: 0.3802, train_cls_loss: 0.3776, train_transform_loss: 0.7910, train_accuracy: 0.8696, train_transform_accuracy: 0.6978 - val_loss: 2.6087, val_accuracy: 0.3696
+[2026-02-25 21:34:58,298] INFO: Epoch 20/100 - Time: 37.3s - train_loss: 0.3737, train_cls_loss: 0.3712, train_transform_loss: 0.7906, train_accuracy: 0.8729, train_transform_accuracy: 0.7010 - val_loss: 3.1611, val_accuracy: 0.3283
+[2026-02-25 21:35:35,634] INFO: Epoch 21/100 - Time: 37.3s - train_loss: 0.3650, train_cls_loss: 0.3626, train_transform_loss: 0.7827, train_accuracy: 0.8747, train_transform_accuracy: 0.7037 - val_loss: 2.8342, val_accuracy: 0.3736
+[2026-02-25 21:36:12,965] INFO: Epoch 22/100 - Time: 37.3s - train_loss: 0.3629, train_cls_loss: 0.3605, train_transform_loss: 0.7860, train_accuracy: 0.8764, train_transform_accuracy: 0.7052 - val_loss: 3.3394, val_accuracy: 0.2969
+[2026-02-25 21:36:50,308] INFO: Epoch 23/100 - Time: 37.3s - train_loss: 0.3420, train_cls_loss: 0.3396, train_transform_loss: 0.7793, train_accuracy: 0.8837, train_transform_accuracy: 0.7015 - val_loss: 3.0103, val_accuracy: 0.3596
+[2026-02-25 21:37:27,617] INFO: Epoch 24/100 - Time: 37.3s - train_loss: 0.3313, train_cls_loss: 0.3291, train_transform_loss: 0.7753, train_accuracy: 0.8879, train_transform_accuracy: 0.7114 - val_loss: 3.2428, val_accuracy: 0.3433
+[2026-02-25 21:37:27,617] INFO: Early stopping triggered after 24 epochs
+[2026-02-25 21:37:27,617] INFO: Training completed for blended_resnet18
+[2026-02-25 21:37:27,617] INFO: Best metric: 0.3746 at epoch 14
+[2026-02-25 21:37:27,624] INFO: 
+============================================================
+[2026-02-25 21:37:27,625] INFO: PHASE 2: EVALUATING MODELS
+[2026-02-25 21:37:27,625] INFO: ============================================================
+[2026-02-25 21:37:27,625] INFO: Loading blended_resnet18 from ../../../cifar10checkpointsrendufunky5/bestmodel_blended_resnet18/best_model.pt
+[2026-02-25 21:37:27,677] INFO: Loading wrapped model blended_resnet18
+[2026-02-25 21:37:27,767] INFO: Loaded blended_resnet18 model from ../../../cifar10checkpointsrendufunky5/bestmodel_blended_resnet18/best_model.pt
+[2026-02-25 21:37:27,768] INFO:   Loaded blended_resnet18 successfully
+[2026-02-25 21:37:27,768] INFO: Loading resnet18_not_pretrained_robust from ../../../cifar10checkpointsrendufunky5/bestmodel_resnet18_not_pretrained_robust/best_model.pt
+[2026-02-25 21:37:28,008] INFO: Loaded resnet18_not_pretrained_robust model from ../../../cifar10checkpointsrendufunky5/bestmodel_resnet18_not_pretrained_robust/best_model.pt
+[2026-02-25 21:37:28,009] INFO:   Loaded resnet18_not_pretrained_robust successfully
+[2026-02-25 21:37:28,010] INFO: 
+Evaluating blended_resnet18 on corruptions...
+[2026-02-25 21:37:28,010] INFO:   Evaluating blended_resnet18 at severity 0.0...
+[2026-02-25 21:37:30,466] INFO:     Severity 0.0: Accuracy = 0.8314
+[2026-02-25 21:37:30,466] INFO:   Evaluating blended_resnet18 at severity 0.25...
+[2026-02-25 21:37:33,763] INFO:     Severity 0.25: Accuracy = 0.7673
+[2026-02-25 21:37:33,764] INFO:   Evaluating blended_resnet18 at severity 0.5...
+[2026-02-25 21:37:37,024] INFO:     Severity 0.5: Accuracy = 0.7295
+[2026-02-25 21:37:37,024] INFO:   Evaluating blended_resnet18 at severity 0.75...
+[2026-02-25 21:37:40,306] INFO:     Severity 0.75: Accuracy = 0.7035
+[2026-02-25 21:37:40,306] INFO:   Evaluating blended_resnet18 at severity 1.0...
+[2026-02-25 21:37:43,571] INFO:     Severity 1.0: Accuracy = 0.6793
+[2026-02-25 21:37:43,575] INFO: 
+Evaluating resnet18_not_pretrained_robust on corruptions...
+[2026-02-25 21:37:43,575] INFO:   Evaluating resnet18_not_pretrained_robust at severity 0.0...
+[2026-02-25 21:37:45,987] INFO:     Severity 0.0: Accuracy = 0.6653
+[2026-02-25 21:37:45,987] INFO:   Evaluating resnet18_not_pretrained_robust at severity 0.25...
+[2026-02-25 21:37:49,227] INFO:     Severity 0.25: Accuracy = 0.5111
+[2026-02-25 21:37:49,227] INFO:   Evaluating resnet18_not_pretrained_robust at severity 0.5...
+[2026-02-25 21:37:52,482] INFO:     Severity 0.5: Accuracy = 0.4437
+[2026-02-25 21:37:52,483] INFO:   Evaluating resnet18_not_pretrained_robust at severity 0.75...
+[2026-02-25 21:37:55,715] INFO:     Severity 0.75: Accuracy = 0.4181
+[2026-02-25 21:37:55,715] INFO:   Evaluating resnet18_not_pretrained_robust at severity 1.0...
+[2026-02-25 21:37:58,967] INFO:     Severity 1.0: Accuracy = 0.4118
+[2026-02-25 21:37:58,971] INFO: 
+Evaluating blended_resnet18 on OOD transforms...
+[2026-02-25 21:38:02,777] INFO:   blended_resnet18 OOD Accuracy: 0.4657
+[2026-02-25 21:38:02,778] INFO: 
+Evaluating resnet18_not_pretrained_robust on OOD transforms...
+[2026-02-25 21:38:06,610] INFO:   resnet18_not_pretrained_robust OOD Accuracy: 0.3484
+[2026-02-25 21:38:06,611] INFO: 
+Evaluating blended_resnet18 per transform type...
+[2026-02-25 21:38:46,358] INFO: 
+Evaluating resnet18_not_pretrained_robust per transform type...
+[2026-02-25 21:39:26,011] INFO: 
+============================================================
+[2026-02-25 21:39:26,012] INFO: PHASE 3: GENERATING REPORTS AND GRAPHS
+[2026-02-25 21:39:26,012] INFO: ============================================================
+[2026-02-25 21:39:26,012] INFO: Raw results saved to /media/david-lacour/Lexar/predicttransforms/VizInt/rendu/src/robustness_experiment_outputs/results.json
+[2026-02-25 21:39:35,037] INFO: wandb run finished
+[2026-02-25 21:39:35,037] INFO: 
+============================================================
+[2026-02-25 21:39:35,037] INFO: EXPERIMENT COMPLETE - SUMMARY
+[2026-02-25 21:39:35,037] INFO: ============================================================
