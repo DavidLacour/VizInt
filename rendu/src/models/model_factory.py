@@ -157,6 +157,12 @@ class ModelFactory:
             feature_dim = 4096
             return BlendedWrapper(backbone, model_config, feature_dim)
             
+        elif model_type == 'vgg16':
+            return VGG16(model_config)
+
+        elif model_type == 'vgg19':
+            return VGG19(model_config)
+
         elif model_type in ['vgg_robust', 'vgg16_robust', 'vgg19_robust']:
             # VGG models trained with continuous transforms (robust training)
             if 'vgg19' in model_type:

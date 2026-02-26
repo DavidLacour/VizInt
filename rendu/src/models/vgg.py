@@ -19,15 +19,15 @@ class VGG(ClassificationModel):
         self.pretrained = config.get('pretrained', False)
         self.vgg_type = config.get('vgg_type', 'vgg16')
         
-        # Create VGG model
+        # Create VGG model (use batch norm variants for training from scratch)
         if self.vgg_type == 'vgg11':
-            vgg_fn = models.vgg11
+            vgg_fn = models.vgg11_bn if not self.pretrained else models.vgg11
         elif self.vgg_type == 'vgg13':
-            vgg_fn = models.vgg13
+            vgg_fn = models.vgg13_bn if not self.pretrained else models.vgg13
         elif self.vgg_type == 'vgg16':
-            vgg_fn = models.vgg16
+            vgg_fn = models.vgg16_bn if not self.pretrained else models.vgg16
         elif self.vgg_type == 'vgg19':
-            vgg_fn = models.vgg19
+            vgg_fn = models.vgg19_bn if not self.pretrained else models.vgg19
         else:
             raise ValueError(f"Unknown VGG type: {self.vgg_type}")
         

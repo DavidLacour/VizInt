@@ -133,6 +133,15 @@ models:
     aux_loss_weight: 0.5
     pretrained: false
     
+  # VGG baseline models (no augmentation)
+  vgg16:
+    architecture: "vgg16"
+    pretrained: false
+
+  vgg19:
+    architecture: "vgg19"
+    pretrained: false
+
   # VGG robust models (without blending)
   vgg_robust:
     architecture: "vgg16"
