@@ -1,0 +1,133 @@
+[2026-02-27 14:21:06,764] INFO: ======================================================================
+[2026-02-27 14:21:06,764] INFO: QWEN VLM ROBUSTNESS EXPERIMENT: Qwen/Qwen2.5-VL-3B-Instruct
+[2026-02-27 14:21:06,764] INFO: Dataset: cifar10
+[2026-02-27 14:21:06,764] INFO: Samples: 10
+[2026-02-27 14:21:06,764] INFO: Severities: [0.0, 0.25, 0.5, 0.75, 1.0]
+[2026-02-27 14:21:06,764] INFO: ======================================================================
+[2026-02-27 14:21:11,613] INFO: Loading Qwen/Qwen2.5-VL-3B-Instruct with 4-bit quantization...
+[2026-02-27 14:24:42,114] INFO: We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+[2026-02-27 14:24:57,596] INFO: Model loaded successfully.
+[2026-02-27 14:24:58,488] INFO: 
+[2026-02-27 14:24:58,488] INFO: ======================================================================
+[2026-02-27 14:24:58,488] INFO: ROBUST EVALUATION (classify only)
+[2026-02-27 14:24:58,489] INFO: ======================================================================
+[2026-02-27 14:24:58,495] INFO: Evaluating Robust on 10 samples across severities [0.0, 0.25, 0.5, 0.75, 1.0]
+[2026-02-27 14:24:58,495] INFO:   [Robust] Severity 0.0...
+[2026-02-27 14:25:03,395] INFO:     Severity 0.0: 1.0000 (parse failures: 0/10)
+[2026-02-27 14:25:03,395] INFO:   [Robust] Severity 0.25...
+[2026-02-27 14:25:07,732] INFO:     Severity 0.25: 0.4000 (parse failures: 0/10)
+[2026-02-27 14:25:07,732] INFO:   [Robust] Severity 0.5...
+[2026-02-27 14:25:11,851] INFO:     Severity 0.5: 0.6000 (parse failures: 0/10)
+[2026-02-27 14:25:11,851] INFO:   [Robust] Severity 0.75...
+[2026-02-27 14:25:15,926] INFO:     Severity 0.75: 0.5000 (parse failures: 0/10)
+[2026-02-27 14:25:15,926] INFO:   [Robust] Severity 1.0...
+[2026-02-27 14:25:20,128] INFO:     Severity 1.0: 0.5000 (parse failures: 0/10)
+[2026-02-27 14:25:20,142] INFO: Intermediate results saved to /media/david-lacour/Lexar/predicttransforms/VizInt/rendu/src/robustness_experiment_outputs/qwen_vlm_intermediate.json
+[2026-02-27 14:25:20,142] INFO: 
+[2026-02-27 14:25:20,142] INFO: ======================================================================
+[2026-02-27 14:25:20,142] INFO: BLENDED EVALUATION (identify transform + classify)
+[2026-02-27 14:25:20,142] INFO: ======================================================================
+[2026-02-27 14:25:20,143] INFO: Evaluating Blended on 10 samples across severities [0.0, 0.25, 0.5, 0.75, 1.0]
+[2026-02-27 14:25:20,143] INFO:   [Blended] Severity 0.0...
+[2026-02-27 14:25:26,548] INFO:     Severity 0.0: 0.9000 (parse failures: 0/10)
+[2026-02-27 14:25:26,548] INFO:   [Blended] Severity 0.25...
+[2026-02-27 14:25:33,209] INFO:     Severity 0.25: 0.6000 (parse failures: 0/10)
+[2026-02-27 14:25:33,209] INFO:     Transform pred accuracy: 0.4000
+[2026-02-27 14:25:33,209] INFO:   [Blended] Severity 0.5...
+[2026-02-27 14:25:39,716] INFO:     Severity 0.5: 0.3000 (parse failures: 0/10)
+[2026-02-27 14:25:39,717] INFO:     Transform pred accuracy: 0.6000
+[2026-02-27 14:25:39,717] INFO:   [Blended] Severity 0.75...
+[2026-02-27 14:25:46,064] INFO:     Severity 0.75: 0.8000 (parse failures: 0/10)
+[2026-02-27 14:25:46,064] INFO:     Transform pred accuracy: 0.1000
+[2026-02-27 14:25:46,064] INFO:   [Blended] Severity 1.0...
+[2026-02-27 14:25:52,541] INFO:     Severity 1.0: 0.6000 (parse failures: 0/10)
+[2026-02-27 14:25:52,541] INFO:     Transform pred accuracy: 0.2000
+[2026-02-27 14:25:54,633] INFO: 
+[2026-02-27 14:25:54,634] INFO: ======================================================================
+[2026-02-27 14:25:54,634] INFO: GENERATING REPORTS & GRAPHS
+[2026-02-27 14:25:54,634] INFO: ======================================================================
+[2026-02-27 14:25:55,926] INFO: PDF compiled: /media/david-lacour/Lexar/predicttransforms/VizInt/rendu/src/robustness_experiment_outputs/qwen_vlm_report.pdf
+[2026-02-27 14:25:55,926] INFO: 
+[2026-02-27 14:25:55,926] INFO: ======================================================================
+[2026-02-27 14:25:55,926] INFO: EXPERIMENT COMPLETE
+[2026-02-27 14:25:55,926] INFO: ======================================================================
+[2026-02-27 14:25:55,926] INFO: Robust  - Clean: 1.0000, S=1.0: 0.5000, OOD: 0.0000
+[2026-02-27 14:25:55,927] INFO: Blended - Clean: 0.9000, S=1.0: 0.6000, OOD: 0.0000
+[2026-02-27 14:25:55,927] INFO: Graph: /media/david-lacour/Lexar/predicttransforms/VizInt/rendu/src/robustness_experiment_outputs/graphs/pair_qwen_vlm_robust_vs_blended.png
+[2026-02-27 14:25:55,927] INFO: README updated: /media/david-lacour/Lexar/predicttransforms/VizInt/README.md
+[2026-02-27 14:26:26,572] INFO: ======================================================================
+[2026-02-27 14:26:26,572] INFO: QWEN VLM ROBUSTNESS EXPERIMENT: Qwen/Qwen2.5-VL-3B-Instruct
+[2026-02-27 14:26:26,572] INFO: Dataset: cifar10
+[2026-02-27 14:26:26,572] INFO: Samples: 1000
+[2026-02-27 14:26:26,572] INFO: Severities: [0.0, 0.25, 0.5, 0.75, 1.0]
+[2026-02-27 14:26:26,572] INFO: ======================================================================
+[2026-02-27 14:26:30,971] INFO: Loading Qwen/Qwen2.5-VL-3B-Instruct with 4-bit quantization...
+[2026-02-27 14:26:32,483] INFO: We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+[2026-02-27 14:26:41,693] INFO: Model loaded successfully.
+[2026-02-27 14:26:42,269] INFO: 
+[2026-02-27 14:26:42,269] INFO: ======================================================================
+[2026-02-27 14:26:42,269] INFO: ROBUST EVALUATION (classify only)
+[2026-02-27 14:26:42,269] INFO: ======================================================================
+[2026-02-27 14:26:42,269] INFO: Evaluating Robust on 1000 samples across severities [0.0, 0.25, 0.5, 0.75, 1.0]
+[2026-02-27 14:26:42,269] INFO:   [Robust] Severity 0.0...
+[2026-02-27 14:34:02,569] INFO:     Severity 0.0: 0.8270 (parse failures: 0/1000)
+[2026-02-27 14:34:02,569] INFO:   [Robust] Severity 0.25...
+[2026-02-27 14:41:44,351] INFO:     Severity 0.25: 0.5860 (parse failures: 0/1000)
+[2026-02-27 14:41:44,351] INFO:   [Robust] Severity 0.5...
+[2026-02-27 14:49:37,679] INFO:     Severity 0.5: 0.5090 (parse failures: 0/1000)
+[2026-02-27 14:49:37,679] INFO:   [Robust] Severity 0.75...
+[2026-02-27 14:57:32,628] INFO:     Severity 0.75: 0.4690 (parse failures: 1/1000)
+[2026-02-27 14:57:32,628] INFO:   [Robust] Severity 1.0...
+[2026-02-27 15:06:03,349] INFO:     Severity 1.0: 0.4660 (parse failures: 0/1000)
+[2026-02-27 15:06:05,315] INFO:   [Robust] OOD evaluation on 1000 samples...
+[2026-02-27 15:14:42,630] INFO:     OOD Accuracy: 0.3890
+[2026-02-27 15:14:42,631] INFO: Intermediate results saved to /media/david-lacour/Lexar/predicttransforms/VizInt/rendu/src/robustness_experiment_outputs/qwen_vlm_intermediate.json
+[2026-02-27 15:14:42,631] INFO: 
+[2026-02-27 15:14:42,631] INFO: ======================================================================
+[2026-02-27 15:14:42,631] INFO: BLENDED EVALUATION (identify transform + classify)
+[2026-02-27 15:14:42,631] INFO: ======================================================================
+[2026-02-27 15:14:42,631] INFO: Evaluating Blended on 1000 samples across severities [0.0, 0.25, 0.5, 0.75, 1.0]
+[2026-02-27 15:14:42,631] INFO:   [Blended] Severity 0.0...
+[2026-02-27 15:27:21,481] INFO:     Severity 0.0: 0.7810 (parse failures: 2/1000)
+[2026-02-27 15:27:21,481] INFO:   [Blended] Severity 0.25...
+[2026-02-27 15:39:43,444] INFO:     Severity 0.25: 0.4970 (parse failures: 2/1000)
+[2026-02-27 15:39:43,444] INFO:     Transform pred accuracy: 0.3730
+[2026-02-27 15:39:43,444] INFO:   [Blended] Severity 0.5...
+[2026-02-27 15:51:23,810] INFO:     Severity 0.5: 0.4480 (parse failures: 2/1000)
+[2026-02-27 15:51:23,811] INFO:     Transform pred accuracy: 0.3690
+[2026-02-27 15:51:23,811] INFO:   [Blended] Severity 0.75...
+[2026-02-27 16:03:06,195] INFO:     Severity 0.75: 0.4400 (parse failures: 1/1000)
+[2026-02-27 16:03:06,195] INFO:     Transform pred accuracy: 0.3640
+[2026-02-27 16:03:06,195] INFO:   [Blended] Severity 1.0...
+[2026-02-27 16:15:01,632] INFO:     Severity 1.0: 0.4130 (parse failures: 0/1000)
+[2026-02-27 16:15:01,632] INFO:     Transform pred accuracy: 0.3750
+[2026-02-27 16:15:01,632] INFO:   [Blended] OOD evaluation on 1000 samples...
+[2026-02-27 16:25:08,990] INFO:     OOD Accuracy: 0.3390
+[2026-02-27 16:25:09,188] INFO: 
+[2026-02-27 16:25:09,188] INFO: ======================================================================
+[2026-02-27 16:25:09,189] INFO: GENERATING REPORTS & GRAPHS
+[2026-02-27 16:25:09,189] INFO: ======================================================================
+[2026-02-27 16:25:12,434] INFO: PDF compiled: /media/david-lacour/Lexar/predicttransforms/VizInt/rendu/src/robustness_experiment_outputs/qwen_vlm_report.pdf
+[2026-02-27 16:25:12,434] INFO: 
+[2026-02-27 16:25:12,434] INFO: ======================================================================
+[2026-02-27 16:25:12,434] INFO: EXPERIMENT COMPLETE
+[2026-02-27 16:25:12,434] INFO: ======================================================================
+[2026-02-27 16:25:12,434] INFO: Robust  - Clean: 0.8270, S=1.0: 0.4660, OOD: 0.3890
+[2026-02-27 16:25:12,434] INFO: Blended - Clean: 0.7810, S=1.0: 0.4130, OOD: 0.3390
+[2026-02-27 16:25:12,434] INFO: Graph: /media/david-lacour/Lexar/predicttransforms/VizInt/rendu/src/robustness_experiment_outputs/graphs/pair_qwen_vlm_robust_vs_blended.png
+[2026-02-27 16:25:12,434] INFO: README updated: /media/david-lacour/Lexar/predicttransforms/VizInt/README.md
+[2026-02-27 16:37:48,969] INFO: ======================================================================
+[2026-02-27 16:37:48,969] INFO: QWEN VLM ROBUSTNESS EXPERIMENT: Qwen/Qwen2.5-VL-3B-Instruct
+[2026-02-27 16:37:48,970] INFO: Dataset: cifar10
+[2026-02-27 16:37:48,970] INFO: Samples: full test set
+[2026-02-27 16:37:48,970] INFO: Severities: [0.0, 0.25, 0.5, 0.75, 1.0]
+[2026-02-27 16:37:48,970] INFO: ======================================================================
+[2026-02-27 16:37:52,905] INFO: Loading Qwen/Qwen2.5-VL-3B-Instruct with 4-bit quantization...
+[2026-02-27 16:37:54,866] INFO: We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+[2026-02-27 16:38:07,563] INFO: Model loaded successfully.
+[2026-02-27 16:38:08,412] INFO: 
+[2026-02-27 16:38:08,412] INFO: ======================================================================
+[2026-02-27 16:38:08,412] INFO: ROBUST EVALUATION (classify only)
+[2026-02-27 16:38:08,412] INFO: ======================================================================
+[2026-02-27 16:38:08,412] INFO: Evaluating Robust on 10000 samples across severities [0.0, 0.25, 0.5, 0.75, 1.0]
+[2026-02-27 16:38:08,412] INFO:   [Robust] Severity 0.0...
