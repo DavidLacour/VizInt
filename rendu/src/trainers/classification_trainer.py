@@ -123,7 +123,11 @@ class ClassificationTrainer(BaseTrainer):
     def validation_step(self, batch: Any, batch_idx: int) -> Dict[str, torch.Tensor]:
         """Single validation step"""
         images, labels = batch
-        
+
+        # Normalize validation images (they come in raw when with_normalization=False)
+        if self.robust_training and hasattr(self, 'normalize'):
+            images = self.normalize(images)
+
         outputs = self.model(images)
         
         # Handle models that return tuples (like TTTWrapper)

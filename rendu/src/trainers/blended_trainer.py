@@ -33,7 +33,7 @@ class BlendedTrainer(BaseTrainer):
         self.class_loss_weight = 0.95
         self.transform_loss_weight = 0.05
 
-        dataset_name = config.get('dataset_name', 'tinyimagenet')
+        dataset_name = config.get('dataset_name', 'cifar10')
         if dataset_name == 'cifar10':
             self.normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], 
                                                 std=[0.2023, 0.1994, 0.2010])
@@ -41,7 +41,7 @@ class BlendedTrainer(BaseTrainer):
             self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
                                                 std=[0.229, 0.224, 0.225])
         
-        self.continuous_transform = ContinuousTransforms(severity=0.5)
+        self.continuous_transform = ContinuousTransforms(severity=1.0)
         
     def create_optimizer(self) -> torch.optim.Optimizer:
         """Create optimizer — same as ClassificationTrainer for fair comparison."""
@@ -153,7 +153,10 @@ class BlendedTrainer(BaseTrainer):
     def validation_step(self, batch: Any, batch_idx: int) -> Dict[str, torch.Tensor]:
         """Single validation step for BlendedTraining"""
         images, labels = batch
-        
+
+        # Normalize validation images (they come in raw when with_normalization=False)
+        images = self.normalize(images)
+
         class_logits = self.model(images)
         
         loss = self.criterion(class_logits, labels)

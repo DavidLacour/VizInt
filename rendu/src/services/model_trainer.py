@@ -139,7 +139,7 @@ class ModelTrainer:
                          'blended_resnet18', 'blended_vgg16', 'blended_vgg19',
                          'blended_training', 'blended_training_3fc']:
             # These models need special trainers
-            return self._create_specialized_trainer(model_type, model, merged_config)
+            return self._create_specialized_trainer(model_type, model, merged_config, dataset_name)
         else:
             # Standard classification trainer
             return ClassificationTrainer(
@@ -149,21 +149,22 @@ class ModelTrainer:
                 robust_training=robust_training
             )
     
-    def _create_specialized_trainer(self, model_type: str, model: nn.Module, config: Dict[str, Any]):
+    def _create_specialized_trainer(self, model_type: str, model: nn.Module, config: Dict[str, Any],
+                                     dataset_name: str = 'cifar10'):
         """Create specialized trainers for specific model types"""
         if model_type == 'healer':
             # Healer should always use HealerTrainer for transformation prediction
             from trainers.healer_trainer import HealerTrainer
             return HealerTrainer(
                 model=model,
-                config={'training': config},
+                config={'training': config, 'dataset_name': dataset_name},
                 device=str(self.device)
             )
         elif model_type in ['ttt', 'ttt3fc', 'ttt_resnet18']:
             from trainers.ttt_trainer import TTTTrainer
             return TTTTrainer(
                 model=model,
-                config={'training': config},
+                config={'training': config, 'dataset_name': dataset_name},
                 device=str(self.device)
             )
         elif model_type in ['blended', 'blended3fc', 'blended_resnet18',
@@ -172,7 +173,7 @@ class ModelTrainer:
             from trainers.blended_trainer import BlendedTrainer
             return BlendedTrainer(
                 model=model,
-                config={'training': config},
+                config={'training': config, 'dataset_name': dataset_name},
                 device=str(self.device)
             )
         else:
