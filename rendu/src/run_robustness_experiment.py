@@ -306,6 +306,9 @@ def train_all_models(config, model_factory, data_factory, model_trainer, device,
 
         logger.info(f"TRAINING {display} ({model_type})...")
 
+        # Set seed before each model for reproducible augmentation
+        set_seed(42)
+
         # Init wandb run for training
         wandb_run = None
         if WANDB_AVAILABLE:

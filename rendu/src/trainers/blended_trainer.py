@@ -44,22 +44,58 @@ class BlendedTrainer(BaseTrainer):
         self.continuous_transform = ContinuousTransforms(severity=0.5)
         
     def create_optimizer(self) -> torch.optim.Optimizer:
-        """Create optimizer for Blended training"""
-        lr = self.config.get('training', {}).get('learning_rate', 0.0005)
-        return optim.AdamW(
-            self.model.parameters(),
-            lr=lr,
-            weight_decay=self.weight_decay
-        )
-    
+        """Create optimizer — same as ClassificationTrainer for fair comparison."""
+        optimizer_type = self.config.get('training', {}).get('optimizer', 'AdamW')
+
+        if optimizer_type == 'AdamW':
+            return optim.AdamW(
+                self.model.parameters(),
+                lr=self.learning_rate,
+                weight_decay=self.weight_decay
+            )
+        elif optimizer_type == 'Adam':
+            return optim.Adam(
+                self.model.parameters(),
+                lr=self.learning_rate,
+                weight_decay=self.weight_decay
+            )
+        elif optimizer_type == 'SGD':
+            return optim.SGD(
+                self.model.parameters(),
+                lr=self.learning_rate,
+                momentum=0.9,
+                weight_decay=self.weight_decay
+            )
+        else:
+            raise ValueError(f"Unknown optimizer type: {optimizer_type}")
+
     def create_scheduler(self, optimizer: torch.optim.Optimizer) -> Optional[torch.optim.lr_scheduler._LRScheduler]:
-        """Create learning rate scheduler"""
-        return optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            mode='max',
-            patience=5,
-            factor=0.5
-        )
+        """Create LR scheduler — same as ClassificationTrainer for fair comparison."""
+        scheduler_config = self.config.get('training', {}).get('scheduler', {})
+        scheduler_type = scheduler_config.get('type', 'CosineAnnealingLR')
+
+        if scheduler_type == 'CosineAnnealingLR':
+            return optim.lr_scheduler.CosineAnnealingLR(
+                optimizer,
+                T_max=scheduler_config.get('T_max', self.max_epochs)
+            )
+        elif scheduler_type == 'StepLR':
+            return optim.lr_scheduler.StepLR(
+                optimizer,
+                step_size=scheduler_config.get('step_size', 30),
+                gamma=scheduler_config.get('gamma', 0.1)
+            )
+        elif scheduler_type == 'ReduceLROnPlateau':
+            return optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode='max',
+                patience=scheduler_config.get('patience', 5),
+                factor=scheduler_config.get('factor', 0.5)
+            )
+        elif scheduler_type == 'none':
+            return None
+        else:
+            raise ValueError(f"Unknown scheduler type: {scheduler_type}")
     
     def training_step(self, batch: Any, batch_idx: int) -> Dict[str, torch.Tensor]:
         """Single training step for BlendedTraining"""

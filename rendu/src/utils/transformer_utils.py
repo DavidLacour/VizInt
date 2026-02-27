@@ -36,6 +36,8 @@ def build_2d_sincos_posemb(h, w, embed_dim=1024, temperature=10000.):
 
 def set_seed(seed=42):
     """Set seeds for reproducibility."""
+    import random
+    random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)

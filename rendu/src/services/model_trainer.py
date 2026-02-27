@@ -65,7 +65,7 @@ class ModelTrainer:
         
         train_loader, val_loader = self._create_data_loaders(model_type, dataset_name)
         
-        trainer = self._create_trainer(model_type, model, robust_training)
+        trainer = self._create_trainer(model_type, model, robust_training, dataset_name)
         
         checkpoint_dir = self._get_checkpoint_dir(model_type, dataset_name)
         
@@ -96,34 +96,42 @@ class ModelTrainer:
     def _create_data_loaders(self, model_type: str, dataset_name: str):
         """Create appropriate data loaders for model type"""
         # Determine if normalization is needed
-        # For healer and transformation-aware models, we might need unnormalized data
+        # Models that handle normalization internally (apply transforms to raw images
+        # then normalize) need unnormalized data.
+        # Robust models also need unnormalized data for fair comparison with blended
+        # (both apply transforms to raw images, then normalize).
         if model_type in ['healer', 'ttt', 'ttt3fc', 'blended', 'blended3fc',
                          'blended_resnet18', 'blended_vgg16', 'blended_vgg19',
-                         'blended_training', 'blended_training_3fc']:
+                         'blended_training', 'blended_training_3fc',
+                         'resnet18_not_pretrained_robust', 'vgg16_robust',
+                         'vgg19_robust', 'vanilla_vit_robust']:
             # These models handle normalization internally
             with_normalization = False
         else:
             with_normalization = True
-        
+
         train_loader, val_loader = self.data_factory.create_data_loaders(
             dataset_name,
             with_normalization=with_normalization,
             with_augmentation=True
         )
-        
+
         return train_loader, val_loader
     
-    def _create_trainer(self, model_type: str, model: nn.Module, robust_training: bool):
+    def _create_trainer(self, model_type: str, model: nn.Module, robust_training: bool,
+                        dataset_name: str = 'cifar10'):
         """Create appropriate trainer for model type"""
         if model_type in ['ttt', 'ttt_robust', 'ttt3fc', 'ttt3fc_robust']:
             training_config = self.config.get('training.ttt', {})
         elif model_type in ['blended', 'blended_robust', 'blended3fc', 'blended3fc_robust',
                          'blended_resnet18', 'blended_vgg16', 'blended_vgg19',
                          'blended_training', 'blended_training_3fc']:
-            training_config = self.config.get('training.blended', {})
+            # Use GENERAL training config (same as robust) for fair comparison.
+            # Only difference should be the loss function, not hyperparameters.
+            training_config = self.config.get('training', {})
         else:
             training_config = self.config.get('training', {})
-        
+
         general_config = self.config.get('training', {})
         merged_config = {**general_config, **training_config}
         
@@ -136,7 +144,7 @@ class ModelTrainer:
             # Standard classification trainer
             return ClassificationTrainer(
                 model=model,
-                config={'training': merged_config},
+                config={'training': merged_config, 'dataset_name': dataset_name},
                 device=str(self.device),
                 robust_training=robust_training
             )
