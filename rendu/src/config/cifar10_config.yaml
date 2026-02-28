@@ -133,6 +133,27 @@ models:
     aux_loss_weight: 0.5
     pretrained: false
     
+  # Blended 3fc wrapper models
+  blended_resnet18_3fc:
+    model_type: "resnet18"
+    aux_loss_weight: 0.5
+    fc_layers: [512, 256, 128]
+    dropout: 0.1
+
+  blended_vgg16_3fc:
+    model_type: "vgg16"
+    aux_loss_weight: 0.5
+    fc_layers: [512, 256, 128]
+    dropout: 0.1
+    pretrained: false
+
+  blended_vgg19_3fc:
+    model_type: "vgg19"
+    aux_loss_weight: 0.5
+    fc_layers: [512, 256, 128]
+    dropout: 0.1
+    pretrained: false
+
   # VGG baseline models (no augmentation)
   vgg16:
     architecture: "vgg16"
@@ -408,21 +429,36 @@ model_combinations:
     healer_model: null
     description: "Blended wrapper with VGG19 backbone"
     
+  - name: "BlendedResNet18_3fc"
+    main_model: "blended_resnet18_3fc"
+    healer_model: null
+    description: "Blended3fc wrapper with ResNet18 backbone"
+
+  - name: "BlendedVGG16_3fc"
+    main_model: "blended_vgg16_3fc"
+    healer_model: null
+    description: "Blended3fc wrapper with VGG16 backbone"
+
+  - name: "BlendedVGG19_3fc"
+    main_model: "blended_vgg19_3fc"
+    healer_model: null
+    description: "Blended3fc wrapper with VGG19 backbone"
+
   - name: "VGG_Robust"
     main_model: "vgg_robust"
     healer_model: null
     description: "VGG16 (robust training)"
-    
+
   - name: "VGG16_Robust"
     main_model: "vgg16_robust"
     healer_model: null
     description: "VGG16 (robust training)"
-    
+
   - name: "VGG19_Robust"
     main_model: "vgg19_robust"
     healer_model: null
     description: "VGG19 (robust training)"
-    
+
   # New Corrector Models
   - name: "UNet+ResNet18"
     main_model: "unet_resnet18"

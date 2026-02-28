@@ -102,6 +102,7 @@ class ModelTrainer:
         # (both apply transforms to raw images, then normalize).
         if model_type in ['healer', 'ttt', 'ttt3fc', 'blended', 'blended3fc',
                          'blended_resnet18', 'blended_vgg16', 'blended_vgg19',
+                         'blended_resnet18_3fc', 'blended_vgg16_3fc', 'blended_vgg19_3fc',
                          'blended_training', 'blended_training_3fc',
                          'resnet18_not_pretrained_robust', 'vgg16_robust',
                          'vgg19_robust', 'vanilla_vit_robust']:
@@ -125,6 +126,7 @@ class ModelTrainer:
             training_config = self.config.get('training.ttt', {})
         elif model_type in ['blended', 'blended_robust', 'blended3fc', 'blended3fc_robust',
                          'blended_resnet18', 'blended_vgg16', 'blended_vgg19',
+                         'blended_resnet18_3fc', 'blended_vgg16_3fc', 'blended_vgg19_3fc',
                          'blended_training', 'blended_training_3fc']:
             # Use GENERAL training config (same as robust) for fair comparison.
             # Only difference should be the loss function, not hyperparameters.
@@ -137,6 +139,7 @@ class ModelTrainer:
         
         if model_type in ['healer', 'ttt', 'ttt3fc', 'ttt_resnet18', 'blended', 'blended3fc',
                          'blended_resnet18', 'blended_vgg16', 'blended_vgg19',
+                         'blended_resnet18_3fc', 'blended_vgg16_3fc', 'blended_vgg19_3fc',
                          'blended_training', 'blended_training_3fc']:
             # These models need special trainers
             return self._create_specialized_trainer(model_type, model, merged_config, dataset_name)
@@ -169,6 +172,7 @@ class ModelTrainer:
             )
         elif model_type in ['blended', 'blended3fc', 'blended_resnet18',
                          'blended_vgg16', 'blended_vgg19',
+                         'blended_resnet18_3fc', 'blended_vgg16_3fc', 'blended_vgg19_3fc',
                          'blended_training', 'blended_training_3fc']:
             from trainers.blended_trainer import BlendedTrainer
             return BlendedTrainer(

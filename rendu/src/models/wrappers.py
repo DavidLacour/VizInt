@@ -165,6 +165,123 @@ class BlendedWrapper(TransformationAwareModel):
             return logits
 
 
+class Blended3fcWrapper(TransformationAwareModel):
+    """
+    Wrapper that adds FC compression + transformation prediction and blending to any backbone.
+
+    Compared to BlendedWrapper, this adds 3 fully connected compression layers
+    (feature_dim -> 512 -> 256 -> 128) between backbone features and the aux heads,
+    mirroring the architecture of BlendedTraining3fc but for arbitrary backbones.
+    """
+
+    def __init__(self,
+                 backbone: nn.Module,
+                 config: Dict[str, Any],
+                 feature_dim: int):
+        num_classes = config['num_classes']
+        num_transforms = config.get('num_transform_types', 4)
+        super().__init__(config, num_classes, num_transforms)
+
+        self.backbone = backbone
+        self.feature_dim = feature_dim
+        self.aux_loss_weight = config.get('aux_loss_weight', 0.5)
+        self.dropout = config.get('dropout', 0.1)
+        self.fc_layers_config = config.get('fc_layers', [512, 256, 128])
+
+        if config.get('freeze_backbone', False):
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+
+        # FC compression layers: feature_dim -> 512 -> 256 -> 128
+        fc_dims = [feature_dim] + self.fc_layers_config
+        self.fc_blocks = nn.ModuleList()
+        for i in range(len(self.fc_layers_config)):
+            self.fc_blocks.append(nn.Sequential(
+                nn.Linear(fc_dims[i], fc_dims[i+1]),
+                nn.ReLU(),
+                nn.Dropout(self.dropout),
+                nn.LayerNorm(fc_dims[i+1])
+            ))
+
+        final_fc_dim = self.fc_layers_config[-1]  # 128
+
+        # Aux heads operate on compressed dimension
+        self.transform_type_head = nn.Linear(final_fc_dim, num_transforms)
+        self.rotation_head = nn.Linear(final_fc_dim, 1)
+        self.noise_head = nn.Linear(final_fc_dim, 1)
+        self.affine_params_head = nn.Linear(final_fc_dim, 4)
+
+        # Feature fusion on compressed dimension
+        fusion_input_dim = final_fc_dim + num_transforms + 6
+        self.feature_fusion = nn.Sequential(
+            nn.Linear(fusion_input_dim, final_fc_dim),
+            nn.ReLU(),
+            nn.Dropout(self.dropout),
+            nn.Linear(final_fc_dim, final_fc_dim)
+        )
+
+        # Classifier on compressed dimension
+        self.classifier = nn.Linear(final_fc_dim, num_classes)
+        self.dropout_layer = nn.Dropout(self.dropout)
+
+        self._init_weights()
+
+    def _init_weights(self):
+        for head in [self.transform_type_head, self.rotation_head,
+                     self.noise_head, self.affine_params_head, self.classifier]:
+            nn.init.normal_(head.weight, std=0.02)
+            if head.bias is not None:
+                nn.init.zeros_(head.bias)
+
+    def extract_features(self, x: torch.Tensor) -> torch.Tensor:
+        if hasattr(self.backbone, 'extract_features'):
+            features = self.backbone.extract_features(x)
+        else:
+            features = self.backbone(x)
+        if features.dim() > 2:
+            features = F.adaptive_avg_pool2d(features, 1).flatten(1)
+        # Apply FC compression
+        for fc_block in self.fc_blocks:
+            features = fc_block(features)
+        return features
+
+    def predict_transformations(self, features: torch.Tensor) -> Dict[str, torch.Tensor]:
+        return {
+            'transform_type': self.transform_type_head(features),
+            'rotation': self.rotation_head(features),
+            'noise_level': self.noise_head(features),
+            'affine_params': self.affine_params_head(features),
+        }
+
+    def forward(self, x: torch.Tensor, return_aux: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
+        features = self.extract_features(x)
+        transform_preds = self.predict_transformations(features)
+
+        transform_features = torch.cat([
+            transform_preds['transform_type'],
+            transform_preds['rotation'],
+            transform_preds['noise_level'],
+            transform_preds['affine_params']
+        ], dim=1)
+
+        combined_features = torch.cat([features, transform_features], dim=1)
+        enhanced_features = self.feature_fusion(combined_features)
+        enhanced_features = features + enhanced_features  # residual
+        enhanced_features = self.dropout_layer(enhanced_features)
+        logits = self.classifier(enhanced_features)
+
+        if return_aux:
+            aux_outputs = {
+                'transform_type': transform_preds['transform_type'],
+                'rotation': transform_preds['rotation'],
+                'noise_level': transform_preds['noise_level'],
+                'affine_params': transform_preds['affine_params'],
+                'features': enhanced_features
+            }
+            return logits, aux_outputs
+        return logits
+
+
 class TTTWrapper(TransformationAwareModel):
     """
     Wrapper that adds Test-Time Training capability to any backbone

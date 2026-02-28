@@ -19,7 +19,7 @@ from .ttt import TTT, TTT3fc
 from .blended_training import BlendedTraining
 from .blended_training_3fc import BlendedTraining3fc
 from .healer import Healer
-from .wrappers import BlendedWrapper, TTTWrapper, HealerWrapper
+from .wrappers import BlendedWrapper, Blended3fcWrapper, TTTWrapper, HealerWrapper
 from .pretrained_correctors import PretrainedUNetCorrector, ImageToImageTransformer, HybridCorrector
 from .corrector_wrappers import (UNetCorrectorWrapper, TransformerCorrectorWrapper, 
                                 HybridCorrectorWrapper, create_corrector_wrapper)
@@ -157,6 +157,29 @@ class ModelFactory:
             feature_dim = 4096
             return BlendedWrapper(backbone, model_config, feature_dim)
             
+        elif model_type == 'blended_resnet18_3fc':
+            backbone_config = model_config.copy()
+            backbone_config['model_type'] = 'resnet18'
+            backbone = ResNetBaseline(backbone_config)
+            feature_dim = 512
+            return Blended3fcWrapper(backbone, model_config, feature_dim)
+
+        elif model_type == 'blended_vgg16_3fc':
+            backbone_config = model_config.copy()
+            backbone_config['model_type'] = 'vgg16'
+            backbone_config['pretrained'] = False
+            backbone = VGG16(backbone_config)
+            feature_dim = 4096
+            return Blended3fcWrapper(backbone, model_config, feature_dim)
+
+        elif model_type == 'blended_vgg19_3fc':
+            backbone_config = model_config.copy()
+            backbone_config['model_type'] = 'vgg19'
+            backbone_config['pretrained'] = False
+            backbone = VGG19(backbone_config)
+            feature_dim = 4096
+            return Blended3fcWrapper(backbone, model_config, feature_dim)
+
         elif model_type == 'vgg16':
             return VGG16(model_config)
 
@@ -286,7 +309,9 @@ class ModelFactory:
                 # The model was saved without base model, so we need to provide one
                 self.logger.info(f"Creating {model_type} with external base model")
                 model = self.create_model(model_type, dataset_name, base_model)
-        elif model_type in ['blended_resnet18', 'ttt_resnet18', 'healer_resnet18']:
+        elif model_type in ['blended_resnet18', 'ttt_resnet18', 'healer_resnet18',
+                           'blended_resnet18_3fc', 'blended_vgg16_3fc', 'blended_vgg19_3fc',
+                           'blended_vgg16', 'blended_vgg19', 'blended_vgg']:
             self.logger.info(f"Loading wrapped model {model_type}")
             model = self.create_model(model_type, dataset_name)
         else:

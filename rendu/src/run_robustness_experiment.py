@@ -3,11 +3,11 @@
 Comprehensive Robustness Experiment: Proving that predicting augmentation transforms
 with a small auxiliary loss makes models more robust across ALL backbones.
 
-Model Matrix (13 models):
+Model Matrix (16 models):
   - Normal (no augmentation): resnet, vgg16, vgg19, vanilla_vit
   - Robust (augmented training): resnet18_not_pretrained_robust, vgg16_robust, vgg19_robust, vanilla_vit_robust
   - Blended (predict transforms): blended_resnet18, blended_vgg16, blended_vgg19, blended_training
-  - Blended3fc (predict transforms + 3FC): blended_training_3fc (ViT only)
+  - Blended3fc (predict transforms + 3FC): blended_resnet18_3fc, blended_vgg16_3fc, blended_vgg19_3fc, blended_training_3fc
 
 Evaluation:
   - Clean (S=0.0)
@@ -59,7 +59,7 @@ except ImportError:
 # Configuration
 # ============================================================================
 EXPERIMENT_NAME = "predict_transforms_robustness_comprehensive"
-DATASET = "cifar10"
+DATASET = "cifar10"  # Default, overridden by --dataset arg
 SEVERITIES = [0.0, 0.25, 0.5, 0.75, 1.0]
 
 # Model matrix: category -> backbone -> model_type
@@ -83,6 +83,9 @@ MODEL_MATRIX = OrderedDict([
         ('ViT', 'blended_training'),
     ])),
     ('Blended3fc', OrderedDict([
+        ('ResNet18', 'blended_resnet18_3fc'),
+        ('VGG16', 'blended_vgg16_3fc'),
+        ('VGG19', 'blended_vgg19_3fc'),
         ('ViT', 'blended_training_3fc'),
     ])),
 ])
@@ -134,10 +137,18 @@ def get_val_loader(data_factory, dataset_name, batch_size=256):
     from torchvision import transforms as T, datasets
     dataset_config = data_factory.config.get_dataset_config(dataset_name)
     val_transform = T.Compose([T.ToTensor()])
-    val_dataset = datasets.CIFAR10(
-        root=dataset_config['path'],
-        train=False, download=True, transform=val_transform
-    )
+    if dataset_name == 'cifar10':
+        val_dataset = datasets.CIFAR10(
+            root=dataset_config['path'],
+            train=False, download=True, transform=val_transform
+        )
+    elif dataset_name == 'tinyimagenet':
+        from data.tiny_imagenet_dataset import TinyImageNetDataset
+        val_dataset = TinyImageNetDataset(
+            dataset_config['path'], 'val', val_transform
+        )
+    else:
+        raise ValueError(f"Unknown dataset: {dataset_name}")
     return torch.utils.data.DataLoader(
         val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True
     )
@@ -771,7 +782,7 @@ def generate_markdown_report(all_results, ood_results, per_transform_results,
     report.append("# Predicting Augmentation Transforms Improves Model Robustness")
     report.append("")
     report.append(f"**Experiment Date:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    report.append(f"**Dataset:** CIFAR-10")
+    report.append(f"**Dataset:** {DATASET}")
     report.append(f"**Severity Levels:** {SEVERITIES}")
     report.append(f"**Models Evaluated:** {len(all_results)}")
     report.append("")
@@ -1162,10 +1173,15 @@ def generate_latex_report(all_results, ood_results, per_transform_results,
 # ============================================================================
 def main():
     parser = argparse.ArgumentParser(description='Comprehensive Robustness Experiment')
+    parser.add_argument('--dataset', type=str, choices=['cifar10', 'tinyimagenet'],
+                       default='cifar10', help='Dataset to use (default: cifar10)')
     parser.add_argument('--skip-training', action='store_true', help='Skip training, only evaluate')
     parser.add_argument('--skip-eval', action='store_true', help='Skip evaluation, only generate reports from existing results')
     parser.add_argument('--debug', action='store_true', help='Debug mode (fewer samples)')
     args = parser.parse_args()
+
+    global DATASET
+    DATASET = args.dataset
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     GRAPHS_DIR.mkdir(parents=True, exist_ok=True)
