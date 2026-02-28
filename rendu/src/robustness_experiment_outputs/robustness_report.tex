@@ -40,6 +40,35 @@ The total training loss is:
 \subsection{Backbone Architectures}
 We evaluate across four architectures: ResNet18, VGG16, VGG19, and Vision Transformer (ViT).
 
+\section{Related Work}
+
+\subsection{Transformation Prediction as Self-Supervised Pretext Task}
+
+The idea of predicting image transformations to learn useful representations originates with Gidaris et al.~\cite{gidaris2018rotnet}, who trained ConvNets to predict which of four discrete rotations (0\textdegree, 90\textdegree, 180\textdegree, 270\textdegree) was applied to an image. This simple pretext task forces the network to learn semantic features such as object parts and their spatial relationships. Earlier work on spatial context prediction~\cite{doersch2015context} and jigsaw puzzle solving~\cite{noroozi2016jigsaw} similarly showed that predicting spatial transformations yields strong visual representations. Our work extends this paradigm from unsupervised pretraining to a supervised auxiliary loss, and from predicting a single discrete rotation to predicting multiple continuous augmentation types (Gaussian noise, rotation, affine, none).
+
+\subsection{Auxiliary Self-Supervised Tasks for Robustness}
+
+Hendrycks et al.~\cite{hendrycks2019selfsupervised} demonstrated that adding an auxiliary rotation prediction head alongside the main classification loss reduces corruption error by 5.6\% on CIFAR-10 and improves adversarial robustness, label corruption robustness, and out-of-distribution detection. This is the most directly related prior work to ours. Sun et al.~\cite{sun2020ttt} extended this idea to \emph{test-time training}, where the model is further fine-tuned on the auxiliary rotation task using each test sample at inference time. Zhang et al.~\cite{zhang2020auxiliary} proposed auxiliary classifiers operating on corrupted samples with selective batch normalization, achieving robustness improvements on CIFAR-100. Lee et al.~\cite{lee2020sla} learned a joint distribution over class labels and transformation labels, predicting both simultaneously. Chen et al.~\cite{chen2020advssl} combined rotation prediction with adversarial pretraining across multiple self-supervised pretext tasks, improving robust accuracy by 3.59\% on CIFAR-10.
+
+\subsection{Transformation Equivariance in Representation Learning}
+
+Recent work has explored encoding transformation information directly into learned representations. Dangovski et al.~\cite{dangovski2022essl} extended contrastive learning with an auxiliary transformation prediction objective, arguing that \emph{equivariance} (not just invariance) to transformations improves representation quality. Garrido et al.~\cite{garrido2023sie} proposed splitting representations into invariant and equivariant parts, where the equivariant component captures transformation information. Qi et al.~\cite{qi2019avt} trained networks to reconstruct transformation parameters from representations via an autoencoding architecture. These approaches share our insight that representations should encode transformation-relevant information, though they operate in self-supervised settings rather than supervised multi-task learning.
+
+\subsection{Augmentation-Based Robustness}
+
+Data augmentation itself is a powerful robustness tool. Hendrycks et al.~\cite{hendrycks2020augmix} proposed AugMix, which mixes multiple randomly augmented images and enforces prediction consistency via a Jensen-Shannon divergence loss, achieving state-of-the-art results on ImageNet-C. Wang et al.~\cite{wang2021augmax} introduced AugMax, which adversarially selects augmentation compositions for worst-case robustness. Rebuffi et al.~\cite{rebuffi2021augmentation} showed that data augmentation combined with model weight averaging significantly boosts adversarial robust accuracy. These methods focus on augmentation diversity and consistency rather than explicit augmentation prediction, providing complementary approaches to robustness.
+
+\subsection{Our Contributions Relative to Prior Work}
+
+Our approach is novel in combining three elements that no single prior paper achieves simultaneously:
+\begin{enumerate}
+    \item \textbf{Multi-type augmentation prediction}: We predict across four augmentation categories (Gaussian noise, rotation, affine, none) rather than just discrete rotations as in~\cite{hendrycks2019selfsupervised,gidaris2018rotnet,sun2020ttt}.
+    \item \textbf{Residual fusion of auxiliary predictions}: Unlike prior work that keeps auxiliary heads separate from the main classification pathway, our Blended architecture fuses transform predictions back into the representation via a learned MLP with a residual connection, allowing the auxiliary information to directly enhance the classification features.
+    \item \textbf{Fair comparison across architectures}: We conduct a controlled experiment with identical augmentation, optimizer, scheduler, and seed between Robust and Blended training, revealing that the auxiliary loss provides differential benefits --- clear improvements for smaller models (ResNet18) but neutral effects for larger architectures (VGG16, VGG19, ViT). This architecture-dependent finding has not been explored in prior work.
+\end{enumerate}
+
+The closest prior work is Hendrycks et al.~\cite{hendrycks2019selfsupervised}, which our approach extends by predicting multiple transform types and fusing predictions back via residual connections. Our finding that \textbf{smaller models benefit more} from transform prediction suggests that the auxiliary task helps compensate for limited model capacity, while larger models learn transformation-invariant features naturally through augmentation alone.
+
 \section{Results}
 \subsection{Main Results}
 
@@ -175,5 +204,22 @@ ViT Blended3fc & 0.3841 & 0.4452 & 0.4755 & 0.4686 \\
 
 \section{Conclusion}
 Our experiments demonstrate that predicting augmentation transforms with a minimal auxiliary loss consistently improves model robustness across all tested backbone architectures. The Blended models achieve lower accuracy degradation under corruptions and better out-of-distribution performance compared to both Normal (no augmentation) and Robust (augmented training) baselines.
+
+\begin{thebibliography}{99}
+\bibitem{gidaris2018rotnet} S.~Gidaris, P.~Singh, and N.~Komodakis, ``Unsupervised representation learning by predicting image rotations,'' in \emph{ICLR}, 2018.
+\bibitem{doersch2015context} C.~Doersch, A.~Gupta, and A.~A.~Efros, ``Unsupervised visual representation learning by context prediction,'' in \emph{ICCV}, 2015.
+\bibitem{noroozi2016jigsaw} M.~Noroozi and P.~Favaro, ``Unsupervised learning of visual representations by solving jigsaw puzzles,'' in \emph{ECCV}, 2016.
+\bibitem{hendrycks2019selfsupervised} D.~Hendrycks, M.~Mazeika, S.~Kadavath, and D.~Song, ``Using self-supervised learning can improve model robustness and uncertainty,'' in \emph{NeurIPS}, 2019.
+\bibitem{sun2020ttt} Y.~Sun, X.~Wang, Z.~Liu, J.~Miller, A.~Efros, and M.~Hardt, ``Test-time training with self-supervision for generalization under distribution shifts,'' in \emph{ICML}, 2020.
+\bibitem{zhang2020auxiliary} L.~Zhang, M.~Yu, T.~Chen, Z.~Shi, C.~Bao, and K.~Ma, ``Auxiliary training: Towards accurate and robust models,'' in \emph{CVPR}, 2020.
+\bibitem{lee2020sla} H.~Lee, S.~J.~Hwang, and J.~Shin, ``Self-supervised label augmentation via input transformations,'' in \emph{ICML}, 2020.
+\bibitem{chen2020advssl} T.~Chen, S.~Liu, S.~Chang, Y.~Cheng, L.~Amini, and Z.~Wang, ``Adversarial robustness: From self-supervised pre-training to fine-tuning,'' in \emph{CVPR}, 2020.
+\bibitem{dangovski2022essl} R.~Dangovski, L.~Jing, C.~Loh, S.~Han, A.~Srivastava, B.~Cheung, P.~Agrawal, and M.~Soljacic, ``Equivariant contrastive learning,'' in \emph{ICLR}, 2022.
+\bibitem{garrido2023sie} Q.~Garrido et al., ``Self-supervised learning of split invariant equivariant representations,'' in \emph{ICML}, 2023.
+\bibitem{qi2019avt} G.-J.~Qi, L.~Zhang, C.~W.~Chen, and Q.~Tian, ``AVT: Unsupervised learning of transformation equivariant representations by autoencoding variational transformations,'' in \emph{ICCV}, 2019.
+\bibitem{hendrycks2020augmix} D.~Hendrycks, N.~Mu, E.~D.~Cubuk, B.~Zoph, J.~Gilmer, and B.~Lakshminarayanan, ``AugMix: A simple data processing method to improve robustness and uncertainty,'' in \emph{ICLR}, 2020.
+\bibitem{wang2021augmax} H.~Wang, C.~Xiao, J.~Kossaifi, Z.~Yu, A.~Anandkumar, and Z.~Wang, ``AugMax: Adversarial composition of random augmentations for robust training,'' in \emph{NeurIPS}, 2021.
+\bibitem{rebuffi2021augmentation} S.-A.~Rebuffi, S.~Gowal, D.~A.~Calian, F.~Stimberg, O.~Wiles, and T.~Mann, ``Data augmentation can improve robustness,'' in \emph{NeurIPS}, 2021.
+\end{thebibliography}
 
 \end{document}
