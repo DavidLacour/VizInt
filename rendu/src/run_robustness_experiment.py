@@ -3,10 +3,11 @@
 Comprehensive Robustness Experiment: Proving that predicting augmentation transforms
 with a small auxiliary loss makes models more robust across ALL backbones.
 
-Model Matrix (12 models):
+Model Matrix (13 models):
   - Normal (no augmentation): resnet, vgg16, vgg19, vanilla_vit
   - Robust (augmented training): resnet18_not_pretrained_robust, vgg16_robust, vgg19_robust, vanilla_vit_robust
   - Blended (predict transforms): blended_resnet18, blended_vgg16, blended_vgg19, blended_training
+  - Blended3fc (predict transforms + 3FC): blended_training_3fc (ViT only)
 
 Evaluation:
   - Clean (S=0.0)
@@ -81,6 +82,9 @@ MODEL_MATRIX = OrderedDict([
         ('VGG19', 'blended_vgg19'),
         ('ViT', 'blended_training'),
     ])),
+    ('Blended3fc', OrderedDict([
+        ('ViT', 'blended_training_3fc'),
+    ])),
 ])
 
 # Flatten for iteration
@@ -93,7 +97,7 @@ for category, backbones in MODEL_MATRIX.items():
             'backbone': backbone,
             'display_name': f"{backbone} {category}",
             'is_robust': category == 'Robust',
-            'is_blended': category == 'Blended',
+            'is_blended': category in ('Blended', 'Blended3fc'),
         })
 
 OUTPUT_DIR = Path(__file__).parent / "robustness_experiment_outputs"
@@ -481,6 +485,7 @@ def generate_graphs(all_results, ood_results, per_transform_results,
         'Normal': '#4CAF50',
         'Robust': '#FF9800',
         'Blended': '#2196F3',
+        'Blended3fc': '#9C27B0',
     }
     backbone_markers = {
         'ResNet18': 'o',
@@ -541,7 +546,7 @@ def generate_graphs(all_results, ood_results, per_transform_results,
     backbones = ['ResNet18', 'VGG16', 'VGG19', 'ViT']
     for backbone in backbones:
         fig, ax = plt.subplots(figsize=(10, 6))
-        for category in ['Normal', 'Robust', 'Blended']:
+        for category in ['Normal', 'Robust', 'Blended', 'Blended3fc']:
             model_type = MODEL_MATRIX.get(category, {}).get(backbone)
             if model_type and model_type in all_results:
                 results = all_results[model_type]
@@ -552,7 +557,7 @@ def generate_graphs(all_results, ood_results, per_transform_results,
                         label=f'{category}')
         ax.set_xlabel('Corruption Severity', fontsize=14)
         ax.set_ylabel('Classification Accuracy', fontsize=14)
-        ax.set_title(f'{backbone}: Normal vs Robust vs Blended', fontsize=16, fontweight='bold')
+        ax.set_title(f'{backbone}: Normal vs Robust vs Blended vs Blended3fc', fontsize=16, fontweight='bold')
         ax.legend(fontsize=12)
         ax.set_ylim(0, 1.0)
         ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
@@ -564,7 +569,7 @@ def generate_graphs(all_results, ood_results, per_transform_results,
         plt.close(fig)
 
     # ---- Graph 3: Per-Strategy Comparison (comparing backbones within each strategy) ----
-    for category in ['Normal', 'Robust', 'Blended']:
+    for category in ['Normal', 'Robust', 'Blended', 'Blended3fc']:
         fig, ax = plt.subplots(figsize=(10, 6))
         for backbone in backbones:
             model_type = MODEL_MATRIX.get(category, {}).get(backbone)
@@ -819,7 +824,7 @@ def generate_markdown_report(all_results, ood_results, per_transform_results,
         report.append(header)
         report.append(sep)
 
-        for category in ['Normal', 'Robust', 'Blended']:
+        for category in ['Normal', 'Robust', 'Blended', 'Blended3fc']:
             mt = MODEL_MATRIX.get(category, {}).get(backbone)
             if mt and mt in all_results:
                 results = all_results[mt]
@@ -895,12 +900,12 @@ def generate_markdown_report(all_results, ood_results, per_transform_results,
     # Per-backbone graphs
     for backbone in backbones:
         safe_name = backbone.lower().replace(' ', '_')
-        report.append(f"### {backbone}: Normal vs Robust vs Blended")
+        report.append(f"### {backbone}: Normal vs Robust vs Blended vs Blended3fc")
         report.append(f"![{backbone}](graphs/backbone_{safe_name}_comparison.png)")
         report.append("")
 
     # Strategy graphs
-    for category in ['Normal', 'Robust', 'Blended']:
+    for category in ['Normal', 'Robust', 'Blended', 'Blended3fc']:
         report.append(f"### {category} Strategy: Backbone Comparison")
         report.append(f"![{category}](graphs/strategy_{category.lower()}_comparison.png)")
         report.append("")
@@ -1018,7 +1023,7 @@ def generate_latex_report(all_results, ood_results, per_transform_results,
     backbones = ['ResNet18', 'VGG16', 'VGG19', 'ViT']
     for backbone in backbones:
         first_in_group = True
-        for category in ['Normal', 'Robust', 'Blended']:
+        for category in ['Normal', 'Robust', 'Blended', 'Blended3fc']:
             mt = MODEL_MATRIX.get(category, {}).get(backbone)
             if mt and mt in all_results:
                 results = all_results[mt]
@@ -1104,7 +1109,7 @@ def generate_latex_report(all_results, ood_results, per_transform_results,
             tex.append(r"\\[1em]")
         else:
             tex.append(r"\hfill")
-    tex.append(r"\caption{Per-backbone comparison: Normal vs Robust vs Blended.}")
+    tex.append(r"\caption{Per-backbone comparison: Normal vs Robust vs Blended vs Blended3fc.}")
     tex.append(r"\label{fig:per_backbone}")
     tex.append(r"\end{figure}")
     tex.append("")
