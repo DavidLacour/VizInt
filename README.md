@@ -2,16 +2,19 @@
 
 ## Introduction
 
-We investigate whether training a model to **predict which augmentation transform was applied** — via a small auxiliary loss — improves robustness to image corruptions. We compare two training strategies across four backbone architectures (ResNet18, VGG16, VGG19, Vision Transformer) on CIFAR-10:
+We investigate whether training a model to **predict which augmentation transform was applied** — via a small auxiliary loss — improves robustness to image corruptions. We compare three training strategies across four backbone architectures (ResNet18, VGG16, VGG19, Vision Transformer) on CIFAR-10:
 
-- **Robust Training**: standard data augmentation during training (no architectural change).
-- **Blended Training**: same data augmentation plus an auxiliary task that predicts the transform type, fused into the representation via a residual connection.
+- **Normal Training**: standard training without data augmentation.
+- **Robust Training**: training with continuous data augmentation (100% of images augmented, severity U[0,1.0], all transforms including no_transform).
+- **Blended Training**: identical augmentation to Robust, plus an auxiliary task that predicts the transform type, fused into the representation via a residual connection.
+
+The key question: **does the auxiliary transform prediction task improve robustness, given identical augmentation?**
 
 ## Method
 
 ### Shared Components
 
-Both strategies use the same set of continuous transforms from `ContinuousTransforms`:
+All augmented strategies (Robust and Blended) use the same set of continuous transforms from `ContinuousTransforms`:
 
 | Transform | Parameter | Max Value |
 |-----------|-----------|-----------|
@@ -21,29 +24,25 @@ Both strategies use the same set of continuous transforms from `ContinuousTransf
 
 Each transform's strength scales linearly with a severity parameter `s in [0, 1]`.
 
-### Robust Training
+### Fair Comparison Protocol
 
-The Robust model is a **plain classifier** (single output head). During training, each image has a 50% probability of being augmented with a random transform (excluding `no_transform`) at a random severity sampled from `U[0, 0.5]`:
+To ensure a fair comparison, **Robust and Blended training are identical in every aspect except the loss function**:
 
-```python
-# classification_trainer.py — robust training step
-if np.random.rand() > self.apply_probability:   # 50% skip
-    transformed_images.append(images[i])
-else:
-    transform_type = np.random.choice(transform_types[1:])  # excludes no_transform
-    severity = np.random.uniform(0.0, 0.5)
-    transformed_img = continuous_transform.apply_transforms_unnormalized(
-        images[i], transform_type=transform_type, severity=severity
-    )
-```
+| Aspect | Robust | Blended |
+|--------|--------|---------|
+| Seed | 42 | 42 |
+| Augmentation probability | 100% | 100% |
+| Severity range | U[0, 1.0] | U[0, 1.0] |
+| Transform pool | All 4 (incl. no_transform) | All 4 (incl. no_transform) |
+| Optimizer | AdamW (lr=0.001, wd=0.05) | AdamW (lr=0.001, wd=0.05) |
+| Scheduler | CosineAnnealingLR (T_max=100) | CosineAnnealingLR (T_max=100) |
+| Epochs | 100 (patience=10) | 100 (patience=10) |
+| Batch size | 300 | 300 |
+| Data normalization | CIFAR-10 stats | CIFAR-10 stats |
+| **Architecture** | Plain classifier | Classifier + 4 aux heads + fusion MLP + residual |
+| **Loss** | `CrossEntropy` | `CE + CE * 0.01 * sigmoid(CE_transform)` |
 
-The loss is standard cross-entropy:
-
-```
-L_robust = CrossEntropy(logits, labels)
-```
-
-### Blended Training
+### Blended Architecture
 
 The Blended model adds four lightweight auxiliary heads on top of the backbone features and a feature fusion MLP with a residual connection:
 
@@ -68,47 +67,24 @@ The Blended model adds four lightweight auxiliary heads on top of the backbone f
                       (D -> C)
 ```
 
-The residual connection (`enhanced = features + fused`) ensures the auxiliary information can only **add** to the base representation, never degrade it.
-
-During training, **every** image is augmented with a random transform (including `no_transform` as a category) at severity sampled from `U[0, 1.0]`:
+The loss couples classification and transform prediction:
 
 ```python
-# blended_trainer.py — training step
-transform_type = np.random.choice(transform_types)  # includes no_transform
-severity = np.random.uniform(0.0, 1.0)              # full severity range
-transformed_img = continuous_transform.apply_transforms_unnormalized(
-    images[i], transform_type=transform_type, severity=severity
-)
-```
-
-The loss couples classification and transform prediction with a very small multiplicative weight:
-
-```python
-# blended_trainer.py, line 101
 loss = cls_loss + cls_loss * 0.01 * sigmoid(transform_loss)
 ```
 
-where `transform_loss = CrossEntropy(predicted_transform_type, true_transform_type)`. Since `sigmoid(transform_loss) in [0, 1]`, the auxiliary task increases the classification loss by **at most 1%**. This is deliberately minimal — the goal is not to optimize transform prediction, but to force the backbone to learn transformation-aware features.
+Since `sigmoid(transform_loss) in [0, 1]`, the auxiliary task increases the classification loss by **at most 1%**.
 
-### Training Differences Summary
+### Blended3fc Variant
 
-| Aspect | Robust | Blended |
-|--------|--------|---------|
-| Architecture | Plain classifier | Classifier + 4 aux heads + fusion MLP + residual |
-| Transform probability | 50% per image | 100% per image |
-| Severity range | U[0, 0.5] | U[0, 1.0] |
-| Transform pool | 3 (excl. no_transform) | 4 (incl. no_transform) |
-| Loss | `CrossEntropy` | `CE + CE * 0.01 * sigmoid(CE_transform)` |
-| Auxiliary loss weight | None | 0.01 (multiplicative) |
+A variant (`blended_training_3fc`) compresses features through 3 FC layers (384->512->256->128) before the auxiliary heads. Only tested on the ViT backbone.
 
 ### Evaluation Protocol
 
 All models are evaluated on:
 
-1. **Corrupted data**: random transforms at severities {0.25, 0.5, 0.75, 1.0}, with transforms sampled uniformly from {no_transform, gaussian_noise, rotation, affine}.
+1. **Corrupted data**: random transforms at severities {0.0, 0.25, 0.5, 0.75, 1.0}, with transforms sampled uniformly from {no_transform, gaussian_noise, rotation, affine}.
 2. **Out-of-Distribution (OOD)**: 10 extreme corruptions never seen during training (color inversion, pixelation, extreme blur, channel shuffle, posterization, solarization, JPEG compression, random masking, extreme noise, extreme rotation).
-
-All evaluations use proper dataset-specific normalization.
 
 ## Results
 
@@ -116,88 +92,123 @@ All evaluations use proper dataset-specific normalization.
 
 | Backbone | Model | Clean | S=0.25 | S=0.5 | S=0.75 | S=1.0 | Avg Drop | OOD |
 |----------|-------|:-----:|:------:|:-----:|:------:|:-----:|:--------:|:---:|
-| **ResNet18** | Robust | 66.5% | 51.1% | 43.9% | 42.2% | 41.4% | 0.219 | 34.1% |
-|              | **Blended** | **83.1%** | **76.9%** | **72.8%** | **70.2%** | **68.5%** | **0.111** | **46.6%** |
-| **VGG16** | Robust | 85.7% | 69.8% | 57.0% | 54.5% | 54.6% | 0.267 | 43.5% |
-|           | **Blended** | **82.7%** | **76.2%** | **72.8%** | **70.1%** | **67.5%** | **0.110** | **44.7%** |
-| **VGG19** | Robust | **88.6%** | 73.7% | 61.1% | 57.9% | 57.6% | 0.260 | **46.9%** |
-|           | **Blended** | 81.6% | **75.1%** | **72.2%** | **68.3%** | **66.5%** | **0.111** | 44.8% |
-| **ViT** | Robust | **79.5%** | 64.1% | 52.7% | 50.1% | 49.9% | 0.253 | **38.5%** |
-|         | **Blended** | 70.3% | **65.4%** | **62.3%** | **59.7%** | **58.2%** | **0.089** | 37.8% |
+| **ResNet18** | Normal | 64.5% | 48.5% | 42.3% | 40.9% | 40.0% | 0.216 | 30.1% |
+|              | Robust | 89.3% | 83.9% | 80.8% | 78.1% | 76.9% | 0.094 | 51.9% |
+|              | **Blended** | **90.4%** | **86.3%** | **84.0%** | **81.6%** | **79.6%** | **0.076** | **51.6%** |
+| **VGG16** | Normal | 85.8% | 61.9% | 54.5% | 51.1% | 50.3% | 0.313 | 41.2% |
+|           | Robust | **88.5%** | **83.6%** | **80.9%** | 77.8% | **75.9%** | **0.090** | **49.6%** |
+|           | Blended | 88.3% | 83.3% | 80.7% | **78.6%** | 75.5% | 0.088 | 49.4% |
+| **VGG19** | Normal | **87.2%** | 60.7% | 53.5% | 52.0% | 51.4% | 0.328 | 42.2% |
+|           | **Robust** | 87.9% | **82.5%** | **79.1%** | **77.4%** | **75.0%** | **0.094** | **48.5%** |
+|           | Blended | 87.3% | 81.8% | 77.7% | 75.1% | 73.2% | 0.104 | 47.7% |
+| **ViT** | Normal | 72.8% | 48.8% | 45.9% | 44.3% | 44.7% | 0.269 | 33.1% |
+|         | **Robust** | **79.4%** | **74.4%** | **71.5%** | **69.3%** | **67.2%** | **0.088** | **41.8%** |
+|         | Blended | 79.2% | 74.0% | 71.6% | 69.0% | 66.9% | 0.088 | 40.9% |
+|         | Blended3fc | 75.0% | 69.3% | 64.9% | 63.2% | 62.3% | 0.102 | 39.4% |
 
 ### Per-Transform Breakdown at Maximum Severity (S=1.0)
 
 | Backbone | Model | Gaussian Noise | Rotation | Affine |
 |----------|-------|:--------------:|:--------:|:------:|
-| **ResNet18** | Robust | 10.0% | 32.9% | 55.8% |
-|              | **Blended** | **52.5%** | **61.1%** | **77.4%** |
-| **VGG16** | Robust | 11.7% | 43.6% | 74.3% |
-|           | **Blended** | **52.5%** | **59.0%** | **76.5%** |
-| **VGG19** | Robust | 10.4% | 52.2% | 79.1% |
-|           | **Blended** | **50.9%** | **57.2%** | **76.0%** |
-| **ViT** | Robust | 10.3% | 42.3% | 68.2% |
-|         | **Blended** | **41.6%** | **52.6%** | **66.4%** |
+| **ResNet18** | Robust | 58.8% | 72.3% | 85.4% |
+|              | **Blended** | **62.8%** | **78.6%** | **86.9%** |
+| **VGG16** | Robust | **60.1%** | **72.5%** | **83.5%** |
+|           | Blended | 60.6% | 71.7% | 83.8% |
+| **VGG19** | Robust | **59.4%** | **70.6%** | **83.4%** |
+|           | Blended | 56.3% | 68.1% | 82.4% |
+| **ViT** | Robust | **52.4%** | **63.6%** | **74.7%** |
+|         | Blended | 52.5% | 63.1% | 75.0% |
 
 ### Transform Prediction Accuracy (Blended Models)
 
-The Blended models learn to predict which transform was applied with meaningful accuracy:
+The Blended models learn to predict which transform was applied:
 
 | Model | S=0.25 | S=0.5 | S=0.75 | S=1.0 |
 |-------|:------:|:-----:|:------:|:-----:|
-| ResNet18 Blended | 60.1% | 73.9% | 76.7% | 77.4% |
-| VGG16 Blended | 35.8% | 39.4% | 41.0% | 41.5% |
-| VGG19 Blended | 27.6% | 29.1% | 31.2% | 33.0% |
-| ViT Blended | 66.0% | 72.6% | 71.5% | 70.3% |
+| ResNet18 Blended | 73.5% | 82.5% | 84.8% | 84.7% |
+| VGG16 Blended | 37.9% | 36.9% | 35.9% | 33.7% |
+| VGG19 Blended | 39.7% | 40.5% | 37.6% | 35.7% |
+| ViT Blended | 74.2% | 81.4% | 82.2% | 81.3% |
+| ViT Blended3fc | 38.4% | 44.5% | 47.5% | 46.9% |
 
 (Random baseline = 25% for 4 classes.)
 
-## Paired Comparisons
+## Graphs
 
-### ResNet18: Robust vs Blended
-![ResNet18 Robust vs Blended](rendu/src/robustness_experiment_outputs/graphs/pair_resnet18_robust_vs_blended.png)
+### Overall Accuracy vs Corruption Severity (All 13 Models)
+![Overall Accuracy vs Severity](rendu/src/robustness_experiment_outputs/graphs/overall_accuracy_vs_severity.png)
 
-### VGG16: Robust vs Blended
-![VGG16 Robust vs Blended](rendu/src/robustness_experiment_outputs/graphs/pair_vgg16_robust_vs_blended.png)
+### Accuracy Drop from Clean
+![Accuracy Drop](rendu/src/robustness_experiment_outputs/graphs/accuracy_drop.png)
 
-### VGG19: Robust vs Blended
-![VGG19 Robust vs Blended](rendu/src/robustness_experiment_outputs/graphs/pair_vgg19_robust_vs_blended.png)
+### OOD Comparison
+![OOD Comparison](rendu/src/robustness_experiment_outputs/graphs/overall_ood_comparison.png)
 
-### ViT: Robust vs Blended
-![ViT Robust vs Blended](rendu/src/robustness_experiment_outputs/graphs/pair_vit_robust_vs_blended.png)
+### Robustness Retention
+![Robustness Retention](rendu/src/robustness_experiment_outputs/graphs/robustness_retention.png)
+
+### Per-Backbone Comparisons
+
+#### ResNet18: Normal vs Robust vs Blended
+![ResNet18](rendu/src/robustness_experiment_outputs/graphs/backbone_resnet18_comparison.png)
+
+#### VGG16: Normal vs Robust vs Blended
+![VGG16](rendu/src/robustness_experiment_outputs/graphs/backbone_vgg16_comparison.png)
+
+#### VGG19: Normal vs Robust vs Blended
+![VGG19](rendu/src/robustness_experiment_outputs/graphs/backbone_vgg19_comparison.png)
+
+#### ViT: Normal vs Robust vs Blended vs Blended3fc
+![ViT](rendu/src/robustness_experiment_outputs/graphs/backbone_vit_comparison.png)
+
+### Transform Prediction Accuracy
+![Transform Prediction](rendu/src/robustness_experiment_outputs/graphs/transform_prediction_accuracy.png)
 
 ## Analysis
 
-### Blended training dramatically reduces accuracy drop
+### ResNet18: Blended clearly wins
 
-Across all four backbones, the Blended model's average accuracy drop from clean to corrupted is **2-3x smaller** than the Robust model's:
+ResNet18 is the only backbone where Blended training shows a clear advantage over Robust:
+- **Higher clean accuracy**: 90.4% vs 89.3% (+1.2pp)
+- **Better at all severities**: 79.6% vs 76.9% at S=1.0 (+2.7pp)
+- **Lower accuracy drop**: 0.076 vs 0.094
+- **Comparable OOD**: 51.6% vs 51.9%
 
-| Backbone | Robust Drop | Blended Drop | Improvement |
-|----------|:-----------:|:------------:|:-----------:|
-| ResNet18 | 0.219 | 0.111 | **2.0x** |
-| VGG16 | 0.267 | 0.110 | **2.4x** |
-| VGG19 | 0.260 | 0.111 | **2.3x** |
-| ViT | 0.253 | 0.089 | **2.8x** |
+This is a genuine win — the auxiliary transform prediction task improves the model everywhere.
 
-### Gaussian noise resilience is the most striking improvement
+### VGG16/VGG19/ViT: Robust and Blended are essentially tied
 
-At maximum severity, Robust models collapse to ~10% accuracy under Gaussian noise (random chance on CIFAR-10), while Blended models maintain 42-53%. The transform prediction auxiliary task forces the model to learn features that distinguish noise from signal, providing inherent denoising capability.
+For the larger backbones, after ensuring a perfectly fair comparison (identical augmentation, optimizer, scheduler, seed), Robust and Blended perform almost identically:
 
-### The auxiliary loss is extremely small but highly effective
+| Backbone | Robust S=1.0 | Blended S=1.0 | Difference |
+|----------|:------------:|:--------------:|:----------:|
+| VGG16 | 75.9% | 75.5% | -0.4pp |
+| VGG19 | 75.0% | 73.2% | -1.8pp |
+| ViT | 67.2% | 66.9% | -0.3pp |
 
-The transform prediction loss increases the classification loss by at most 1% (`0.01 * sigmoid(...)` term). This near-zero auxiliary signal is sufficient to force the backbone into learning transformation-aware representations that dramatically improve robustness. The mechanism works through:
+The auxiliary loss neither helps nor hurts significantly for these architectures.
 
-1. **Feature fusion**: transform predictions are concatenated with backbone features and passed through a learned MLP.
-2. **Residual connection**: fused features are added back to the original features, so the transform-aware pathway can only enhance the representation, never degrade it.
-3. **Implicit regularization**: predicting the transform type requires the model to disentangle content from corruption, yielding features that are inherently more robust.
+### Blended3fc underperforms
 
-### Clean accuracy trade-off
+The Blended3fc variant (ViT with 3FC compression layers) achieves only 75.0% clean accuracy vs 79.4% for Robust and 79.2% for Blended. The 3FC compression layers (384->512->256->128) appear to create an information bottleneck that hurts overall performance.
 
-VGG19 Robust achieves the highest clean accuracy (88.6%) among all models, while VGG19 Blended sits at 81.6% — a 7-point gap. However, at S=1.0 the positions reverse: Blended holds 66.5% vs Robust at 57.6%. For VGG16, the clean gap is only 3 points (85.7% vs 82.7%) while the robustness advantage is massive. For ResNet18, Blended actually has **higher** clean accuracy (83.1% vs 66.5%) while also being more robust — a pure win.
+### The auxiliary loss is minimal but architecture-dependent
 
-### OOD robustness generalizes
+The transform prediction loss increases the classification loss by at most 1% (`0.01 * sigmoid(...)` term). For ResNet18, this tiny signal is sufficient to learn transformation-aware features that improve robustness. For larger models (VGG16, VGG19, ViT), the backbone's capacity is already sufficient to handle corruptions through augmentation alone.
 
-Even on out-of-distribution corruptions never seen during training, Blended models match or exceed Robust models in 3 of 4 backbones (ResNet18: 46.6% vs 34.1%, VGG16: 44.7% vs 43.5%, ViT: 37.8% vs 38.5%). This suggests the transformation-aware features provide genuine generalization, not just memorization of training augmentations.
+### All augmented models dramatically outperform Normal training
+
+Both Robust and Blended training provide massive improvements over Normal (no augmentation):
+
+| Backbone | Normal S=1.0 | Robust S=1.0 | Improvement |
+|----------|:------------:|:------------:|:-----------:|
+| ResNet18 | 40.0% | 76.9% | +36.9pp |
+| VGG16 | 50.3% | 75.9% | +25.6pp |
+| VGG19 | 51.4% | 75.0% | +23.6pp |
+| ViT | 44.7% | 67.2% | +22.5pp |
 
 ## Conclusion
 
-Adding a tiny auxiliary loss that predicts augmentation transform types — with an effective weight of just 1% — consistently and substantially improves model robustness across all tested architectures. The key insight is that **knowing what happened to the input** (via transform prediction) teaches the model to disentangle content from corruption, yielding features that degrade gracefully under unseen corruptions. This approach requires no additional data, minimal architectural overhead (4 linear heads + 1 fusion MLP), and negligible computational cost during training.
+Under a **fair comparison** with identical augmentation, optimizer, scheduler, and seed, the auxiliary transform prediction loss provides a **clear benefit for ResNet18** (the smallest backbone) but is **essentially neutral for larger architectures** (VGG16, VGG19, ViT). The 3FC compression variant hurts performance.
+
+The key takeaway is that **augmentation strategy matters far more than the auxiliary loss** — both Robust and Blended training dramatically outperform Normal training. The auxiliary task may help smaller models learn more efficient transformation-aware representations, but larger models achieve this naturally through their greater capacity.
